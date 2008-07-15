@@ -352,7 +352,8 @@ ENTRY(\sym)
  */
 	syscall_table_start sys_call_table
 #define COMPAT(nr, native, compat) syscall nr, native
-#ifdef CONFIG_AEABI
+
+#if defined(CONFIG_AEABI) && !defined(CONFIG_OABI_COMPAT)
 #include <calls-eabi.S>
 #else
 #include <calls-oabi.S>
