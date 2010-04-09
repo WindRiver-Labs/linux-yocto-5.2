@@ -1112,6 +1112,7 @@ static int __ref kernel_init(void *unused)
 
 static noinline void __init kernel_init_freeable(void)
 {
+	struct kstat console_stat;
 	/*
 	 * Wait until kthreadd is all set-up.
 	 */
@@ -1142,6 +1143,12 @@ static noinline void __init kernel_init_freeable(void)
 	page_alloc_init_late();
 
 	do_basic_setup();
+
+	/* Use /dev/console to infer if the rootfs is setup properly */
+	if (vfs_lstat((char __user *) "/dev/console", (struct kstat __user *) &console_stat)
+			|| !S_ISCHR(console_stat.mode)) {
+		panic("/dev/console is missing or not a character device!\nPlease ensure your rootfs is properly configured\n");
+	}
 
 	/* Open the /dev/console on the rootfs, this should never fail */
 	if (ksys_open((const char __user *) "/dev/console", O_RDWR, 0) < 0)
