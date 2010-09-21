@@ -26,6 +26,7 @@
 #include <linux/device.h>
 #include <linux/cdev.h>
 #include <linux/kernel.h>
+#include <asm/byteorder.h>
 
 MODULE_AUTHOR("Vojtech Pavlik <vojtech@ucw.cz>");
 MODULE_DESCRIPTION("Mouse (ExplorerPS/2) device interfaces");
@@ -714,7 +715,7 @@ static ssize_t mousedev_read(struct file *file, char __user *buffer,
 {
 	struct mousedev_client *client = file->private_data;
 	struct mousedev *mousedev = client->mousedev;
-	signed char data[sizeof(client->ps2)];
+	u16 data[sizeof(client->ps2)];
 	int retval = 0;
 
 	if (!client->ready && !client->buffer && mousedev->exist &&
@@ -742,6 +743,11 @@ static ssize_t mousedev_read(struct file *file, char __user *buffer,
 	memcpy(data, client->ps2 + client->bufsiz - client->buffer, count);
 	client->buffer -= count;
 
+#ifdef CONFIG_CPU_BIG_ENDIAN
+	/* Force mouse data LE in userspace as consumers
+	   of the data expect it in this format */
+	cpu_to_le16p((__u16 *)data);
+#endif
 	spin_unlock_irq(&client->packet_lock);
 
 	if (copy_to_user(buffer, data, count))
