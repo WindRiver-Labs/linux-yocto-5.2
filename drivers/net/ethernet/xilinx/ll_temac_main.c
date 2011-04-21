@@ -741,7 +741,6 @@ temac_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	skb_frag_t *frag;
 
 	num_frag = skb_shinfo(skb)->nr_frags;
-	frag = &skb_shinfo(skb)->frags[0];
 	start_p = lp->tx_bd_p + sizeof(*lp->tx_bd_v) * lp->tx_bd_tail;
 	cur_p = &lp->tx_bd_v[lp->tx_bd_tail];
 
@@ -770,6 +769,7 @@ temac_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	ptr_to_txbd((void *)skb, cur_p);
 
 	for (ii = 0; ii < num_frag; ii++) {
+		frag = &skb_shinfo(skb)->frags[ii];
 		lp->tx_bd_tail++;
 		if (lp->tx_bd_tail >= TX_BD_NUM)
 			lp->tx_bd_tail = 0;
@@ -782,7 +782,6 @@ temac_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		cur_p->phys = cpu_to_be32(skb_dma_addr);
 		cur_p->len = cpu_to_be32(skb_frag_size(frag));
 		cur_p->app0 = 0;
-		frag++;
 	}
 	cur_p->app0 |= cpu_to_be32(STS_CTRL_APP0_EOP);
 
