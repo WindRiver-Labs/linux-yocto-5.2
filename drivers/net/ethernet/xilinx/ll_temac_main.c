@@ -1269,14 +1269,15 @@ static int temac_probe(struct platform_device *pdev)
 		temac_init_mac_address(ndev, pdata->mac_addr);
 	}
 
-	rc = temac_mdio_setup(lp, pdev);
-	if (rc)
-		dev_warn(&pdev->dev, "error registering MDIO bus\n");
-
 	if (temac_np) {
 		lp->phy_node = of_parse_phandle(temac_np, "phy-handle", 0);
-		if (lp->phy_node)
+		if (lp->phy_node) {
 			dev_dbg(lp->dev, "using PHY node %pOF\n", temac_np);
+
+			rc = temac_mdio_setup(lp, op->dev.of_node);
+			if (rc)
+				dev_warn(&op->dev, "error registering MDIO bus\n");
+		}
 	} else if (pdata) {
 		snprintf(lp->phy_name, sizeof(lp->phy_name),
 			 PHY_ID_FMT, lp->mii_bus->id, pdata->phy_addr);

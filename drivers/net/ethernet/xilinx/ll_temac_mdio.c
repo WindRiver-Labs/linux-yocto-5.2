@@ -67,6 +67,7 @@ int temac_mdio_setup(struct temac_local *lp, struct platform_device *pdev)
 	int clk_div;
 	int rc;
 	struct resource res;
+	struct device_node *np1 = of_get_parent(lp->phy_node);
 
 	/* Get MDIO bus frequency (if specified) */
 	bus_hz = 0;
@@ -96,7 +97,7 @@ int temac_mdio_setup(struct temac_local *lp, struct platform_device *pdev)
 		return -ENOMEM;
 
 	if (np) {
-		of_address_to_resource(np, 0, &res);
+		of_address_to_resource(np1, 0, &res);
 		snprintf(bus->id, MII_BUS_ID_SIZE, "%.8llx",
 			 (unsigned long long)res.start);
 	} else if (pdata) {
@@ -112,7 +113,7 @@ int temac_mdio_setup(struct temac_local *lp, struct platform_device *pdev)
 
 	lp->mii_bus = bus;
 
-	rc = of_mdiobus_register(bus, np);
+	rc = of_mdiobus_register(bus, np1);
 	if (rc)
 		return rc;
 
