@@ -38,6 +38,7 @@
 #define __always_inline	inline
 #endif
 
+#undef __user
 #define __user
 #define __rcu
 #define __read_mostly
