@@ -5,6 +5,10 @@
  * Copyright (C) 2010 Tom Zanussi <tzanussi@gmail.com>
  */
 
+#ifdef __mips__
+#include <sgidefs.h>
+#endif
+
 #include <Python.h>
 #include "../../../perf.h"
 #include "../../../util/trace-event.h"
