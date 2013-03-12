@@ -673,6 +673,8 @@ static int dmatest_func(void *data)
 
 		total_tests++;
 
+		align = 3;
+
 		if (params->transfer_size) {
 			if (params->transfer_size >= buf_size) {
 				pr_err("%u-byte transfer size must be lower than %u-buffer size\n",
