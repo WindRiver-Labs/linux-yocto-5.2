@@ -3472,7 +3472,10 @@ static void caam_skcipher_alg_init(struct caam_skcipher_alg *t_alg)
 	alg->base.cra_module = THIS_MODULE;
 	alg->base.cra_priority = CAAM_CRA_PRIORITY;
 	alg->base.cra_ctxsize = sizeof(struct caam_ctx);
-	alg->base.cra_flags = CRYPTO_ALG_ASYNC | CRYPTO_ALG_KERN_DRIVER_ONLY;
+	alg->base.cra_flags = CRYPTO_ALG_ASYNC;
+#ifdef CRYPTO_ALG_KERN_DRIVER_ONLY
+	alg->base.cra_flags |= CRYPTO_ALG_KERN_DRIVER_ONLY;
+#endif
 
 	alg->init = caam_cra_init;
 	alg->exit = caam_cra_exit;
