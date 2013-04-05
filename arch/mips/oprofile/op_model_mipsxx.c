@@ -449,7 +449,9 @@ static int __init mipsxx_init(void)
 	}
 
 	save_perf_irq = perf_irq;
+#if 0
 	perf_irq = mipsxx_perfcount_handler;
+#endif
 
 	if (get_c0_perfcount_int)
 		perfcount_irq = get_c0_perfcount_int();
