@@ -1342,6 +1342,7 @@ int dpa_fq_init(struct dpa_fq *dpa_fq, bool td_enable)
 		}
 
 		_errno = qman_init_fq(fq, QMAN_INITFQ_FLAG_SCHED, &initfq);
+#ifndef CONFIG_CRASH_DUMP
 		if (_errno < 0) {
 			if (DPA_RX_PCD_HI_PRIO_FQ_INIT_FAIL(dpa_fq, _errno)) {
 				dpa_fq->init = 0;
@@ -1352,6 +1353,7 @@ int dpa_fq_init(struct dpa_fq *dpa_fq, bool td_enable)
 			}
 			return _errno;
 		}
+#endif
 	}
 
 	dpa_fq->fqid = qman_fq_fqid(fq);
