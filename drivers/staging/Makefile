@@ -29,6 +29,7 @@ obj-$(CONFIG_FIREWIRE_SERIAL)	+= fwserial/
 obj-$(CONFIG_GOLDFISH)		+= goldfish/
 obj-$(CONFIG_GS_FPGABOOT)	+= gs_fpgaboot/
 obj-$(CONFIG_UNISYSSPAR)	+= unisys/
+obj-$(CONFIG_XILINX_APF)	+= apf/
 obj-$(CONFIG_COMMON_CLK_XLNX_CLKWZRD)	+= clocking-wizard/
 obj-$(CONFIG_XILINX_FCLK)	+= fclk/
 obj-$(CONFIG_FB_TFT)		+= fbtft/
