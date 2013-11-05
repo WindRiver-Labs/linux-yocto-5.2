@@ -23,6 +23,7 @@
 #include <linux/semaphore.h>
 #include <linux/spinlock.h>
 #include <linux/device.h>
+#include <linux/genalloc.h>
 #include <linux/dma-mapping.h>
 #include <linux/firmware.h>
 #include <linux/slab.h>
@@ -356,6 +357,7 @@ struct sdma_desc {
  * @status:		status of dma channel
  * @data:		specific sdma interface structure
  * @bd_pool:		dma_pool for bd
+ * @bd_iram		flag indicating the memory location of buffer descriptor
  */
 struct sdma_channel {
 	struct virt_dma_chan		vc;
@@ -368,6 +370,7 @@ struct sdma_channel {
 	unsigned int			event_id0;
 	unsigned int			event_id1;
 	enum dma_slave_buswidth		word_size;
+	bool				bd_iram;
 	unsigned int			pc_from_device, pc_to_device;
 	unsigned int			device_to_device;
 	unsigned int                    pc_to_pc;
@@ -441,9 +444,11 @@ struct sdma_engine {
 	u32				spba_end_addr;
 	unsigned int			irq;
 	dma_addr_t			bd0_phys;
+	bool				bd0_iram;
 	struct sdma_buffer_descriptor	*bd0;
 	/* clock ratio for AHB:SDMA core. 1:1 is 1, 2:1 is 0*/
 	bool				clk_ratio;
+	struct gen_pool			*iram_pool;
 };
 
 static int sdma_config_write(struct dma_chan *chan,
@@ -694,10 +699,15 @@ static int sdma_load_script(struct sdma_engine *sdma, void *buf, int size,
 	dma_addr_t buf_phys;
 	int ret;
 	unsigned long flags;
+	bool use_iram = true;
 
-	buf_virt = dma_alloc_coherent(sdma->dev, size, &buf_phys, GFP_KERNEL);
+	buf_virt = gen_pool_dma_alloc(sdma->iram_pool, size, &buf_phys);
 	if (!buf_virt) {
-		return -ENOMEM;
+		use_iram = false;
+		buf_virt = dma_alloc_coherent(NULL, size, &buf_phys,
+					      GFP_KERNEL);
+		if (!buf_virt)
+			return -ENOMEM;
 	}
 
 	spin_lock_irqsave(&sdma->channel_0_lock, flags);
@@ -714,7 +724,10 @@ static int sdma_load_script(struct sdma_engine *sdma, void *buf, int size,
 
 	spin_unlock_irqrestore(&sdma->channel_0_lock, flags);
 
-	dma_free_coherent(sdma->dev, size, buf_virt, buf_phys);
+	if (use_iram)
+		gen_pool_free(sdma->iram_pool, (unsigned long)buf_virt, size);
+	else
+		dma_free_coherent(sdma->dev, size, buf_virt, buf_phys);
 
 	return ret;
 }
@@ -1212,11 +1225,17 @@ static int sdma_request_channel0(struct sdma_engine *sdma)
 {
 	int ret = -EBUSY;
 
-	sdma->bd0 = dma_alloc_coherent(sdma->dev, PAGE_SIZE, &sdma->bd0_phys,
-					GFP_NOWAIT);
+	sdma->bd0_iram = true;
+	sdma->bd0 = gen_pool_dma_alloc(sdma->iram_pool, PAGE_SIZE,
+				       &sdma->bd0_phys);
 	if (!sdma->bd0) {
-		ret = -ENOMEM;
-		goto out;
+		sdma->bd0_iram = false;
+		sdma->bd0 = dma_zalloc_coherent(NULL, PAGE_SIZE,
+						&sdma->bd0_phys, GFP_KERNEL);
+		if (!sdma->bd0) {
+			ret = -ENOMEM;
+			goto out;
+		}
 	}
 
 	sdma->channel_control[0].base_bd_ptr = sdma->bd0_phys;
@@ -1343,6 +1362,13 @@ static void sdma_free_chan_resources(struct dma_chan *chan)
 	sdmac->event_id1 = 0;
 
 	sdma_set_channel_priority(sdmac, 0);
+
+	if (sdmac->bd_iram)
+		gen_pool_free(sdma->iram_pool, (unsigned long)sdmac->desc->bd,
+			      PAGE_SIZE);
+	else
+		dma_free_coherent(NULL, PAGE_SIZE, sdmac->desc->bd,
+				  sdmac->desc->bd_phys);
 
 	clk_disable(sdma->clk_ipg);
 	clk_disable(sdma->clk_ahb);
@@ -1883,7 +1909,7 @@ static int sdma_get_firmware(struct sdma_engine *sdma,
 
 static int sdma_init(struct sdma_engine *sdma)
 {
-	int i, ret;
+	int i, ret, ccbsize;
 	dma_addr_t ccb_phys;
 
 	ret = clk_enable(sdma->clk_ipg);
@@ -1900,14 +1926,18 @@ static int sdma_init(struct sdma_engine *sdma)
 	/* Be sure SDMA has not started yet */
 	writel_relaxed(0, sdma->regs + SDMA_H_C0PTR);
 
-	sdma->channel_control = dma_alloc_coherent(sdma->dev,
-			MAX_DMA_CHANNELS * sizeof (struct sdma_channel_control) +
-			sizeof(struct sdma_context_data),
-			&ccb_phys, GFP_KERNEL);
+	ccbsize = MAX_DMA_CHANNELS * sizeof(struct sdma_channel_control)
+		+ sizeof(struct sdma_context_data);
 
+	sdma->channel_control = gen_pool_dma_alloc(sdma->iram_pool, ccbsize,
+						   &ccb_phys);
 	if (!sdma->channel_control) {
-		ret = -ENOMEM;
-		goto err_dma_alloc;
+		sdma->channel_control = dma_alloc_coherent(NULL, ccbsize,
+						&ccb_phys, GFP_KERNEL);
+		if (!sdma->channel_control) {
+			ret = -ENOMEM;
+			goto err_dma_alloc;
+		}
 	}
 
 	sdma->context = (void *)sdma->channel_control +
@@ -2111,6 +2141,11 @@ static int sdma_probe(struct platform_device *pdev)
 		if (i)
 			vchan_init(&sdmac->vc, &sdma->dma_device);
 	}
+
+	if (np)
+		sdma->iram_pool = of_gen_pool_get(np, "iram", 0);
+	if (!sdma->iram_pool)
+		dev_warn(&pdev->dev, "no iram assigned, using external mem\n");
 
 	ret = sdma_init(sdma);
 	if (ret)
