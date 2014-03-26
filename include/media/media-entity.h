@@ -884,6 +884,9 @@ int media_entity_get_fwnode_pad(struct media_entity *entity,
 				struct fwnode_handle *fwnode,
 				unsigned long direction_flags);
 
+bool media_entity_has_route(struct media_entity *entity, unsigned int sink,
+			    unsigned int source);
+
 /**
  * media_graph_walk_init - Allocate resources used by graph walk.
  *
