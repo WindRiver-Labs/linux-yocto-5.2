@@ -160,6 +160,10 @@
 #define ESDHC_FLAG_CQHCI		BIT(12)
 /* need request pmqos during low power */
 #define ESDHC_FLAG_PMQOS		BIT(13)
+/* need request bus freq during low power */
+#define ESDHC_FLAG_BUSFREQ		BIT(14)
+/* IP support ESDHC multiblock read ACMD 12 */
+#define ESDHC_FLAG_MULTIBLK_READ_ACMD12	BIT(15)
 
 struct esdhc_soc_data {
 	u32 flags;
@@ -221,6 +225,10 @@ static struct esdhc_soc_data usdhc_imx8qxp_data = {
 			| ESDHC_FLAG_CQHCI,
 };
 
+static struct esdhc_soc_data esdhc_vf610_data = {
+	.flags = ESDHC_FLAG_MULTIBLK_READ_ACMD12,
+};
+
 static struct esdhc_soc_data usdhc_sac58r_data = {
 	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MULTIBLK_READ_ACMD12,
 };
@@ -278,6 +286,7 @@ static const struct of_device_id imx_esdhc_dt_ids[] = {
 	{ .compatible = "fsl,imx7d-usdhc", .data = &usdhc_imx7d_data, },
 	{ .compatible = "fsl,imx7ulp-usdhc", .data = &usdhc_imx7ulp_data, },
 	{ .compatible = "fsl,imx8qxp-usdhc", .data = &usdhc_imx8qxp_data, },
+	{ .compatible = "fsl,vf610-esdhc", .data = &esdhc_vf610_data, },
 	{ .compatible = "fsl,sac58r-usdhc", .data = &usdhc_sac58r_data, },
 	{ .compatible = "fsl,s32v234-usdhc", .data = &usdhc_s32v234_data,},
 	{ /* sentinel */ }
@@ -1560,6 +1569,9 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 		host->mmc_host_ops.hs400_enhanced_strobe =
 					esdhc_hs400_enhanced_strobe;
 	}
+
+	if (imx_data->socdata->flags & ESDHC_FLAG_MULTIBLK_READ_ACMD12)
+		host->quirks |= SDHCI_QUIRK_MULTIBLOCK_READ_ACMD12;
 
 	if (imx_data->socdata->flags & ESDHC_FLAG_CQHCI) {
 		host->mmc->caps2 |= MMC_CAP2_CQE | MMC_CAP2_CQE_DCMD;
