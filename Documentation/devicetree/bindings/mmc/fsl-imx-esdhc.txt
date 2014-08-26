@@ -19,7 +19,8 @@ Required properties:
 	       "fsl,imx7d-usdhc"
 	       "fsl,imx7ulp-usdhc"
 	       "fsl,imx8qxp-usdhc"
-
+	       "fsl,sac58r-usdhc"
+ 	       "fsl,s32v234-usdhc"
 Optional properties:
 - fsl,wp-controller : Indicate to use controller internal write protection
 - fsl,delay-line : Specify the number of delay cells for override mode.
