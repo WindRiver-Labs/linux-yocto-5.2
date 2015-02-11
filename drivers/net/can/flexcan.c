@@ -1570,8 +1570,6 @@ static int __maybe_unused flexcan_suspend(struct device *device)
 		} else {
 			err = flexcan_chip_disable(priv);
 		}
-	} else {
-		err = flexcan_chip_disable(priv);
 	}
 	priv->can.state = CAN_STATE_SLEEPING;
 
@@ -1595,8 +1593,6 @@ static int __maybe_unused flexcan_resume(struct device *device)
 		} else {
 			err = flexcan_chip_enable(priv);
 		}
-	} else {
-		err = flexcan_chip_enable(priv);
 	}
 
 	return err;
