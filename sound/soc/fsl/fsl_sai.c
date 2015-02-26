@@ -4,6 +4,7 @@
 //
 // Copyright 2012-2015 Freescale Semiconductor, Inc.
 
+#include <linux/busfreq-imx.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/dmaengine.h>
@@ -528,6 +529,7 @@ static int fsl_sai_trigger(struct snd_pcm_substream *substream, int cmd,
 	case SNDRV_PCM_TRIGGER_START:
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		pm_runtime_get_sync(cpu_dai->dev);
 		regmap_update_bits(sai->regmap, FSL_SAI_xCSR(tx),
 				   FSL_SAI_CSR_FRDE, FSL_SAI_CSR_FRDE);
 
@@ -590,6 +592,7 @@ static int fsl_sai_trigger(struct snd_pcm_substream *substream, int cmd,
 				regmap_write(sai->regmap, FSL_SAI_RCSR, 0);
 			}
 		}
+		pm_runtime_put_sync(cpu_dai->dev);
 		break;
 	default:
 		return -EINVAL;
@@ -956,12 +959,16 @@ static int fsl_sai_runtime_suspend(struct device *dev)
 	regcache_cache_only(sai->regmap, true);
 	regcache_mark_dirty(sai->regmap);
 
+	release_bus_freq(BUS_FREQ_AUDIO);
+
 	return 0;
 }
 
 static int fsl_sai_runtime_resume(struct device *dev)
 {
 	struct fsl_sai *sai = dev_get_drvdata(dev);
+
+	request_bus_freq(BUS_FREQ_AUDIO);
 
 	regcache_cache_only(sai->regmap, false);
 	regmap_write(sai->regmap, FSL_SAI_TCSR, FSL_SAI_CSR_SR);
