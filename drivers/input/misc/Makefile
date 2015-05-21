@@ -87,3 +87,4 @@ obj-$(CONFIG_INPUT_YEALINK)		+= yealink.o
 obj-$(CONFIG_INPUT_IDEAPAD_SLIDEBAR)	+= ideapad_slidebar.o
 
 obj-$(CONFIG_INPUT_MPL3115)		+= mpl3115.o
+obj-$(CONFIG_SENSOR_FXLS8471)       	+= fxls8471.o fxls8471_i2c.o
