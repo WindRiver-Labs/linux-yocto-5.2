@@ -293,7 +293,7 @@
 /* SiFive UART */
 #define PORT_SIFIVE_V0	120
 
-/* Linflex UART */
+/* Freescale Linflex UART */
 #define PORT_LINFLEXUART 121
 
 #endif /* _UAPILINUX_SERIAL_CORE_H */
