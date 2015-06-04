@@ -682,7 +682,7 @@ config FUJITSU_ERRATUM_010001
 
 endmenu
 
-source "arch/arm64/mach-s32x/Kconfig"
+source "arch/arm64/mach-s32/Kconfig"
 
 choice
 	prompt "Page size"

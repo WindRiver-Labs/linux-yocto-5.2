@@ -122,7 +122,7 @@ KASAN_SHADOW_OFFSET := $(shell printf "0x%08x00000000\n" $$(( \
 
 export	TEXT_OFFSET GZFLAGS
 
-machine-$(CONFIG_ARCH_S32X)		+= s32x
+machine-$(CONFIG_ARCH_S32)		+= s32
 
 core-y		+= arch/arm64/kernel/ arch/arm64/mm/
 core-$(CONFIG_NET) += arch/arm64/net/
