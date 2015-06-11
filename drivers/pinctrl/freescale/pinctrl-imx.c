@@ -886,18 +886,24 @@ free:
 	return ret;
 }
 
-static int __maybe_unused imx_pinctrl_suspend(struct device *dev)
+int imx_pinctrl_suspend(struct device *dev)
 {
-	struct imx_pinctrl *ipctl = dev_get_drvdata(dev);
+       struct imx_pinctrl *ipctl = dev_get_drvdata(dev);
 
-	return pinctrl_force_sleep(ipctl->pctl);
+       if (!ipctl)
+               return -EINVAL;
+
+       return pinctrl_force_sleep(ipctl->pctl);
 }
 
-static int __maybe_unused imx_pinctrl_resume(struct device *dev)
+int imx_pinctrl_resume(struct device *dev)
 {
-	struct imx_pinctrl *ipctl = dev_get_drvdata(dev);
+       struct imx_pinctrl *ipctl = dev_get_drvdata(dev);
 
-	return pinctrl_force_default(ipctl->pctl);
+       if (!ipctl)
+               return -EINVAL;
+
+       return pinctrl_force_default(ipctl->pctl);
 }
 
 const struct dev_pm_ops imx_pinctrl_pm_ops = {
