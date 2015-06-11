@@ -169,4 +169,6 @@ static inline void imx_pinctrl_parse_pin_scu(struct imx_pinctrl *ipctl,
 {
 }
 #endif
+int imx_pinctrl_suspend(struct device *dev);
+int imx_pinctrl_resume(struct device *dev);
 #endif /* __DRIVERS_PINCTRL_IMX_H */
