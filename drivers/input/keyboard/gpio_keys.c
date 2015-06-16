@@ -985,6 +985,8 @@ static int __maybe_unused gpio_keys_suspend(struct device *dev)
 		mutex_unlock(&input->mutex);
 	}
 
+	pinctrl_pm_select_sleep_state(dev);
+
 	return 0;
 }
 
@@ -993,6 +995,8 @@ static int __maybe_unused gpio_keys_resume(struct device *dev)
 	struct gpio_keys_drvdata *ddata = dev_get_drvdata(dev);
 	struct input_dev *input = ddata->input;
 	int error = 0;
+
+	pinctrl_pm_select_default_state(dev);
 
 	if (device_may_wakeup(dev)) {
 		gpio_keys_disable_wakeup(ddata);
