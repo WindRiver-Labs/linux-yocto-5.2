@@ -198,7 +198,8 @@ static int ci_imx_ehci_hub_control(
 		 * If a transaction is in progress, there may be a delay in
 		 * suspending the port. Poll until the port is suspended.
 		 */
-		if (ehci_handshake(ehci, status_reg, PORT_SUSPEND,
+		if (test_bit(port, &ehci->bus_suspended) &&
+					ehci_handshake(ehci, status_reg, PORT_SUSPEND,
 						PORT_SUSPEND, 5000))
 			ehci_err(ehci, "timeout waiting for SUSPEND\n");
 
