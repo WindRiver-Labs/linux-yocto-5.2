@@ -327,6 +327,14 @@ static int ci_hdrc_imx_notify_event(struct ci_hdrc *ci, unsigned int event)
 			return ret;
 		imx_usbmisc_charger_secondary_detection(data->usbmisc_data);
 		break;
+	case CI_HDRC_IMX_TERM_SELECT_OVERRIDE_FS:
+		if (data->usbmisc_data)
+			return imx_usbmisc_term_select_override(
+					data->usbmisc_data, true, 1);
+	case CI_HDRC_IMX_TERM_SELECT_OVERRIDE_OFF:
+		if (data->usbmisc_data)
+			return imx_usbmisc_term_select_override(
+					data->usbmisc_data, false, 0);
 	default:
 		break;
 	}
