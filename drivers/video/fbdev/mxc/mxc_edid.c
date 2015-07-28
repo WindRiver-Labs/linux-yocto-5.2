@@ -738,7 +738,7 @@ int mxc_edid_read(struct i2c_adapter *adp, unsigned short addr,
 		return extblknum;
 
 	/* edid first block parsing */
-	memset(&fbi->monspecs, 0, sizeof(fbi->monspecs));
+	fb_destroy_modedb(fbi->monspecs.modedb);
 	fb_edid_to_monspecs(edid, &fbi->monspecs);
 
 	if (extblknum) {
