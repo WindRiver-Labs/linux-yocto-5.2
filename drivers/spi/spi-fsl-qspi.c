@@ -36,6 +36,7 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/pm_qos.h>
 #include <linux/sizes.h>
 
@@ -946,12 +947,15 @@ static int fsl_qspi_remove(struct platform_device *pdev)
 
 static int fsl_qspi_suspend(struct device *dev)
 {
+	pinctrl_pm_select_sleep_state(dev);
 	return 0;
 }
 
 static int fsl_qspi_resume(struct device *dev)
 {
 	struct fsl_qspi *q = dev_get_drvdata(dev);
+
+	pinctrl_pm_select_default_state(dev);
 
 	fsl_qspi_default_setup(q);
 
