@@ -1443,6 +1443,7 @@ static int sdma_terminate_all(struct dma_chan *chan)
 	spin_unlock_irqrestore(&sdmac->vc.lock, flags);
 	vchan_dma_desc_free_list(&sdmac->vc, &head);
 	sdma_disable_channel(chan);
+	sdmac->context_loaded = false;
 
 	return 0;
 }
@@ -2372,6 +2373,7 @@ static int sdma_probe(struct platform_device *pdev)
 		struct sdma_channel *sdmac = &sdma->channel[i];
 
 		sdmac->sdma = sdma;
+		sdmac->context_loaded = false;
 		sdmac->channel = i;
 		sdmac->status = DMA_IN_PROGRESS;
 		sdmac->vc.desc_free = sdma_desc_free;
