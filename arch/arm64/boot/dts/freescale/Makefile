@@ -22,6 +22,7 @@ dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-lx2160a-rdb.dtb
 dtb-$(CONFIG_ARCH_S32) += s32v234-evb.dtb
 dtb-$(CONFIG_ARCH_S32) += s32v234-palladium.dtb
 dtb-$(CONFIG_ARCH_S32) += s32v234-simulator.dtb
+dtb-$(CONFIG_ARCH_S32) += s32v234-tmdp.dtb
 
 dtb-$(CONFIG_ARCH_MXC) += imx8mm-evk.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mq-evk.dtb
