@@ -3,6 +3,8 @@
  * support fot the imx6 based aristainetos board
  *
  * Copyright (C) 2014 Heiko Schocher <hs@denx.de>
+ *
+ * Copyright 2015 Freescale Semiconductor, Inc. All Rights Reserved.
  */
 /dts-v1/;
 #include "imx6dl.dtsi"
@@ -27,37 +29,19 @@
 		device_type = "memory";
 		reg = <0x10000000 0x40000000>;
 	};
+};
 
-	display0: disp0 {
-		compatible = "fsl,imx-parallel-display";
-		interface-pix-fmt = "rgb24";
-		pinctrl-names = "default";
-		pinctrl-0 = <&pinctrl_ipu_disp>;
-		status = "okay";
+&mxcfb1 {
+	status = "okay";
+};
 
-		display-timings {
-			480x800p60 {
-				native-mode;
-				clock-frequency = <30000000>;
-				hactive = <480>;
-				vactive = <800>;
-				hfront-porch = <59>;
-				hback-porch = <10>;
-				hsync-len = <10>;
-				vback-porch = <15>;
-				vfront-porch = <15>;
-				vsync-len = <15>;
-				hsync-active = <1>;
-				vsync-active = <1>;
-			};
-		};
-
-		port {
-			display0_in: endpoint {
-				remote-endpoint = <&ipu1_di0_disp0>;
-			};
-		};
-	};
+&lcd {
+	ipu_id = <0>;
+	disp_id = <0>;
+	default_ifmt = "RGB24";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_ipu_disp>;
+	status = "okay";
 };
 
 &ecspi2 {
@@ -72,10 +56,6 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_i2c2>;
 	status = "okay";
-};
-
-&ipu1_di0_disp0 {
-	remote-endpoint = <&display0_in>;
 };
 
 &pwm1 {
