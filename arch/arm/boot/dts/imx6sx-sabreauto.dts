@@ -120,6 +120,13 @@
 		asrc-controller = <&asrc>;
 		audio-codec = <&codec>;
 	};
+
+	sound-spdif {
+		compatible = "fsl,imx-audio-spdif";
+		model = "imx-spdif";
+		spdif-controller = <&spdif>;
+		spdif-in;
+	};
 };
 
 &clks {
@@ -354,6 +361,12 @@
 	status = "okay";
 };
 
+&spdif {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_spdif_3>;
+	status = "okay";
+};
+
 &uart1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_uart1>;
@@ -567,6 +580,12 @@
 		pinctrl_led: ledgrp {
 			fsl,pins = <
 				MX6SX_PAD_CSI_PIXCLK__GPIO1_IO_24 0x17059
+			>;
+		};
+
+		pinctrl_spdif_3: spdifgrp-3 {
+			fsl,pins = <
+				MX6SX_PAD_ENET2_COL__SPDIF_IN           0x1b0b0
 			>;
 		};
 
