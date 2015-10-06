@@ -163,6 +163,7 @@ struct onfi_ext_param_page {
  * @async_timing_mode: Supported asynchronous timing mode
  * @vendor_revision: Vendor specific revision number
  * @vendor: Vendor specific data
+ * @jedec_id: Jedec ID of nand flash device
  */
 struct onfi_params {
 	int version;
@@ -173,6 +174,7 @@ struct onfi_params {
 	u16 async_timing_mode;
 	u16 vendor_revision;
 	u8 vendor[88];
+	u8 jedec_id;
 };
 
 #endif /* __LINUX_MTD_ONFI_H */
