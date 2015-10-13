@@ -549,6 +549,10 @@
 	status = "okay";
 };
 
+&pxp {
+	status = "okay";
+};
+
 &iomuxc {
 	imx6x-sabreauto {
 		pinctrl_egalax_int: egalax-intgrp {
