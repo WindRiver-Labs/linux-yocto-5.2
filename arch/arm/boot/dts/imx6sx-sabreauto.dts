@@ -10,6 +10,14 @@
 	model = "Freescale i.MX6 SoloX Sabre Auto Board";
 	compatible = "fsl,imx6sx-sabreauto", "fsl,imx6sx";
 
+	backlight2 {
+		compatible = "pwm-backlight";
+		pwms = <&pwm4 0 5000000>;
+		brightness-levels = <0 4 8 16 32 64 128 255>;
+		default-brightness-level = <6>;
+		fb-names = "mxs-lcdif1";
+	};
+
 	clocks {
 		codec_osc: anaclk2 {
 			#clock-cells = <0>;
@@ -498,6 +506,12 @@
 	status = "okay";
 };
 
+&pwm4 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pwm4_0>;
+	status = "okay";
+};
+
 &iomuxc {
 	imx6x-sabreauto {
 		pinctrl_egalax_int: egalax-intgrp {
@@ -656,6 +670,12 @@
 		pinctrl_led: ledgrp {
 			fsl,pins = <
 				MX6SX_PAD_CSI_PIXCLK__GPIO1_IO_24 0x17059
+			>;
+		};
+
+		pinctrl_pwm4_0: pwm4grp-0 {
+			fsl,pins = <
+				MX6SX_PAD_SD1_DATA1__PWM4_OUT 0x110b0
 			>;
 		};
 
