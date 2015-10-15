@@ -20,6 +20,7 @@ dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-ls2088a-rdb.dtb
 dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-lx2160a-qds.dtb
 dtb-$(CONFIG_ARCH_LAYERSCAPE) += fsl-lx2160a-rdb.dtb
 dtb-$(CONFIG_ARCH_S32) += s32v234-evb.dtb
+dtb-$(CONFIG_ARCH_S32) += s32v234-evbbcm.dtb
 dtb-$(CONFIG_ARCH_S32) += s32v234-palladium.dtb
 dtb-$(CONFIG_ARCH_S32) += s32v234-pcie.dtb
 dtb-$(CONFIG_ARCH_S32) += s32v234-simulator.dtb
