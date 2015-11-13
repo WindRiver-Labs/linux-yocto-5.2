@@ -352,6 +352,11 @@ config FIXED_PHY
 
 	  Currently tested with mpc866ads and mpc8349e-mitx.
 
+config BCM89XXX_PHY
+	tristate "Driver for Broadcom BCM89610 PHY"
+	help
+	  Currently supports the BCM89610 1G Ethernet PHY.
+
 config ICPLUS_PHY
 	tristate "ICPlus PHYs"
 	---help---
