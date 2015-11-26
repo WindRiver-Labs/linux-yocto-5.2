@@ -531,7 +531,7 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 	if (pdata.flags & CI_HDRC_SUPPORTS_RUNTIME_PM)
 		data->supports_runtime_pm = true;
 
-	if (of_find_property(np, "fsl,anatop", NULL)) {
+	if (of_find_property(np, "fsl,anatop", NULL) && data->usbmisc_data) {
 		data->anatop = syscon_regmap_lookup_by_phandle(np,
 							"fsl,anatop");
 		if (IS_ERR(data->anatop)) {
@@ -540,11 +540,11 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 			ret = PTR_ERR(data->anatop);
 			goto err_clk;
 		}
-		if (data->usbmisc_data)
-			data->usbmisc_data->anatop = data->anatop;
+		data->usbmisc_data->anatop = data->anatop;
 	}
 
-	if (of_find_property(np, "imx-usb-charger-detection", NULL)) {
+	if (of_find_property(np, "imx-usb-charger-detection", NULL) &&
+							data->usbmisc_data) {
 		data->imx_usb_charger_detection = true;
 		data->charger.dev = &pdev->dev;
 		data->usbmisc_data->charger = &data->charger;
@@ -587,7 +587,8 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 	}
 
 	/* usbmisc needs to know dr mode to choose wakeup setting */
-	data->usbmisc_data->available_role =
+	if (data->usbmisc_data)
+		data->usbmisc_data->available_role =
 			ci_hdrc_query_available_role(data->ci_pdev);
 
 	if (data->supports_runtime_pm) {
