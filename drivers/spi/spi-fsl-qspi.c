@@ -852,6 +852,10 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 
 	/* find the resources */
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "QuadSPI");
+	if (!res) {
+		dev_err(dev, "QuadSPI get resource IORESOURCE_MEM failed\n");
+		return -ENODEV;
+	}
 	q->iobase = devm_ioremap_resource(dev, res);
 	if (IS_ERR(q->iobase)) {
 		ret = PTR_ERR(q->iobase);
@@ -860,6 +864,11 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 					"QuadSPI-memory");
+	if (!res) {
+		dev_err(dev,
+			"QuadSPI-memory get resource IORESOURCE_MEM failed\n");
+		return -ENODEV;
+	}
 	q->ahb_addr = devm_ioremap_resource(dev, res);
 	if (IS_ERR(q->ahb_addr)) {
 		ret = PTR_ERR(q->ahb_addr);
