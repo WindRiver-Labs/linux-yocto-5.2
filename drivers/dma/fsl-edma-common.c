@@ -298,7 +298,7 @@ enum dma_status fsl_edma_tx_status(struct dma_chan *chan,
 	if (fsl_chan->edesc && cookie == fsl_chan->edesc->vdesc.tx.cookie)
 		txstate->residue =
 			fsl_edma_desc_residue(fsl_chan, vdesc, true);
-	else if (vdesc)
+	else if (fsl_chan->edesc && vdesc)
 		txstate->residue =
 			fsl_edma_desc_residue(fsl_chan, vdesc, false);
 	else
