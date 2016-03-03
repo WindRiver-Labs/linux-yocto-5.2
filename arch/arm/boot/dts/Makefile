@@ -653,6 +653,7 @@ dtb-$(CONFIG_SOC_IMX7D) += \
 	imx7d-sdb-reva.dtb \
 	imx7d-sdb-sht11.dtb \
 	imx7d-sdb-qspi.dtb \
+	imx7d-sdb-mipi-dsi.dtb \
 	imx7d-sdb-reva-epdc.dtb \
 	imx7d-sdb-reva-gpmi-weim.dtb \
 	imx7d-sdb-reva-hdmi-audio.dtb \
