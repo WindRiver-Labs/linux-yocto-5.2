@@ -51,6 +51,11 @@ static void dw_msi_ack_irq(struct irq_data *d)
 
 static void dw_msi_mask_irq(struct irq_data *d)
 {
+	struct msi_desc *desc = irq_data_get_msi_desc(d);
+
+	if (!desc)
+		return;
+
 	pci_msi_mask_irq(d);
 	irq_chip_mask_parent(d);
 }
