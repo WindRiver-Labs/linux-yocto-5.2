@@ -58,6 +58,11 @@ struct imx_usbmisc_data {
 	unsigned int ulpi:1; /* connected to an ULPI phy */
 	unsigned int hsic:1; /* HSIC controlller */
 	enum usb_dr_mode available_role;
+	/*
+	 * Specifies the delay between powering up the xtal 24MHz clock
+	 * and release the clock to the digital logic inside the analog block
+	 */
+	unsigned int osc_clkgate_delay;
 };
 
 int imx_usbmisc_init(struct imx_usbmisc_data *data);
