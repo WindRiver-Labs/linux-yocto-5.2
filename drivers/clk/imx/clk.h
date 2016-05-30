@@ -492,4 +492,9 @@ struct clk_hw *imx_clk_divider_gate(const char *name, const char *parent_name,
 		spinlock_t *lock);
 int imx_update_shared_mem(struct clk_hw *hw, bool enable);
 
+static inline int clk_on_imx6sx(void)
+{
+	return of_machine_is_compatible("fsl,imx6sx");
+}
+
 #endif
