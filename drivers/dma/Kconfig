@@ -217,7 +217,7 @@ config FSL_EDMA
 	help
 	  Support the Freescale eDMA engine with programmable channel
 	  multiplexing capability for DMA request sources(slot).
-	  This module can be found on Freescale Vybrid and LS-1 SoCs.
+	  This module can be found on Freescale Vybrid, LS-1 and S32V234 SoCs.
 
 config FSL_QDMA
        tristate "NXP Layerscape qDMA engine support"
