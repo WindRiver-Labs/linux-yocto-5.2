@@ -24,7 +24,9 @@ Optional properties:
   to 4.
 - spi-extended-mode: Empty property specifying the Extended (32-bit) SPI Mode
   support.
-
+- compatible = "spidev" if a spidev driver is used to interface the spi
+  from userspace
+ 
 Optional SPI slave node properties:
 - fsl,spi-cs-sck-delay: a delay in nanoseconds between activating chip
   select and the start of clock signal, at the start of a transfer.
