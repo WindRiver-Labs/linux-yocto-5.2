@@ -43,4 +43,16 @@ menu "S32V234 execution target"
 endmenu
 endif
 
+menu "STM timer used as system timer"
+	config S32V234_STM_SYSTIMER
+		bool "STM used as system timer"
+	select FSL_STM_TIMER if S32V234_STM_SYSTIMER
+	config STM_CLKSRC_RATE
+		int "STM Rating for ClockSource"
+		default 460
+	config STM_CLKEVT_RATE
+		int "STM Rating for ClockEvents"
+		default 460
+endmenu
+
 endif
