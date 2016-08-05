@@ -682,8 +682,6 @@ config FUJITSU_ERRATUM_010001
 
 endmenu
 
-source "arch/arm64/mach-s32/Kconfig"
-
 choice
 	prompt "Page size"
 	default ARM64_4K_PAGES
