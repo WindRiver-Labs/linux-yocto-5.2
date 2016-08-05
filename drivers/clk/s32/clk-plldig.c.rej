@@ -1,0 +1,186 @@
+diff a/drivers/clk/s32/clk-plldig.c b/drivers/clk/s32/clk-plldig.c	(rejected hunks)
+@@ -105,75 +115,73 @@ struct clk_plldig {
+ 
+ static unsigned long get_pllx_max_vco_rate(enum s32_plldig_type plltype)
+ {
+-	switch(plltype)
+-	{
+-		case S32_PLLDIG_ARM:
+-			return ARMPLL_MAX_VCO_RATE;
+-		case S32_PLLDIG_PERIPH:
+-			return PERIPHPLL_MAX_VCO_RATE;
+-		case S32_PLLDIG_ENET:
+-			return ENETPLL_MAX_VCO_RATE;
+-		case S32_PLLDIG_DDR:
+-			return DDRPLL_MAX_VCO_RATE;
+-		case S32_PLLDIG_VIDEO:
+-			return VIDEOPLL_MAX_VCO_RATE;
+-		default:
+-			printk(KERN_WARNING "Unsupported PLL. Please use one between %d - %d \n", S32_PLLDIG_ARM, S32_PLLDIG_VIDEO );
++	switch (plltype) {
++	case S32_PLLDIG_ARM:
++		return ARMPLL_MAX_VCO_RATE;
++	case S32_PLLDIG_PERIPH:
++		return PERIPHPLL_MAX_VCO_RATE;
++	case S32_PLLDIG_ENET:
++		return ENETPLL_MAX_VCO_RATE;
++	case S32_PLLDIG_DDR:
++		return DDRPLL_MAX_VCO_RATE;
++	case S32_PLLDIG_VIDEO:
++		return VIDEOPLL_MAX_VCO_RATE;
++	default:
++		pr_warn("Unsupported PLL. Use: %d or %d\n",
++			S32_PLLDIG_ARM,
++			S32_PLLDIG_VIDEO);
+ 			return -EINVAL;
+ 	}
+ }
+ 
+-static unsigned long get_pllx_phiy_max_rate(enum s32_plldig_type plltype, unsigned int phino)
++static unsigned long get_pllx_phiy_max_rate(enum s32_plldig_type plltype,
++					    unsigned int phino)
+ {
+-	switch(plltype)
+-	{
+-		case S32_PLLDIG_ARM:
+-			switch(phino)
+-			{
+-				case 0:
+-					return ARMPLL_MAX_PHI0_MAX_RATE;
+-				case 1:
+-					return ARMPLL_MAX_PHI1_MAX_RATE;
+-			}
+-			break;
+-		case S32_PLLDIG_PERIPH:
+-			switch(phino)
+-			{
+-				case 0:
+-					return PERIPHPLL_MAX_PHI0_MAX_RATE;
+-				case 1:
+-					return PERIPHPLL_MAX_PHI1_MAX_RATE;
+-			}
+-			break;
+-		case S32_PLLDIG_ENET:
+-			switch(phino)
+-			{
+-				case 0:
+-					return ENETPLL_MAX_PHI0_MAX_RATE;
+-				case 1:
+-					return ENETPLL_MAX_PHI1_MAX_RATE;
+-			}
+-			break;
+-		case S32_PLLDIG_DDR:
+-			switch(phino)
+-			{
+-				case 0:
+-					return DDRPLL_MAX_PHI0_MAX_RATE;
+-				case 1:
+-					return DDRPLL_MAX_PHI1_MAX_RATE;
+-			}
+-			break;
+-		case S32_PLLDIG_VIDEO:
+-			switch(phino)
+-			{
+-				case 0:
+-					return VIDEOPLL_MAX_PHI0_MAX_RATE;
+-				case 1:
+-					return -EINVAL;
+-			}
+-		default:
+-			printk(KERN_WARNING "Unsupported PLL. Please use one between %d - %d \n", S32_PLLDIG_ARM, S32_PLLDIG_VIDEO );
+-			break;
++	switch (plltype) {
++	case S32_PLLDIG_ARM:
++		switch (phino) {
++		case 0:
++			return ARMPLL_MAX_PHI0_MAX_RATE;
++		case 1:
++			return ARMPLL_MAX_PHI1_MAX_RATE;
++		}
++		break;
++	case S32_PLLDIG_PERIPH:
++		switch (phino) {
++		case 0:
++			return PERIPHPLL_MAX_PHI0_MAX_RATE;
++		case 1:
++			return PERIPHPLL_MAX_PHI1_MAX_RATE;
++		}
++		break;
++	case S32_PLLDIG_ENET:
++		switch (phino) {
++		case 0:
++			return ENETPLL_MAX_PHI0_MAX_RATE;
++		case 1:
++			return ENETPLL_MAX_PHI1_MAX_RATE;
++		}
++		break;
++	case S32_PLLDIG_DDR:
++		switch (phino) {
++		case 0:
++			return DDRPLL_MAX_PHI0_MAX_RATE;
++		case 1:
++			return DDRPLL_MAX_PHI1_MAX_RATE;
++		}
++		break;
++	case S32_PLLDIG_VIDEO:
++		switch (phino) {
++		case 0:
++			return VIDEOPLL_MAX_PHI0_MAX_RATE;
++		case 1:
++			return -EINVAL;
++		}
++	default:
++		pr_warn("Unsupported PLL. Use: %d or %d\n",
++			S32_PLLDIG_ARM,
++			S32_PLLDIG_VIDEO);
++		break;
+ 	}
+ 	return -EINVAL;
+ }
+@@ -316,28 +325,28 @@ struct clk *s32_clk_plldig_phi(enum s32_plldig_type type, const char *name,
+ {
+ 	u32 plldv, rfd_phi;
+ 
+-	if( !base )
++	if (!base)
+ 		return ERR_PTR(-ENOMEM);
+ 
+ 	plldv = readl_relaxed(PLLDIG_PLLDV(base));
+ 
+-	switch(phi)
+-	{
+-		/* PHI0 */
+-		case 0:
+-			rfd_phi = (plldv & PLLDIG_PLLDV_RFDPHI_MASK) \
+-				  >> PLLDIG_PLLDV_RFDPHI_OFFSET;
+-			break;
+-		/* PHI1 */
+-		case 1:
+-			rfd_phi = (plldv & PLLDIG_PLLDV_RFDPHI1_MASK) \
+-				  >> PLLDIG_PLLDV_RFDPHI1_OFFSET;
+-
+-			if( rfd_phi == 0 )
+-				rfd_phi = 1;
+-			break;
+-		default:
+-			return ERR_PTR(-EINVAL);
++	switch (phi) {
++	/* PHI0 */
++	case 0:
++		rfd_phi = (plldv & PLLDIG_PLLDV_RFDPHI_MASK)
++			  >> PLLDIG_PLLDV_RFDPHI_OFFSET;
++		break;
++	/* PHI1 */
++	case 1:
++		rfd_phi = (plldv & PLLDIG_PLLDV_RFDPHI1_MASK)
++			  >> PLLDIG_PLLDV_RFDPHI1_OFFSET;
++
++		if (rfd_phi == 0)
++			rfd_phi = 1;
++
++		break;
++	default:
++		return ERR_PTR(-EINVAL);
+ 	}
+ 
+ 	return clk_register_fixed_factor(NULL, name, parent,
