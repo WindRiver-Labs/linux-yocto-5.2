@@ -4,11 +4,15 @@ Programmable Logic (PL). The configuration uses  the firmware interface.
 
 Required properties:
 - compatible: should contain "xlnx,zynqmp-pcap-fpga"
+- clocks: phandle for clocks required operation
+- clock-names: name for the clock, should be "ref_clk"
 
 Example for full FPGA configuration:
 
 	fpga-region0 {
 		compatible = "fpga-region";
+		clocks = <&clkc 41>;
+		clock-names = "ref_clk";
 		fpga-mgr = <&zynqmp_pcap>;
 		#address-cells = <0x1>;
 		#size-cells = <0x1>;
