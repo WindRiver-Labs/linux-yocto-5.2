@@ -462,6 +462,10 @@ dtb-$(CONFIG_SOC_IMX6Q) += \
 	imx6dl-wandboard.dtb \
 	imx6dl-wandboard-revb1.dtb \
 	imx6dl-wandboard-revd1.dtb \
+	imx6dqscm-1gb-qwks-rev2-fix-ldo.dtb \
+	imx6dqscm-1gb-qwks-rev2-interleave-android-ldo.dtb \
+	imx6dqscm-1gb-qwks-rev2-wifi-fix-ldo.dtb \
+	imx6dqscm-1gb-qwks-rev2-hdcp-fix-ldo.dtb \
 	imx6dl-yapp4-draco.dtb \
 	imx6dl-yapp4-hydra.dtb \
 	imx6dl-yapp4-ursa.dtb \
