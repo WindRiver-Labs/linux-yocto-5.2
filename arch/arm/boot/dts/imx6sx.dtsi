@@ -1436,6 +1436,7 @@
 					clocks = <&clks IMX6SX_CLK_VADC>,
 						 <&clks IMX6SX_CLK_CSI>;
 					clock-names = "vadc", "csi";
+					power-domains = <&gpc 2>;
 					gpr = <&gpr>;
 					power-domains = <&pd_disp>;
 					status = "disabled";
