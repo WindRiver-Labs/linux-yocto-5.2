@@ -1060,7 +1060,7 @@ static int yaffs_readlink(struct dentry *dentry, char __user * buffer,
 
 #if (YAFFS_NEW_FOLLOW_LINK == 1)
 static const char *yaffs_get_link(struct dentry *dentry, struct inode *inode,
-				  void **cookie)
+				  struct delayed_call *done)
 {
 	void *ret;
 #else
@@ -1086,7 +1086,7 @@ static int yaffs_follow_link(struct dentry *dentry, struct nameidata *nd)
 		goto out;
 	}
 #if (YAFFS_NEW_FOLLOW_LINK == 1)
-	*cookie = alias;
+	set_delayed_call(done, kfree_link, alias);
 	ret = alias;
 out:
 	if (ret_int)
@@ -1117,18 +1117,10 @@ static void yaffs_put_inode(struct inode *inode)
 }
 #endif
 
-#if (YAFFS_NEW_FOLLOW_LINK == 1)
-void yaffs_put_link(struct inode *inode, void *cookie)
-{
-	kfree(cookie);
-}
-#endif
-
 static const struct inode_operations yaffs_symlink_inode_operations = {
 	.readlink = yaffs_readlink,
 #if (YAFFS_NEW_FOLLOW_LINK == 1)
 	.get_link = yaffs_get_link,
-	.put_link = yaffs_put_link,
 #else
 	.follow_link = yaffs_follow_link,
 #endif
