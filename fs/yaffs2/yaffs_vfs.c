@@ -1059,7 +1059,8 @@ static int yaffs_readlink(struct dentry *dentry, char __user * buffer,
 }
 
 #if (YAFFS_NEW_FOLLOW_LINK == 1)
-static const char *yaffs_follow_link(struct dentry *dentry, void **cookie)
+static const char *yaffs_get_link(struct dentry *dentry, struct inode *inode,
+				  void **cookie)
 {
 	void *ret;
 #else
@@ -1069,8 +1070,12 @@ static int yaffs_follow_link(struct dentry *dentry, struct nameidata *nd)
 #endif
 	unsigned char *alias;
 	int ret_int = 0;
-	struct yaffs_dev *dev = yaffs_dentry_to_obj(dentry)->my_dev;
+	struct yaffs_dev *dev;
 
+	if (!dentry)
+		return ERR_PTR(-ECHILD);
+
+	dev = yaffs_dentry_to_obj(dentry)->my_dev;
 	yaffs_gross_lock(dev);
 
 	alias = yaffs_get_symlink_alias(yaffs_dentry_to_obj(dentry));
@@ -1121,9 +1126,11 @@ void yaffs_put_link(struct inode *inode, void *cookie)
 
 static const struct inode_operations yaffs_symlink_inode_operations = {
 	.readlink = yaffs_readlink,
-	.follow_link = yaffs_follow_link,
 #if (YAFFS_NEW_FOLLOW_LINK == 1)
+	.get_link = yaffs_get_link,
 	.put_link = yaffs_put_link,
+#else
+	.follow_link = yaffs_follow_link,
 #endif
 	.setattr = yaffs_setattr,
 	.setxattr = yaffs_setxattr,
