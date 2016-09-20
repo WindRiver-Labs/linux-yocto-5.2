@@ -1785,7 +1785,7 @@ static int yaffs_readdir(struct file *file, struct dir_context *ctx)
 			yaffs_gross_unlock(dev);
 
 			if (!dir_emit(ctx, name, strlen(name),
-				      this_inode, this_type) < 0) {
+				      this_inode, this_type)) {
 				yaffs_gross_lock(dev);
 				goto out;
 			}
