@@ -919,10 +919,10 @@ static int yaffs_setattr(struct dentry *dentry, struct iattr *attr)
 	return error;
 }
 
-static int yaffs_setxattr(struct dentry *dentry, const char *name,
-		   const void *value, size_t size, int flags)
+static int yaffs_setxattr(struct dentry *dentry, struct inode *inode,
+			  const char *name, const void *value, size_t size,
+			  int flags)
 {
-	struct inode *inode = dentry->d_inode;
 	int error = 0;
 	struct yaffs_dev *dev;
 	struct yaffs_obj *obj = yaffs_inode_to_obj(inode);
@@ -952,10 +952,9 @@ static int yaffs_setxattr(struct dentry *dentry, const char *name,
 	return error;
 }
 
-static ssize_t yaffs_getxattr(struct dentry * dentry, const char *name,
-			void *buff, size_t size)
+static ssize_t yaffs_getxattr(struct dentry * dentry, struct inode *inode,
+			      const char *name, void *buff, size_t size)
 {
-	struct inode *inode = dentry->d_inode;
 	int error = 0;
 	struct yaffs_dev *dev;
 	struct yaffs_obj *obj = yaffs_inode_to_obj(inode);
