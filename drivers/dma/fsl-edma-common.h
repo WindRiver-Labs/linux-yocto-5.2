@@ -125,6 +125,7 @@ struct fsl_edma_chan {
 	u32				dma_dev_size;
 	enum dma_data_direction		dma_dir;
 	char				chan_name[16];
+	u32				chn_real_count;
 };
 
 struct fsl_edma_desc {
