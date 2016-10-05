@@ -106,6 +106,9 @@ config THUNDERX2_PMU
 	   The SoC has PMU support in its L3 cache controller (L3C) and
 	   in the DDR4 Memory Controller (DMC).
 
+config IMX8_DDR_PERF
+	tristate "Freescale i.MX8 DDR perf monitor"
+
 config XGENE_PMU
         depends on ARCH_XGENE
         bool "APM X-Gene SoC PMU"
