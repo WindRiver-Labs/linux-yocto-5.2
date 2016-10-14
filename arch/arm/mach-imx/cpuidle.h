@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
- * Copyright 2012-2015 Freescale Semiconductor, Inc.
+ * Copyright 2012-2016 Freescale Semiconductor, Inc.
  * Copyright 2012 Linaro Ltd.
  */
 
@@ -8,6 +8,7 @@
 extern int imx5_cpuidle_init(void);
 extern int imx6q_cpuidle_init(void);
 extern int imx6sl_cpuidle_init(void);
+extern int imx6sll_cpuidle_init(void);
 extern int imx6sx_cpuidle_init(void);
 extern int imx6ul_cpuidle_init(void);
 extern int imx7ulp_cpuidle_init(void);
@@ -23,6 +24,10 @@ static inline int imx6q_cpuidle_init(void)
 	return 0;
 }
 static inline int imx6sl_cpuidle_init(void)
+{
+	return 0;
+}
+static inline int imx6sll_cpuidle_init(void)
 {
 	return 0;
 }
