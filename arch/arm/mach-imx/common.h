@@ -92,14 +92,25 @@ enum mxc_cpu_pwr_mode {
 	STOP_POWER_OFF,		/* STOP + SRPG */
 };
 
-enum ulp_cpu_pwr_mode {
-	ULP_PM_HSRUN,    /* High speed run mode */
-	ULP_PM_RUN,      /* Run mode */
-	ULP_PM_WAIT,     /* Wait mode */
-	ULP_PM_STOP,     /* Stop mode */
-	ULP_PM_VLPS,     /* Very low power stop mode */
-	ULP_PM_VLLS,     /* very low leakage stop mode */
+enum mx3_cpu_pwr_mode {
+	MX3_RUN,
+	MX3_WAIT,
+	MX3_DOZE,
+	MX3_SLEEP,
 };
+
+enum imx7ulp_cpu_pwr_mode {
+	HSRUN,
+	RUN,
+	VLPR,
+	WAIT,
+	VLPW,
+	STOP,
+	VLPS,
+	VLLS,
+};
+
+void mx3_cpu_lp_set(enum mx3_cpu_pwr_mode mode);
 
 void imx_enable_cpu(int cpu, bool enable);
 void imx_set_cpu_jump(int cpu, void *jump_addr);
@@ -115,6 +126,7 @@ static inline void imx_smp_prepare(void) {}
 #endif
 void imx6_pm_map_io(void);
 void imx7_pm_map_io(void);
+void imx7ulp_pm_map_io(void);
 void imx_src_init(void);
 void imx_gpc_pre_suspend(bool arm_power_off);
 void imx_gpc_post_resume(void);
@@ -151,6 +163,7 @@ int imx6_set_lpm(enum mxc_cpu_pwr_mode mode);
 void imx6_set_int_mem_clk_lpm(bool enable);
 void imx6sl_set_wait_clk(bool enter);
 void imx6_enet_mac_init(const char *enet_compat, const char *ocotp_compat);
+int imx7ulp_set_lpm(enum imx7ulp_cpu_pwr_mode mode);
 #ifdef CONFIG_HAVE_IMX_MMDC
 int imx_mmdc_get_ddr_type(void);
 #else

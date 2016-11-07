@@ -625,6 +625,11 @@ config SOC_IMX7ULP
 	select PINCTRL_IMX7ULP
 	select SOC_IMX7D_CA7 if ARCH_MULTI_V7
 	select SOC_IMX7D_CM4 if ARM_SINGLE_ARMV7M
+	select CPU_V7
+	select ARM_GIC
+	select HAVE_IMX_MU
+	select HAVE_IMX_RPMSG
+	select RPMSG
 	help
 	  This enables support for Freescale i.MX7 Ultra Low Power processor.
 

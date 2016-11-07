@@ -104,6 +104,11 @@ static inline bool cpu_is_imx7d(void)
 	return __mxc_cpu_type == MXC_CPU_IMX7D;
 }
 
+static inline bool cpu_is_imx7ulp(void)
+{
+	return __mxc_cpu_type == MXC_CPU_IMX7ULP;
+}
+
 struct cpu_op {
 	u32 cpu_rate;
 };
