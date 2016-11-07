@@ -19,7 +19,9 @@ obj-$(CONFIG_MXC_CLK) += \
 	clk-pllv3.o \
 	clk-pllv4.o \
 	clk-sccg-pll.o \
-	clk-pll14xx.o
+	clk-pll14xx.o \
+	clk-composite.o \
+	clk-frac-divider.o
 
 obj-$(CONFIG_MXC_CLK_SCU) += \
 	clk-scu.o \
