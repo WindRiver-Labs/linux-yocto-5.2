@@ -309,6 +309,8 @@ source "drivers/gpu/drm/sti/Kconfig"
 
 source "drivers/gpu/drm/xilinx/Kconfig"
 
+source "drivers/gpu/drm/zocl/Kconfig"
+
 source "drivers/gpu/drm/imx/Kconfig"
 
 source "drivers/gpu/drm/v3d/Kconfig"
