@@ -69,6 +69,7 @@ static irqreturn_t fsl_edma_err_handler(int irq, void *dev_id)
 
 	for (ch = 0; ch < fsl_edma->n_chans; ch++) {
 		if (err & (0x1 << ch)) {
+			dev_err(fsl_edma->dma_dev.dev, "DMA CH%d Err!\n", ch);
 			fsl_edma_disable_request(&fsl_edma->chans[ch]);
 			edma_writeb(fsl_edma, EDMA_CERR_CERR(ch), regs->cerr);
 			fsl_edma->chans[ch].status = DMA_ERROR;
@@ -92,7 +93,7 @@ static struct dma_chan *fsl_edma_xlate(struct of_phandle_args *dma_spec,
 	struct fsl_edma_engine *fsl_edma = ofdma->of_dma_data;
 	struct dma_chan *chan, *_chan;
 	struct fsl_edma_chan *fsl_chan;
-	unsigned long chans_per_mux = fsl_edma->n_chans / DMAMUX_NR;
+	unsigned long chans_per_mux = fsl_edma->n_chans / fsl_edma->dmamux_nr;
 
 	if (dma_spec->args_count != 2)
 		return NULL;
@@ -176,8 +177,51 @@ static void fsl_disable_clocks(struct fsl_edma_engine *fsl_edma, int nr_clocks)
 {
 	int i;
 
-	for (i = 0; i < nr_clocks; i++)
+	for (i = 0; i < fsl_edma->dmamux_nr; i++)
 		clk_disable_unprepare(fsl_edma->muxclk[i]);
+
+	if (fsl_edma->dmaclk)
+		clk_disable_unprepare(fsl_edma->dmaclk);
+}
+
+static int
+fsl_edma2_irq_init(struct platform_device *pdev,
+		   struct fsl_edma_engine *fsl_edma)
+{
+	struct device_node *np = pdev->dev.of_node;
+	int i, ret, irq;
+	int count = 0;
+
+	count = of_irq_count(np);
+	dev_info(&pdev->dev, "%s Found %d interrupts\r\n", __func__, count);
+	if(count < 2){
+		dev_err(&pdev->dev, "Interrupts in DTS not correct.\n");
+		return -EINVAL;
+	}
+
+	for (i = 0; i < count; i++) {
+		irq = platform_get_irq(pdev, i);
+		if (irq < 0)
+			return -ENXIO;
+
+		sprintf(fsl_edma->chans[i].chan_name, "eDMA2-CH%02d", i);
+
+		/* The last IRQ is for eDMA err */
+		if (i == count - 1)
+			ret = devm_request_irq(&pdev->dev, irq,
+						fsl_edma_err_handler,
+						0, "eDMA2-ERR", fsl_edma);
+		else
+
+			ret = devm_request_irq(&pdev->dev, irq,
+						fsl_edma_tx_handler, 0,
+						fsl_edma->chans[i].chan_name,
+						fsl_edma);
+		if(ret)
+			return ret;
+	}
+
+	return 0;
 }
 
 static int fsl_edma_probe(struct platform_device *pdev)
@@ -213,7 +257,29 @@ static int fsl_edma_probe(struct platform_device *pdev)
 	fsl_edma_setup_regs(fsl_edma);
 	regs = &fsl_edma->regs;
 
-	for (i = 0; i < DMAMUX_NR; i++) {
+	fsl_edma->dmamux_nr = DMAMUX_NR;
+	fsl_edma->mux_configure = mux_configure8;
+	fsl_edma->version = 1;
+
+	if (of_device_is_compatible(np, "nxp,imx7ulp-edma")) {
+		fsl_edma->dmamux_nr = 1;
+		fsl_edma->mux_configure = mux_configure32;
+		fsl_edma->version = 2;
+
+		fsl_edma->dmaclk = devm_clk_get(&pdev->dev, "dma");
+		if (IS_ERR(fsl_edma->dmaclk)) {
+			dev_err(&pdev->dev, "Missing DMA block clock.\n");
+			return PTR_ERR(fsl_edma->dmaclk);
+		}
+
+		ret = clk_prepare_enable(fsl_edma->dmaclk);
+		if (ret) {
+			dev_err(&pdev->dev, "DMA clk block failed.\n");
+			return ret;
+		}
+	}
+
+	for (i = 0; i < fsl_edma->dmamux_nr; i++) {
 		char clkname[32];
 
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 1 + i);
@@ -239,6 +305,13 @@ static int fsl_edma_probe(struct platform_device *pdev)
 			fsl_disable_clocks(fsl_edma, i);
 
 	}
+
+	if (fsl_edma->version == 1)
+		ret = fsl_edma_irq_init(pdev, fsl_edma);
+	else
+		ret = fsl_edma2_irq_init(pdev, fsl_edma);
+	if (ret)
+		return ret;
 
 	fsl_edma->big_endian = of_property_read_bool(np, "big-endian");
 
@@ -380,6 +453,7 @@ static const struct dev_pm_ops fsl_edma_pm_ops = {
 
 static const struct of_device_id fsl_edma_dt_ids[] = {
 	{ .compatible = "fsl,vf610-edma", },
+	{ .compatible = "nxp,imx7ulp-edma", },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, fsl_edma_dt_ids);

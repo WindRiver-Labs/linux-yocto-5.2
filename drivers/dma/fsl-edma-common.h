@@ -124,6 +124,7 @@ struct fsl_edma_chan {
 	dma_addr_t			dma_dev_addr;
 	u32				dma_dev_size;
 	enum dma_data_direction		dma_dir;
+	char				chan_name[16];
 };
 
 struct fsl_edma_desc {
@@ -152,8 +153,39 @@ struct fsl_edma_engine {
 	bool			big_endian;
 	enum edma_version	version;
 	struct edma_regs	regs;
+	u32			dmamux_nr;
+	u32			version;
+	void			(*mux_configure)(struct fsl_edma_chan *,
+						 void __iomem *muxaddr, u32 off,
+						 u32 slot, bool enable);
 	struct fsl_edma_chan	chans[];
 };
+
+void mux_configure8(struct fsl_edma_chan *fsl_chan, void __iomem *muxaddr,
+		    u32 off, u32 slot, bool enable)
+{
+    u8 val8;
+
+    if (enable)
+        val8 = EDMAMUX_CHCFG_ENBL | slot;
+    else
+        val8 = EDMAMUX_CHCFG_DIS;
+
+    iowrite8(val8, muxaddr + off);
+}
+
+void mux_configure32(struct fsl_edma_chan *fsl_chan, void __iomem *muxaddr,
+		     u32 off, u32 slot, bool enable)
+{
+    u32 val;
+
+    if (enable)
+        val = EDMAMUX_CHCFG_ENBL << 16 | slot;
+    else
+        val = EDMAMUX_CHCFG_DIS;
+
+    iowrite32(val, muxaddr + off * 4);
+}
 
 /*
  * R/W functions for big- or little-endian registers:
