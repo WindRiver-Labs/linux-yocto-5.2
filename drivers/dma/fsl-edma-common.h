@@ -181,9 +181,9 @@ void mux_configure32(struct fsl_edma_chan *fsl_chan, void __iomem *muxaddr,
     u32 val;
 
     if (enable)
-        val = EDMAMUX_CHCFG_ENBL << 16 | slot;
+	val = EDMAMUX_CHCFG_ENBL << 24 | slot;
     else
-        val = EDMAMUX_CHCFG_DIS;
+	val = EDMAMUX_CHCFG_DIS;
 
     iowrite32(val, muxaddr + off * 4);
 }

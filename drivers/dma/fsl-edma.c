@@ -329,7 +329,9 @@ static int fsl_edma_probe(struct platform_device *pdev)
 		vchan_init(&fsl_chan->vchan, &fsl_edma->dma_dev);
 
 		edma_writew(fsl_edma, 0x0, &regs->tcd[i].csr);
+		fsl_chan->vchan.chan.chan_id = i;
 		fsl_edma_chan_mux(fsl_chan, 0, false);
+		fsl_chan->vchan.chan.chan_id = 0;
 	}
 
 	edma_writel(fsl_edma, ~0, regs->intl);
