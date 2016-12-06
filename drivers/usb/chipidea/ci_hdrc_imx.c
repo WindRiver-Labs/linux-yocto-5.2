@@ -74,6 +74,7 @@ static const struct ci_hdrc_imx_platform_flag imx7d_usb_data = {
 
 static const struct ci_hdrc_imx_platform_flag imx7ulp_usb_data = {
 	.flags = CI_HDRC_SUPPORTS_RUNTIME_PM |
+		CI_HDRC_IMX_EHCI_QUIRK |
 		CI_HDRC_PMQOS,
 };
 
@@ -708,7 +709,7 @@ static int __maybe_unused imx_controller_resume(struct device *dev)
 	request_bus_freq(BUS_FREQ_HIGH);
 	ret = imx_prepare_enable_clks(dev);
 	if (ret)
-		return ret;
+		return err_bus_freq;
 
 	data->in_lpm = false;
 
@@ -740,6 +741,10 @@ hsic_set_clk_fail:
 	imx_usbmisc_set_wakeup(data->usbmisc_data, true);
 clk_disable:
 	imx_disable_unprepare_clks(dev);
+err_bus_freq:
+	if (data->plat_data->flags & CI_HDRC_PMQOS)
+		pm_qos_remove_request(&data->pm_qos_req);
+	release_bus_freq(BUS_FREQ_HIGH);
 	return ret;
 }
 
