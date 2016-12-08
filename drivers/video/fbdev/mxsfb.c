@@ -37,6 +37,7 @@
 #include <linux/kernel.h>
 #include <linux/of_device.h>
 #include <linux/of_gpio.h>
+#include <linux/pm_qos.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/interrupt.h>
@@ -177,6 +178,7 @@
 enum mxsfb_devtype {
 	MXSFB_V3,
 	MXSFB_V4,
+	MXSFB_V5,
 };
 
 /* CPU dependent register offsets */
@@ -188,6 +190,7 @@ struct mxsfb_devdata {
 	unsigned hs_wdth_mask;
 	unsigned hs_wdth_shift;
 	unsigned ipversion;
+	u32 flags;
 };
 
 struct mxsfb_info {
@@ -217,10 +220,16 @@ struct mxsfb_info {
 	int id;
 	struct fb_var_screeninfo var;
 	int pre_init;
+	struct pm_qos_request pm_qos_req;
 };
 
 #define mxsfb_is_v3(host) (host->devdata->ipversion == 3)
 #define mxsfb_is_v4(host) (host->devdata->ipversion == 4)
+#define mxsfb_is_v5(host) (host->devdata->ipversion == 5)
+
+#define MXSFB_FLAG_NULL		0x0
+#define MXSFB_FLAG_BUSFREQ	0x1
+#define MXSFB_FLAG_PMQOS	0x2
 
 static const struct mxsfb_devdata mxsfb_devdata[] = {
 	[MXSFB_V3] = {
@@ -231,6 +240,7 @@ static const struct mxsfb_devdata mxsfb_devdata[] = {
 		.hs_wdth_mask = 0xff,
 		.hs_wdth_shift = 24,
 		.ipversion = 3,
+		.flags = MXSFB_FLAG_NULL,
 	},
 	[MXSFB_V4] = {
 		.transfer_count = LCDC_V4_TRANSFER_COUNT,
@@ -240,6 +250,17 @@ static const struct mxsfb_devdata mxsfb_devdata[] = {
 		.hs_wdth_mask = 0x3fff,
 		.hs_wdth_shift = 18,
 		.ipversion = 4,
+		.flags = MXSFB_FLAG_BUSFREQ,
+	},
+	[MXSFB_V5] = {
+		.transfer_count = LCDC_V4_TRANSFER_COUNT,
+		.cur_buf = LCDC_V4_CUR_BUF,
+		.next_buf = LCDC_V4_NEXT_BUF,
+		.debug0 = LCDC_V4_DEBUG0,
+		.hs_wdth_mask = 0x3fff,
+		.hs_wdth_shift = 18,
+		.ipversion = 4,
+		.flags = MXSFB_FLAG_PMQOS,
 	},
 };
 
@@ -1351,6 +1372,9 @@ static const struct platform_device_id mxsfb_devtype[] = {
 		.name = "imx28-fb",
 		.driver_data = MXSFB_V4,
 	}, {
+		.name = "imx7ulp-fb",
+		.driver_data = MXSFB_V5,
+	}, {
 		/* sentinel */
 	}
 };
@@ -1359,7 +1383,7 @@ MODULE_DEVICE_TABLE(platform, mxsfb_devtype);
 static const struct of_device_id mxsfb_dt_ids[] = {
 	{ .compatible = "fsl,imx23-lcdif", .data = &mxsfb_devtype[0], },
 	{ .compatible = "fsl,imx28-lcdif", .data = &mxsfb_devtype[1], },
-	{ .compatible = "fsl,imx7ulp-lcdif", .data = &mxsfb_devtype[1], },
+	{ .compatible = "fsl,imx7ulp-lcdif", .data = &mxsfb_devtype[2], },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, mxsfb_dt_ids);
@@ -1538,6 +1562,9 @@ static int mxsfb_remove(struct platform_device *pdev)
 	if (host->enabled)
 		mxsfb_disable_controller(fb_info);
 
+	if (host->devdata->flags & MXSFB_FLAG_PMQOS)
+		pm_qos_remove_request(&host->pm_qos_req);
+
 	pm_runtime_disable(&host->pdev->dev);
 	unregister_framebuffer(fb_info);
 	mxsfb_free_videomem(fb_info);
@@ -1568,7 +1595,14 @@ static void mxsfb_shutdown(struct platform_device *pdev)
 #ifdef CONFIG_PM
 static int mxsfb_runtime_suspend(struct device *dev)
 {
-	release_bus_freq(BUS_FREQ_HIGH);
+	struct mxsfb_info *host = dev_get_drvdata(dev);
+
+	if (host->devdata->flags & MXSFB_FLAG_BUSFREQ)
+		release_bus_freq(BUS_FREQ_HIGH);
+
+	if (host->devdata->flags & MXSFB_FLAG_PMQOS)
+		pm_qos_remove_request(&host->pm_qos_req);
+
 	dev_dbg(dev, "mxsfb busfreq high release.\n");
 
 	return 0;
@@ -1576,7 +1610,15 @@ static int mxsfb_runtime_suspend(struct device *dev)
 
 static int mxsfb_runtime_resume(struct device *dev)
 {
-	request_bus_freq(BUS_FREQ_HIGH);
+	struct mxsfb_info *host = dev_get_drvdata(dev);
+
+	if (host->devdata->flags & MXSFB_FLAG_BUSFREQ)
+		request_bus_freq(BUS_FREQ_HIGH);
+
+	if (host->devdata->flags & MXSFB_FLAG_PMQOS)
+		pm_qos_add_request(&host->pm_qos_req,
+			PM_QOS_CPU_DMA_LATENCY, 0);
+
 	dev_dbg(dev, "mxsfb busfreq high request.\n");
 
 	return 0;
