@@ -26,8 +26,6 @@
 #define FREEZE_CSR_CTRL_RESET_REQ		BIT(1)
 #define FREEZE_CSR_CTRL_UNFREEZE_REQ		BIT(2)
 
-#define FREEZE_BRIDGE_NAME			"freeze"
-
 struct altera_freeze_br_data {
 	struct device *dev;
 	void __iomem *base_addr;
@@ -245,7 +243,7 @@ static int altera_freeze_br_probe(struct platform_device *pdev)
 
 	priv->base_addr = base_addr;
 
-	br = fpga_bridge_create(dev, FREEZE_BRIDGE_NAME,
+	return fpga_bridge_register(dev, dev_name(dev),
 				&altera_freeze_br_br_ops, priv);
 	if (!br)
 		return -ENOMEM;
