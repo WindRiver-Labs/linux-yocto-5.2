@@ -56,11 +56,18 @@
 #define EDMAMUX_CHCFG_SOURCE(n)		((n) & 0x3F)
 
 #define DMAMUX_NR	2
+#define FSL_EDMA_REG_NUM	3
+#define FSL_DMAMUX_SLOTS	32
+#define FSL_DMAMUX_REG_NUM	(DMAMUX_NR * FSL_DMAMUX_SLOTS)
 
 #define FSL_EDMA_BUSWIDTHS	(BIT(DMA_SLAVE_BUSWIDTH_1_BYTE) | \
 				 BIT(DMA_SLAVE_BUSWIDTH_2_BYTES) | \
 				 BIT(DMA_SLAVE_BUSWIDTH_4_BYTES) | \
 				 BIT(DMA_SLAVE_BUSWIDTH_8_BYTES))
+
+/* Controller will loss power in i.MX7ULP VLLS low power mode */
+#define FSL_EDMA_QUIRK_VLLS_MODE	(1 << 0)
+
 enum fsl_edma_pm_state {
 	RUNNING = 0,
 	SUSPENDED,
@@ -159,6 +166,9 @@ struct fsl_edma_engine {
 	void			(*mux_configure)(struct fsl_edma_chan *,
 						 void __iomem *muxaddr, u32 off,
 						 u32 slot, bool enable);
+	u32			edma_regs[FSL_EDMA_REG_NUM];
+	u32			dmamux_regs[FSL_DMAMUX_REG_NUM];
+	u32			quirks;
 	struct fsl_edma_chan	chans[];
 };
 
@@ -266,5 +276,6 @@ int fsl_edma_alloc_chan_resources(struct dma_chan *chan);
 void fsl_edma_free_chan_resources(struct dma_chan *chan);
 void fsl_edma_cleanup_vchan(struct dma_device *dmadev);
 void fsl_edma_setup_regs(struct fsl_edma_engine *edma);
+void fsl_edma_get_realcnt(struct fsl_edma_chan *fsl_chan)
 
 #endif /* _FSL_EDMA_COMMON_H_ */
