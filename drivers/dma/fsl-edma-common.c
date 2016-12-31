@@ -139,7 +139,7 @@ int fsl_edma_terminate_all(struct dma_chan *chan)
 }
 EXPORT_SYMBOL_GPL(fsl_edma_terminate_all);
 
-int fsl_edma_pause(struct dma_chan *chan)
+int fsl_edma_device_pause(struct dma_chan *chan)
 {
 	struct fsl_edma_chan *fsl_chan = to_fsl_edma_chan(chan);
 	unsigned long flags;
@@ -153,9 +153,9 @@ int fsl_edma_pause(struct dma_chan *chan)
 	spin_unlock_irqrestore(&fsl_chan->vchan.lock, flags);
 	return 0;
 }
-EXPORT_SYMBOL_GPL(fsl_edma_pause);
+EXPORT_SYMBOL_GPL(fsl_edma_device_pause);
 
-int fsl_edma_resume(struct dma_chan *chan)
+int fsl_edma_device_resume(struct dma_chan *chan)
 {
 	struct fsl_edma_chan *fsl_chan = to_fsl_edma_chan(chan);
 	unsigned long flags;
@@ -169,7 +169,7 @@ int fsl_edma_resume(struct dma_chan *chan)
 	spin_unlock_irqrestore(&fsl_chan->vchan.lock, flags);
 	return 0;
 }
-EXPORT_SYMBOL_GPL(fsl_edma_resume);
+EXPORT_SYMBOL_GPL(fsl_edma_device_resume);
 
 static void fsl_edma_unprep_slave_dma(struct fsl_edma_chan *fsl_chan)
 {
@@ -569,10 +569,11 @@ void fsl_edma_xfer_desc(struct fsl_edma_chan *fsl_chan)
 }
 EXPORT_SYMBOL_GPL(fsl_edma_xfer_desc);
 
-static void fsl_edma_get_realcnt(struct fsl_edma_chan *fsl_chan)
+void fsl_edma_get_realcnt(struct fsl_edma_chan *fsl_chan)
 {
 	fsl_chan->chn_real_count = fsl_edma_desc_residue(fsl_chan, NULL, true);
 }
+EXPORT_SYMBOL_GPL(fsl_edma_get_realcnt);
 
 void fsl_edma_issue_pending(struct dma_chan *chan)
 {
