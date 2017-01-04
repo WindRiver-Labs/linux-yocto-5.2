@@ -48,6 +48,7 @@
 #include <linux/fb.h>
 #include <linux/mxcfb.h>
 #include <linux/regulator/consumer.h>
+#include <linux/types.h>
 #include <linux/videodev2.h>
 #include <video/of_display_timing.h>
 #include <video/videomode.h>
@@ -209,7 +210,7 @@ struct mxsfb_layer {
 	struct fb_info		*ol_fb;
 	int			id;
 	int			registered;
-	uint32_t		usage;
+	atomic_t		usage;
 	int			blank_state;
 	uint32_t		global_alpha;
 
@@ -1660,7 +1661,7 @@ static int overlayfb_open(struct fb_info *info, int user)
 	struct mxsfb_layer *ofb = (struct mxsfb_layer *)info->par;
 	struct mxsfb_info  *fbi = ofb->fbi;
 
-	if (ofb->usage++ == 0) {
+	if (atomic_inc_return(&ofb->usage) == 1) {
 		memset((void *)&info->var, 0x0, sizeof(info->var));
 
 		ofb->ol_fb->var.xres		= fbi->fb_info->var.xres;
@@ -1679,9 +1680,9 @@ static int overlayfb_release(struct fb_info *info, int user)
 	struct mxsfb_layer *ofb = (struct mxsfb_layer *)info->par;
 	struct mxsfb_info *fbi = ofb->fbi;
 
-	BUG_ON(!ofb->usage);
+	BUG_ON(!atomic_read(&ofb->usage));
 
-	if (--ofb->usage == 0) {
+	if (atomic_dec_return(&ofb->usage) == 0) {
 		if (ofb->blank_state == FB_BLANK_UNBLANK)
 			ofb->ops->disable(ofb);
 
@@ -1904,7 +1905,7 @@ static void init_mxsfb_overlay(struct mxsfb_info *fbi,
 
 	ofb->id = 0;
 	ofb->ops = &ofb_ops;
-	ofb->usage = 0;
+	atomic_set(&ofb->usage, 0);
 	ofb->blank_state = -1;
 	ofb->global_alpha = 255;
 	ofb->fbi = fbi;
