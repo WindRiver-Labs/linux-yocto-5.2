@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright 2004-2016 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2017 NXP
  */
 
 
@@ -197,6 +198,7 @@ void imx7ulp_cpu_resume(void);
 void imx6_suspend(void __iomem *ocram_vbase);
 void imx7_suspend(void __iomem *ocram_vbase);
 void imx7ulp_suspend(void __iomem *ocram_vbase);
+void pm_vlls_notify_m4(bool enter);
 #else
 static inline void v7_cpu_resume(void) {}
 static inline void ca7_cpu_resume(void) {}
@@ -206,6 +208,7 @@ static inline void imx7ulp_cpu_resume(void) {}
 static inline void imx6_suspend(void __iomem *ocram_vbase) {}
 static inline void imx7_suspend(void __iomem *ocram_vbase) {}
 static inline void imx7ulp_suspend(void __iomem *ocram_vbase) {}
+void pm_vlls_notify_m4(bool enter) {}
 #endif
 
 void imx6_pm_ccm_init(const char *ccm_compat);
