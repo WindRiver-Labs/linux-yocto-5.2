@@ -1487,11 +1487,15 @@ static int yaffs_symlink(struct inode *dir, struct dentry *dentry,
  * NB: POSIX says you can rename an object over an old object of the same name
  */
 static int yaffs_rename(struct inode *old_dir, struct dentry *old_dentry,
-			struct inode *new_dir, struct dentry *new_dentry)
+			struct inode *new_dir, struct dentry *new_dentry,
+			unsigned int flags)
 {
 	struct yaffs_dev *dev;
 	int ret_val = YAFFS_FAIL;
 	struct yaffs_obj *target;
+
+	if (flags)
+		return -EINVAL;
 
 	yaffs_trace(YAFFS_TRACE_OS, "yaffs_rename");
 	dev = yaffs_inode_to_obj(old_dir)->my_dev;
