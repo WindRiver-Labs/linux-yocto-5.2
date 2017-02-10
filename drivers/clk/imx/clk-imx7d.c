@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (C) 2014-2015 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP.
  */
 
 #include <dt-bindings/clock/imx7d-clock.h>
@@ -24,6 +25,8 @@ static u32 share_count_nand;
 static u32 share_count_enet1;
 static u32 share_count_enet2;
 static u32 share_count_pxp;
+static u32 share_count_enet1;
+static u32 share_count_enet2;
 
 static const struct clk_div_table test_div_table[] = {
 	{ .val = 3, .div = 1, },
