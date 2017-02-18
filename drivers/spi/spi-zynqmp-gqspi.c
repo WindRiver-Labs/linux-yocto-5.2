@@ -1074,6 +1074,7 @@ static int __maybe_unused zynqmp_qspi_resume(struct device *dev)
 		return ret;
 	}
 
+	zynqmp_qspi_init_hw(xqspi);
 	spi_master_resume(master);
 
 	clk_disable(xqspi->refclk);
