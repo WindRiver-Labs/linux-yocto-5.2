@@ -1587,6 +1587,7 @@
 			pcie-phy-supply = <&reg_pcie_phy>;
 			power-domains = <&pd_disp>;
 			power-domain-names = "pcie";
+			fsl,max-link-speed = <2>;
 			status = "disabled";
 		};
 	};
