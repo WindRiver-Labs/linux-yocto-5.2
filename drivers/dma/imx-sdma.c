@@ -383,10 +383,10 @@ struct sdma_channel {
 	struct imx_dma_data		data;
 	unsigned int			chn_count;
 	unsigned int			chn_real_count;
-	struct dma_pool			*bd_pool;
 	u32				bd_size_sum;
 	bool				src_dualfifo;
 	bool				dst_dualfifo;
+	struct dma_pool			*bd_pool;
 };
 
 #define IMX_DMA_SG_LOOP		BIT(0)
@@ -1292,8 +1292,8 @@ static int sdma_alloc_bd(struct sdma_desc *desc)
 				      &desc->bd_phys);
 	if (!desc->bd) {
 		desc->bd_iram = false;
-		desc->bd = dma_alloc_coherent(NULL, bd_size, &desc->bd_phys,
-					      GFP_ATOMIC);
+		desc->bd = dma_pool_alloc(desc->sdmac->bd_pool, GFP_ATOMIC,
+						&desc->bd_phys);
 		if (!desc->bd)
 			return ret;
 	}
@@ -1316,8 +1316,8 @@ static void sdma_free_bd(struct sdma_desc *desc)
 			gen_pool_free(desc->sdmac->sdma->iram_pool,
 				     (unsigned long)desc->bd, bd_size);
 		else
-			dma_free_coherent(NULL, bd_size, desc->bd,
-					  desc->bd_phys);
+			dma_pool_free(desc->sdmac->bd_pool, desc->bd,
+					desc->bd_phys);
 		spin_lock_irqsave(&desc->sdmac->vc.lock, flags);
 		desc->sdmac->bd_size_sum -= bd_size;
 		spin_unlock_irqrestore(&desc->sdmac->vc.lock, flags);
@@ -1493,6 +1493,10 @@ static int sdma_alloc_chan_resources(struct dma_chan *chan)
 		goto disable_clk_ahb;
 
 	sdmac->bd_size_sum = 0;
+
+	sdmac->bd_pool = dma_pool_create("bd_pool", chan->device->dev,
+				sizeof(struct sdma_buffer_descriptor),
+				32, 0);
 
 	return 0;
 
