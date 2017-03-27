@@ -419,6 +419,8 @@ patternProperties:
     description: Integrated Silicon Solutions Inc.
   "^itead,.*":
     description: ITEAD Intelligent Systems Co.Ltd
+  "^ite,.*":
+    description: ITE Tech. Inc.
   "^iwave,.*":
     description: iWave Systems Technologies Pvt. Ltd.
   "^jdi,.*":
