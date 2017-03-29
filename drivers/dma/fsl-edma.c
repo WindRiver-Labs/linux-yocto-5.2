@@ -343,6 +343,7 @@ static int fsl_edma_probe(struct platform_device *pdev)
 
 	}
 
+	edma_writel(fsl_edma, ~0, regs->intl);
 	if (fsl_edma->version == 1)
 		ret = fsl_edma_irq_init(pdev, fsl_edma);
 	else
@@ -369,11 +370,6 @@ static int fsl_edma_probe(struct platform_device *pdev)
 		fsl_edma_chan_mux(fsl_chan, 0, false);
 		fsl_chan->vchan.chan.chan_id = 0;
 	}
-
-	edma_writel(fsl_edma, ~0, regs->intl);
-	ret = fsl_edma_irq_init(pdev, fsl_edma);
-	if (ret)
-		return ret;
 
 	dma_cap_set(DMA_PRIVATE, fsl_edma->dma_dev.cap_mask);
 	dma_cap_set(DMA_SLAVE, fsl_edma->dma_dev.cap_mask);
