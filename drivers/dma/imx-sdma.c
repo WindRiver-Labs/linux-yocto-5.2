@@ -1768,7 +1768,8 @@ static struct dma_async_tx_descriptor *sdma_prep_dma_cyclic(
 
 	sdma_config_write(chan, &sdmac->slave_config, direction);
 
-	num_periods = buf_len / period_len;
+	if (sdmac->peripheral_type != IMX_DMATYPE_HDMI)
+		num_periods = buf_len / period_len;
 	/* Now allocate and setup the descriptor. */
 	desc = sdma_transfer_init(sdmac, direction, num_periods);
 	if (!desc)
