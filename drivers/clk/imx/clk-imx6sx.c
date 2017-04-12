@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (C) 2014-2016 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP
  */
 
 #include <dt-bindings/clock/imx6sx-clock.h>
@@ -620,7 +621,7 @@ static void __init imx6sx_clocks_init(struct device_node *ccm_node)
 	imx_clk_set_rate(clks[IMX6SX_CLK_PLL4_AUDIO_DIV], 393216000);
 
 	imx_clk_set_parent(clks[IMX6SX_CLK_SPDIF_SEL], clks[IMX6SX_CLK_PLL4_AUDIO_DIV]);
-	imx_clk_set_rate(clks[IMX6SX_CLK_SPDIF_PODF], 98304000);
+	imx_clk_set_rate(clks[IMX6SX_CLK_SPDIF_PODF], 24576000);
 
 	imx_clk_set_parent(clks[IMX6SX_CLK_AUDIO_SEL], clks[IMX6SX_CLK_PLL3_USB_OTG]);
 	imx_clk_set_rate(clks[IMX6SX_CLK_AUDIO_PODF], 24000000);
