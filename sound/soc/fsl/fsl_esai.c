@@ -230,10 +230,19 @@ static int fsl_esai_set_dai_sysclk(struct snd_soc_dai *dai, int clk_id,
 	unsigned long clk_rate;
 	int ret;
 
-	if (freq == 0) {
-		dev_err(dai->dev, "%sput freq of HCK%c should not be 0Hz\n",
-			in ? "in" : "out", tx ? 'T' : 'R');
-		return -EINVAL;
+	if (esai_priv->synchronous && !tx) {
+		switch (clk_id) {
+		case ESAI_HCKR_FSYS:
+			fsl_esai_set_dai_sysclk(dai, ESAI_HCKT_FSYS,
+								freq, dir);
+			break;
+		case ESAI_HCKR_EXTAL:
+			fsl_esai_set_dai_sysclk(dai, ESAI_HCKT_EXTAL,
+								freq, dir);
+			break;
+		default:
+			return -EINVAL;
+		}
 	}
 
 	/* Bypass divider settings if the requirement doesn't change */
