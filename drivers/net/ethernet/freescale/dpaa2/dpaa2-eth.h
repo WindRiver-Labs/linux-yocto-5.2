@@ -506,6 +506,7 @@ int dpaa2_eth_set_hash(struct net_device *net_dev, u64 flags);
 int dpaa2_eth_set_cls(struct net_device *net_dev, u64 key);
 int dpaa2_eth_cls_key_size(u64 key);
 int dpaa2_eth_cls_fld_off(int prot, int field);
+int set_rx_taildrop(struct dpaa2_eth_priv *priv, bool enable);
 void dpaa2_eth_cls_trim_rule(void *key_mem, u64 fields);
 
 #endif	/* __DPAA2_H */
