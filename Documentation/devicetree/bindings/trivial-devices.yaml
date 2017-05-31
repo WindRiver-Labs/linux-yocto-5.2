@@ -84,6 +84,8 @@ properties:
           - fsl,fxas2100x
             # FXOS8700: Accelerometer + Magnetometer Combo
           - fsl,fxos8700
+            # ISL29023: Intersil ISL29023 ambient light sensor
+          - fsl,isl29023
             # MMA7660FC: 3-Axis Orientation/Motion Detection Sensor
           - fsl,mma7660
             # MMA8450Q: Xtrinsic Low-power, 3-axis Xtrinsic Accelerometer
