@@ -46,6 +46,9 @@
 #define SPINOR_OP_READ_1_2_2	0xbb	/* Read data bytes (Dual I/O SPI) */
 #define SPINOR_OP_READ_1_1_4	0x6b	/* Read data bytes (Quad Output SPI) */
 #define SPINOR_OP_READ_1_4_4	0xeb	/* Read data bytes (Quad I/O SPI) */
+#define SPINOR_OP_READ_1_1_4_D  0x6d    /* Read data bytes (DDR Quad SPI) */
+#define SPINOR_OP_READ_1_4_4_D  0xed    /* Read data bytes (DDR Quad SPI) */
+#define SPINOR_OP_READ_1_1_8_D	0x9d	/* Read data bytes (Octal Output SPI) */
 #define SPINOR_OP_READ_1_1_8	0x8b	/* Read data bytes (Octal Output SPI) */
 #define SPINOR_OP_READ_1_8_8	0xcb	/* Read data bytes (Octal I/O SPI) */
 #define SPINOR_OP_PP		0x02	/* Page program (up to 256 bytes) */
@@ -73,6 +76,7 @@
 #define SPINOR_OP_READ_1_2_2_4B	0xbc	/* Read data bytes (Dual I/O SPI) */
 #define SPINOR_OP_READ_1_1_4_4B	0x6c	/* Read data bytes (Quad Output SPI) */
 #define SPINOR_OP_READ_1_4_4_4B	0xec	/* Read data bytes (Quad I/O SPI) */
+#define SPINOR_OP_READ_1_4_4_D_4B 0xee    /* Read data bytes (DDR Quad SPI) */
 #define SPINOR_OP_READ_1_1_8_4B	0x7c	/* Read data bytes (Octal Output SPI) */
 #define SPINOR_OP_READ_1_8_8_4B	0xcc	/* Read data bytes (Octal I/O SPI) */
 #define SPINOR_OP_PP_4B		0x12	/* Page program (up to 256 bytes) */
