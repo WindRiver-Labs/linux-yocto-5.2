@@ -189,6 +189,7 @@ static inline u32 *append_##cmd(u32 * const desc, u32 options) \
 }
 APPEND_CMD_RET(jump, JUMP)
 APPEND_CMD_RET(move, MOVE)
+APPEND_CMD_RET(moveb, MOVEB)
 APPEND_CMD_RET(move_len, MOVE_LEN)
 
 static inline void set_jump_tgt_here(u32 * const desc, u32 *jump_cmd)
