@@ -78,6 +78,7 @@ struct dcp {
 	struct task_struct		*thread[DCP_MAX_CHANS];
 	struct crypto_queue		queue[DCP_MAX_CHANS];
 	struct clk			*dcp_clk;
+	int                             enable_sha_workaround;
 };
 
 enum dcp_chan {
@@ -1089,6 +1090,15 @@ static int mxs_dcp_probe(struct platform_device *pdev)
 		init_completion(&sdcp->completion[i]);
 		crypto_init_queue(&sdcp->queue[i], 50);
 	}
+
+	/*
+	 * Enable driver alignment with hw behavior on imx6
+	 */
+	if (of_machine_is_compatible("fsl,imx6sl") ||
+	    of_machine_is_compatible("fsl,imx6ull")) {
+		sdcp->enable_sha_workaround = 1;
+	} else
+		sdcp->enable_sha_workaround = 0;
 
 	/* Create the SHA and AES handler threads. */
 	sdcp->thread[DCP_CHAN_HASH_SHA] = kthread_run(dcp_chan_thread_sha,
