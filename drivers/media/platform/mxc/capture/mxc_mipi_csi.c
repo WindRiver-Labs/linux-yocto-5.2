@@ -976,15 +976,20 @@ static int mipi_csis_subdev_host(struct csi_state *state)
 		break;
 	}
 
-	state->subdev_notifier.subdevs = state->async_subdevs;
-	state->subdev_notifier.num_subdevs = 1;
+	v4l2_async_notifier_init(&state->subdev_notifier);
+	ret = v4l2_async_notifier_add_subdev(&state->subdev_notifier, &state->asd);
+	if(ret)
+			return ret;
+
 	state->subdev_notifier.ops = &mxc_mipi_csi_subdev_ops;
 
 	ret = v4l2_async_notifier_register(&state->v4l2_dev,
 					&state->subdev_notifier);
-	if (ret)
+	if (ret) {
+		v4l2_async_notifier_cleanup(&state->subdev_notifier);
 		dev_err(state->dev,
 					"Error register async notifier regoster\n");
+	}
 
 	return ret;
 }
