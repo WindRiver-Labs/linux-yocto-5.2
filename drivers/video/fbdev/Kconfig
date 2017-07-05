@@ -2232,7 +2232,8 @@ config FB_JZ4740
 
 config FB_MXS
 	tristate "MXS LCD framebuffer support"
-	depends on FB && (ARCH_MXS || ARCH_MXC)
+	depends on (FB && (ARCH_MXS || ARCH_MXC)) || \
+		   (FB_IMX64 && (ARCH_FSL_IMX8QM || ARCH_FSL_IMX8QXP || ARCH_FSL_IMX8MQ))
 	select FB_MXC_DISP_FRAMEWORK
 	select FB_CFB_FILLRECT
 	select FB_CFB_COPYAREA
@@ -2278,7 +2279,8 @@ config FB_SIMPLE
 	  Configuration re: surface address, size, and format must be provided
 	  through device tree, or plain old platform data.
 
-if ARCH_MXC
+if ARCH_MXC || \
+	(FB_IMX64 && (ARCH_FSL_IMX8QM || ARCH_FSL_IMX8QXP || ARCH_FSL_IMX8MQ))
 source "drivers/video/fbdev/mxc/Kconfig"
 endif
 
