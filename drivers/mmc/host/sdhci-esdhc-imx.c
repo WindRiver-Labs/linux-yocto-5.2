@@ -167,6 +167,8 @@
 #define ESDHC_FLAG_STATE_LOST_IN_LPMODE	BIT(14)
 /* need request bus freq during low power */
 #define ESDHC_FLAG_BUSFREQ		BIT(15)
+/* The IP lost clock rate in PM_RUNTIME */
+#define ESDHC_FLAG_CLK_RATE_LOST_IN_PM_RUNTIME	BIT(16)
 
 static struct mmc_host *wifi_mmc_host;
 void wifi_card_detect(bool on)
@@ -1776,6 +1778,9 @@ static int sdhci_esdhc_runtime_resume(struct device *dev)
 
 	if (imx_data->socdata->flags & ESDHC_FLAG_BUSFREQ)
 		request_bus_freq(BUS_FREQ_HIGH);
+
+	if (imx_data->socdata->flags & ESDHC_FLAG_CLK_RATE_LOST_IN_PM_RUNTIME)
+		clk_set_rate(imx_data->clk_per, pltfm_host->clock);
 
 	if (!sdhci_sdio_irq_enabled(host)) {
 		err = clk_prepare_enable(imx_data->clk_per);
