@@ -106,7 +106,7 @@ struct devtype {
 	bool use_mixel_phy;
 	bool use_mixel_combo_phy;
 	bool padding_quirks;
-	bool pixel_link_quirks;
+	bool pixel_link_init_quirks;
 
 	/* pixel rate in KHz */
 	unsigned int max_prate_single_mode;
@@ -134,7 +134,7 @@ struct imx_ldb {
 	bool use_mixel_phy;
 	bool use_mixel_combo_phy;
 	bool padding_quirks;
-	bool pixel_link_quirks;
+	bool pixel_link_init_quirks;
 
 	/* pixel rate in KHz */
 	unsigned int max_prate_single_mode;
@@ -817,7 +817,7 @@ static struct devtype imx8qxp_ldb_devtype = {
 	.is_imx8 = true,
 	.use_mixel_combo_phy = true,
 	.padding_quirks = true,
-	.pixel_link_quirks = true,
+	.pixel_link_init_quirks = true,
 	.max_prate_single_mode = 150000,
 	.max_prate_dual_mode = 300000,
 };
@@ -879,9 +879,9 @@ static int imx_ldb_panel_ddc(struct device *dev,
 }
 
 #ifndef CONFIG_HAVE_IMX8_SOC
-static void ldb_pixel_link_config(int id) {}
+static void ldb_pixel_link_init(int id) {}
 #else
-static void ldb_pixel_link_config(int id)
+static void ldb_pixel_link_init(int id)
 {
 	sc_err_t sciErr;
 	sc_ipc_t ipcHndl = 0;
@@ -959,7 +959,7 @@ static int imx_ldb_bind(struct device *dev, struct device *master, void *data)
 	imx_ldb->use_mixel_phy = devtype->use_mixel_phy;
 	imx_ldb->use_mixel_combo_phy = devtype->use_mixel_combo_phy;
 	imx_ldb->padding_quirks = devtype->padding_quirks;
-	imx_ldb->pixel_link_quirks = devtype->pixel_link_quirks;
+	imx_ldb->pixel_link_init_quirks = devtype->pixel_link_init_quirks;
 	imx_ldb->max_prate_single_mode = devtype->max_prate_single_mode;
 	imx_ldb->max_prate_dual_mode = devtype->max_prate_dual_mode;
 
@@ -1117,9 +1117,9 @@ get_phy:
 
 	dev_set_drvdata(dev, imx_ldb);
 
-	if (imx_ldb->pixel_link_quirks) {
+	if (imx_ldb->pixel_link_init_quirks) {
 		imx_ldb->id = of_alias_get_id(np, "ldb");
-		ldb_pixel_link_config(imx_ldb->id);
+		ldb_pixel_link_init(imx_ldb->id);
 	}
 
 	return 0;
