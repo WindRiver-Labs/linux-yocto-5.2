@@ -1218,7 +1218,7 @@ get_phy:
 			}
 
 			if (auxiliary_ch)
-				return 0;
+				continue;
 		}
 
 		ret = imx_ldb_register(drm, channel);
