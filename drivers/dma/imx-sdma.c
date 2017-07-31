@@ -466,6 +466,7 @@ struct sdma_engine {
 	/* clock ratio for AHB:SDMA core. 1:1 is 1, 2:1 is 0*/
 	bool				clk_ratio;
 	bool				suspend_off;
+	int				idx;
 };
 
 static int sdma_config_write(struct dma_chan *chan,
@@ -658,6 +659,8 @@ static const struct of_device_id sdma_dt_ids[] = {
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, sdma_dt_ids);
+
+static int sdma_dev_idx;
 
 #define SDMA_H_CONFIG_DSPDMA	BIT(12) /* indicates if the DSPDMA is used */
 #define SDMA_H_CONFIG_RTD_PINS	BIT(11) /* indicates if Real-Time Debug pins are enabled */
@@ -2244,6 +2247,10 @@ static bool sdma_filter_fn(struct dma_chan *chan, void *fn_param)
 
 	if (!imx_dma_is_general_purpose(chan))
 		return false;
+	/* return false if it's not the right device */
+	if ((sdmac->sdma->drvdata == &sdma_imx8m)
+		&& (sdmac->sdma->idx != data->idx))
+		return false;
 
 	/* return false if it's not the right device */
 	if (sdma->dev->of_node != data->of_node)
@@ -2271,6 +2278,7 @@ static struct dma_chan *sdma_xlate(struct of_phandle_args *dma_spec,
 	data.peripheral_type = dma_spec->args[1];
 	data.priority = dma_spec->args[2];
 	data.of_node = ofdma->of_node;
+	data.idx = sdma->idx;
 
 	return dma_request_channel(mask, sdma_filter_fn, &data);
 }
@@ -2474,6 +2482,8 @@ static int sdma_probe(struct platform_device *pdev)
 				dev_warn(&pdev->dev, "failed to get firmware from device tree\n");
 		}
 	}
+	/* There maybe multi sdma devices such as i.mx8mscale */
+	sdma->idx = sdma_dev_idx++;
 
 	return 0;
 
