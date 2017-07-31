@@ -1431,6 +1431,12 @@ void sdhci_send_command(struct sdhci_host *host, struct mmc_command *cmd)
 	sdhci_mod_timer(host, cmd->mrq, timeout);
 
 	sdhci_writew(host, SDHCI_MAKE_CMD(cmd->opcode, flags), SDHCI_COMMAND);
+
+	if (cmd->opcode == MMC_SEND_TUNING_BLOCK_HS200  && (host->quirks2 & SDHCI_QUIRK2_BROKEN_TUNING_WA)) {
+		mdelay(10);
+		sdhci_writel(host, 0x8803040a, 0x8b8);
+		mdelay(10);
+	}
 }
 EXPORT_SYMBOL_GPL(sdhci_send_command);
 
@@ -2101,6 +2107,14 @@ static void sdhci_hw_reset(struct mmc_host *mmc)
 		host->ops->hw_reset(host);
 }
 
+static void sdhci_set_hs400_dll(struct mmc_host *mmc)
+{
+	struct sdhci_host *host = mmc_priv(mmc);
+
+	if (host->ops && host->ops->set_hs400_dll)
+		host->ops->set_hs400_dll(host);
+}
+
 static void sdhci_enable_sdio_irq_nolock(struct sdhci_host *host, int enable)
 {
 	if (!(host->flags & SDHCI_DEVICE_DEAD)) {
@@ -2594,6 +2608,7 @@ static const struct mmc_host_ops sdhci_ops = {
 	.get_cd		= sdhci_get_cd,
 	.get_ro		= sdhci_get_ro,
 	.hw_reset	= sdhci_hw_reset,
+	.set_hs400_dll = sdhci_set_hs400_dll,
 	.enable_sdio_irq = sdhci_enable_sdio_irq,
 	.ack_sdio_irq    = sdhci_ack_sdio_irq,
 	.start_signal_voltage_switch	= sdhci_start_signal_voltage_switch,
@@ -3623,6 +3638,12 @@ void __sdhci_read_caps(struct sdhci_host *host, u16 *ver, u32 *caps, u32 *caps1)
 		host->caps1 = sdhci_readl(host, SDHCI_CAPABILITIES_1);
 		host->caps1 &= ~upper_32_bits(dt_caps_mask);
 		host->caps1 |= upper_32_bits(dt_caps);
+	}
+
+	if ((host->caps1 & SDHCI_SUPPORT_SDR104) && (host->caps1 & SDHCI_SUPPORT_DDR50) &&
+	 (host->quirks2 & SDHCI_QUIRK2_BROKEN_TUNING_WA))
+	{
+		host->mmc->caps2 = MMC_CAP2_HS400_1_8V;
 	}
 }
 EXPORT_SYMBOL_GPL(__sdhci_read_caps);
