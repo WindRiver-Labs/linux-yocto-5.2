@@ -418,6 +418,11 @@ static void acpi_dev_get_irqresource(struct resource *res, u32 gsi,
 			triggering = trig;
 			polarity = pol;
 		}
+		if (gsi == 5) {
+			polarity = ACPI_ACTIVE_LOW;
+			pr_warning("ACPI: IRQ %d do not override to %s, %s\n", gsi,
+				   t ? "level" : "edge", p ? "low" : "high");
+		}
 	}
 
 	res->flags = acpi_dev_irq_flags(triggering, polarity, shareable);

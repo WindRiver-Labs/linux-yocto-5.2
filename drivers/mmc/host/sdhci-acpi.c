@@ -545,9 +545,11 @@ static int amd_select_drive_strength(struct mmc_card *card,
 static void sdhci_acpi_amd_hs400_dll(struct sdhci_host *host)
 {
 	/* AMD Platform requires dll setting */
-	sdhci_writel(host, 0x40003210, SDHCI_AMD_RESET_DLL_REGISTER);
-	usleep_range(10, 20);
-	sdhci_writel(host, 0x40033210, SDHCI_AMD_RESET_DLL_REGISTER);
+	if (host->mmc->caps2 & MMC_CAP2_HS400_1_8V) {
+		sdhci_writel(host, 0x40003210, SDHCI_AMD_RESET_DLL_REGISTER);
+		usleep_range(10, 20);
+		sdhci_writel(host, 0x40033210, SDHCI_AMD_RESET_DLL_REGISTER);
+	}
 }
 
 /*
@@ -576,6 +578,7 @@ static const struct sdhci_ops sdhci_acpi_ops_amd = {
 	.set_bus_width	= sdhci_set_bus_width,
 	.reset		= sdhci_reset,
 	.set_uhs_signaling = sdhci_set_uhs_signaling,
+	.set_hs400_dll = sdhci_acpi_amd_hs400_dll,
 };
 
 static const struct sdhci_acpi_chip sdhci_acpi_chip_amd = {
