@@ -286,9 +286,11 @@ struct dpaa2_eth_ch_stats {
 	__u64 xdp_redirect;
 };
 
+#define DPAA2_ETH_MAX_TCS              8
+
 /* Maximum number of queues associated with a DPNI */
-#define DPAA2_ETH_MAX_RX_QUEUES		16
-#define DPAA2_ETH_MAX_TX_QUEUES		16
+#define DPAA2_ETH_MAX_RX_QUEUES		(DPNI_MAX_DIST_SIZE * DPAA2_ETH_MAX_TCS)
+#define DPAA2_ETH_MAX_TX_QUEUES		DPNI_MAX_SENDERS
 #define DPAA2_ETH_MAX_RX_ERR_QUEUES	1
 #define DPAA2_ETH_MAX_QUEUES		(DPAA2_ETH_MAX_RX_QUEUES + \
 					DPAA2_ETH_MAX_TX_QUEUES + \
@@ -309,6 +311,7 @@ struct dpaa2_eth_fq {
 	u32 tx_qdbin;
 	u32 tx_fqid;
 	u16 flowid;
+	u8 tc;
 	int target_cpu;
 	u32 dq_frames;
 	u32 dq_bytes;
@@ -461,6 +464,9 @@ static inline int dpaa2_eth_cmp_dpni_ver(struct dpaa2_eth_priv *priv,
 #define dpaa2_eth_queue_count(priv)     \
 	((priv)->num_channels)
 
+#define dpaa2_eth_tc_count(priv)	\
+	((priv)->dpni_attrs.num_tcs)
+
 enum dpaa2_eth_rx_dist {
 	DPAA2_ETH_RX_DIST_HASH,
 	DPAA2_ETH_RX_DIST_CLS
@@ -515,6 +521,7 @@ int dpaa2_eth_set_hash(struct net_device *net_dev, u64 flags);
 int dpaa2_eth_set_cls(struct net_device *net_dev, u64 key);
 int dpaa2_eth_cls_key_size(u64 key);
 int dpaa2_eth_cls_fld_off(int prot, int field);
+
 int set_rx_taildrop(struct dpaa2_eth_priv *priv, bool enable);
 void dpaa2_eth_cls_trim_rule(void *key_mem, u64 fields);
 
