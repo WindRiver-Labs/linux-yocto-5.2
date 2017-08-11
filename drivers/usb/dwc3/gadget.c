@@ -1234,8 +1234,12 @@ static int __dwc3_gadget_kick_transfer(struct dwc3_ep *dep)
 		if (dep->stream_capable)
 			cmd |= DWC3_DEPCMD_PARAM(req->request.stream_id);
 
+		if (dep->stream_capable)
+			cmd = cmd | DWC3_DEPCMD_PARAM(req->request.stream_id);
+
 		if (usb_endpoint_xfer_isoc(dep->endpoint.desc))
 			cmd |= DWC3_DEPCMD_PARAM(dep->frame_number);
+
 	} else {
 		cmd = DWC3_DEPCMD_UPDATETRANSFER |
 			DWC3_DEPCMD_PARAM(dep->resource_index);
