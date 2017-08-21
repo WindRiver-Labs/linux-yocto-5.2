@@ -475,94 +475,97 @@
 			};
 		};
 
-	};
-	aips1: aips-bus@40080000 {
-		compatible = "simple-bus";
-		#address-cells = <2>;
-		#size-cells = <2>;
-		interrupt-parent = <&gic>;
-		reg = <0x0 0x40080000 0x0 0x70000>;
-		ranges;
 
-		mscm1: mscm@40081000 {
-			compatible = "fsl,s32v234-mscm";
+		aips1: aips-bus@40080000 {
+			compatible = "simple-bus";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			interrupt-parent = <&gic>;
+			reg = <0x0 0x40080000 0x0 0x70000>;
+			ranges;
 
-			reg = <0x0 0x40081000 0x0 0x1000>;
 
-			/* CPU2CPU interrupts */
-			interrupts = <0 0 4 >,
-						<0 1 4 >,
-						<0 2 4 >,
-						<0 3 4 >;
-		};
+			mscm1: mscm@40081000 {
+				compatible = "fsl,s32v234-mscm";
 
-		stm1: stm@40087000{
-			compatible = "fsl,s32v234-stm";
-			reg = <0x0 0x40087000 0x0 0x1000>;
-			interrupts= <0 20 4>;
-			cpu = <3>;
-			clocks = <&clks S32V234_CLK_SYS6>;
-			clock-names = "stm";
-			status = "disabled";
-		};
 
-		mipicsi1: mipicsi2_1@400A0000{
-			compatible = "fsl,s32v234-mipicsi2-1";
-			reg = <0x0 0x400A0000 0x0 0x1000>;
-			interrupts = <0 92 1>,
-				<0 94 1>;
-			sensor = <0x0>;   // nothing connected
-			clocks = <&clks S32V234_CLK_CSI1>,
-				 <&clks S32V234_CLK_CSI1_CLI>,
-				 <&clks S32V234_CLK_CSI1_CUI>,
-				 <&clks S32V234_CLK_CSI1_DPHY>;
-			clock-names = "csi", "cli", "cui", "dphy";
-			status = "disabled";
-		};
- 
-		pit1: pit@400AA000{
-			compatible = "fsl,s32v234-pit";
-			reg = <0x0 0x400AA000 0x0 0x1000>;
-			interrupts= <0 32 4>;
-			cpu = <1>;
-			clocks = <&clks S32V234_CLK_PIT1>;
-			clock-names = "pit";
-			status = "disabled";
-		};
+				reg = <0x0 0x40081000 0x0 0x1000>;
 
-		i2c1: i2c@400b8000 {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			compatible = "fsl,s32v234-i2c";
-			reg = <0x0 0x400b8000 0x0 0x1000>;
-			interrupts =<0 68 4>;
-			clocks = <&clks S32V234_CLK_IIC1>;
-			clock-names = "ipg";
-			/* TODO: Update the dma when edma ip is activated
-			dmas = <&edma0 0 50>,
-			<&edma0 0 51>;
-			dma-names = "rx","tx";
-			*/
-			status = "disabled";
-		};
 
-		i2c2: i2c@400ba000 {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			compatible = "fsl,s32v234-i2c";
-			reg = <0x0 0x400ba000 0x0 0x1000>;
-			interrupts =<0 69 4>;
-			clocks = <&clks S32V234_CLK_IIC2>;
-			clock-names = "ipg";
-			/* TODO: Update the dma when edma ip is activated
-			dmas = <&edma0 0 50>,
-			<&edma0 0 51>;
-			dma-names = "rx","tx";
-			*/
-			status = "disabled";
-		};
+				/* CPU2CPU interrupts */
+				interrupts = <0 0 4 >,
+							<0 1 4 >,
+							<0 2 4 >,
+							<0 3 4 >;
+			};
 
-		uart1:serial@400bc000 {
+
+			stm1: stm@40087000{
+				compatible = "fsl,s32v234-stm";
+				reg = <0x0 0x40087000 0x0 0x1000>;
+				interrupts= <0 20 4>;
+				cpu = <3>;
+				clocks = <&clks S32V234_CLK_SYS6>;
+				clock-names = "stm";
+				status = "disabled";
+			};
+
+
+			mipicsi1: mipicsi2_1@400A0000{
+				compatible = "fsl,s32v234-mipicsi2-1";
+				reg = <0x0 0x400A0000 0x0 0x1000>;
+				interrupts = <0 92 1>,
+					<0 94 1>;
+				sensor = <0x0>;   // nothing connected
+				clocks = <&clks S32V234_CLK_CSI1>,
+					 <&clks S32V234_CLK_CSI1_CLI>,
+					 <&clks S32V234_CLK_CSI1_CUI>,
+					 <&clks S32V234_CLK_CSI1_DPHY>;
+				clock-names = "csi", "cli", "cui", "dphy";
+				status = "disabled";
+			};
+
+			pit1: pit@400AA000{
+				compatible = "fsl,s32v234-pit";
+				reg = <0x0 0x400AA000 0x0 0x1000>;
+				interrupts= <0 32 4>;
+				cpu = <1>;
+				clocks = <&clks S32V234_CLK_PIT1>;
+				clock-names = "pit";
+				status = "disabled";
+			};
+
+
+			i2c1: i2c@400b8000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "fsl,s32v234-i2c";
+				reg = <0x0 0x400b8000 0x0 0x1000>;
+				interrupts =<0 68 4>;
+				clocks = <&clks S32V234_CLK_IIC1>;
+				clock-names = "ipg";
+				dmas = <&edma 1 14>,
+				       <&edma 1 15>;
+				dma-names = "rx","tx";
+				status = "disabled";
+			};
+
+
+			i2c2: i2c@400ba000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "fsl,s32v234-i2c";
+				reg = <0x0 0x400ba000 0x0 0x1000>;
+				interrupts =<0 69 4>;
+				clocks = <&clks S32V234_CLK_IIC2>;
+				clock-names = "ipg";
+				dmas = <&edma 1 16>,
+				       <&edma 1 17>;
+				dma-names = "rx","tx";
+				status = "disabled";
+			};
+
+			uart1:serial@400bc000 {
 				compatible = "fsl,s32v234-linflexuart";
 				reg = <0x0 0x400bc000 0x0 0x1000>;
 				interrupts = <0 60 1>;
@@ -573,18 +576,18 @@
 				       <&edma 1 12>;
 				dma-names = "rx", "tx";
 				status = "disabled";
-		};
+			};
 
-		can1: flexcan@400be000 {
+			can1: flexcan@400be000 {
 				compatible = "fsl,s32v234-flexcan";
 				reg = <0x0 0x400be000 0x0 0x1000>;
 				interrupts = <0 44 4>;
 				clocks = <&clks S32V234_CLK_CAN1>,
 					 <&clks S32V234_CLK_CAN>;
 				clock-names = "ipg", "per";
-		};
+			};
 
-		spi1: spi@400C0000 {
+			spi1: spi@400C0000 {
 				compatible = "fsl,s32v234-dspi";
 				reg = <0x0 0x400C0000 0x0 0x1000>;
 				interrupts = <0 62 4>;
@@ -595,9 +598,9 @@
 				spi-cpol;
 				spi-cpha;
 				status = "disabled";
-		};
+			};
 
-		spi3: spi@400C2000 {
+			spi3: spi@400C2000 {
 				compatible = "fsl,s32v234-dspi";
 				reg = <0x0 0x400C2000 0x0 0x1000>;
 				interrupts = <0 64 4>;
@@ -608,17 +611,17 @@
 				spi-cpol;
 				spi-cpha;
 				status = "disabled";
-		};
+			};
 
-		tmu: tmu@400CE000 {
+			tmu: tmu@400CE000 {
 				compatible = "fsl,s32v234-tmu";
 				reg = <0x0 0x400CE000 0x0 0x1000>;
 				clocks = <&clks S32V234_CLK_TSENS>;
 				clock-names = "tsens";
 				status = "disabled";
-		};
+			};
 
-		viulite1: viulite1@400D0000 {
+			viulite1: viulite1@400D0000 {
 				compatible = "fsl,s32v234-viulite1";
 				reg = <0x0 0x400D0000 0x0 0x1000>;
 				interrupts = <0 100 1>;
@@ -626,9 +629,9 @@
 					 <&clks S32V234_CLK_VIU1_IPS>;
 				clock-names = "viulite1", "per";
 				status = "disabled";
-		};
+			};
 
-		jpegdecoder: jpegdecoder@400D4000 {
+			jpegdecoder: jpegdecoder@400D4000 {
 				compatible = "fsl,s32v234-jpegdcd";
 				reg = <0x0 0x400D4000 0x0 0x1000>;
 				interrupts = <0 128 1>,
@@ -644,9 +647,9 @@
 					 <&clks S32V234_CLK_JPEG_SRAM_IPS>;
 				clock-names = "per", "ipg", "bclock";
 				status = "disabled";
-		};
+			};
 
-		h264decoder: h264decoder@400D8000 {
+			h264decoder: h264decoder@400D8000 {
 				compatible = "fsl,s32v234-h264dcd";
 				reg = <0x0 0x400D8000 0x0 0x1000>;
 				interrupts = <0 136 1>,
@@ -669,7 +672,7 @@
 				status = "disabled";
 		};
 
-		h264_encoder: h264_encoder@400DC000 {
+			h264_encoder: h264_encoder@400DC000 {
 				compatible = "fsl,s32v234-h264_encoder";
 				reg = <0x0 0x400dc000 0x0 0x1000>;
 				interrupts = <0 150 1>,
@@ -686,6 +689,7 @@
 				clock-names = "fsl_h264enc", "per",
 					      "bclock";
 				status = "disabled";
+			};
 		};
 	};
 
