@@ -260,6 +260,7 @@ struct fsl_dspi {
 	u8			bits_per_word;
 	u8			bytes_per_word;
 	const struct fsl_dspi_devtype_data *devtype_data;
+	size_t			queue_size;
 
 	wait_queue_head_t	waitq;
 	u32			waitflags;
@@ -707,7 +708,16 @@ static u32 fifo_read(struct fsl_dspi *dspi)
 
 static void dspi_tcfq_read(struct fsl_dspi *dspi)
 {
-	dspi_push_rx(dspi, fifo_read(dspi));
+	int rx_word = is_double_byte_mode(dspi);
+
+	if (rx_word && (dspi->rx_end - dspi->rx) == 1)
+ 		rx_word = 0;
+ 
+	if (rx_word == 0)
+		dspi_data_from_popr(dspi, FM_BYTES_1);
+	else
+		dspi_data_from_popr(dspi, FM_BYTES_2);
+
 }
 
 static void dspi_data_from_popr(struct fsl_dspi *dspi,
@@ -736,30 +746,93 @@ static void dspi_data_from_popr(struct fsl_dspi *dspi,
  }
 static void dspi_eoq_write(struct fsl_dspi *dspi)
 {
-	int fifo_size = DSPI_FIFO_SIZE;
-	u16 xfer_cmd = dspi->tx_cmd;
+	int first = 1;
+	size_t initial_len = dspi->len;
+	unsigned int fifo_entries_used = 0;
+	unsigned int fifo_entries_per_frm = 0;
+	unsigned int tx_frames_count = 0;
+	u32 dspi_pushr = 0;
+	enum frame_mode tx_frame_mode = get_frame_mode(dspi);
 
-	/* Fill TX FIFO with as many transfers as possible */
-	while (dspi->len && fifo_size--) {
-		dspi->tx_cmd = xfer_cmd;
-		/* Request EOQF for last transfer in FIFO */
-		if (dspi->len == dspi->bytes_per_word || fifo_size == 0)
-			dspi->tx_cmd |= SPI_PUSHR_CMD_EOQ;
-		/* Clear transfer count for first transfer in FIFO */
-		if (fifo_size == (DSPI_FIFO_SIZE - 1))
-			dspi->tx_cmd |= SPI_PUSHR_CMD_CTCNT;
-		/* Write combined TX FIFO and CMD FIFO entry */
-		fifo_write(dspi);
+	fifo_entries_per_frm = (tx_frame_mode == FM_BYTES_4) ? 2 : 1;
+
+	while (dspi->len &&
+	       DSPI_FIFO_SIZE - fifo_entries_used >= fifo_entries_per_frm) {
+
+		switch (tx_frame_mode) {
+		case FM_BYTES_4:
+			fifo_entries_used++;
+			/* Fall through and prepare the register to push the
+			 * least significant 16 bits only. We'll push the other
+			 * 16 bits after we have written to the CMD-FIFO.
+			 */
+		case FM_BYTES_2:
+			dspi_pushr = dspi_data_to_pushr(dspi, 1);
+			break;
+
+
+		default:
+			dspi_pushr = dspi_data_to_pushr(dspi, 0);
+			break;
+		}
+
+		fifo_entries_used++;
+		tx_frames_count++;
+
+		if (dspi->len == 0 ||
+		    DSPI_FIFO_SIZE - fifo_entries_used < fifo_entries_per_frm) {
+
+			/* last transfer in the transfer */
+			dspi_pushr |= SPI_PUSHR_EOQ;
+			dspi->queue_size = tx_frames_count;
+			if ((dspi->cs_change) && (!dspi->len))
+				dspi_pushr &= ~SPI_PUSHR_CONT;
+
+		} else if ((tx_frame_mode == FM_BYTES_2 && dspi->len == 1) ||
+			   (tx_frame_mode == FM_BYTES_4 && dspi->len < 4)) {
+			dspi_pushr |= SPI_PUSHR_EOQ;
+			dspi->queue_size = tx_frames_count;
+		}
+
+		if (first) {
+			first = 0;
+			dspi_pushr |= SPI_PUSHR_CTCNT; /* clear counter */
+		}
+
+		regmap_write(dspi->regmap, SPI_PUSHR, dspi_pushr);
+
+		if (tx_frame_mode == FM_BYTES_4) {
+
+			/* regmap does not seem to support 16-bit write access
+			 * to 32-bit registers.
+			 * This currently applies only to S32V234 SPI, which is
+			 * known to be little-endian.
+			 */
+
+			dspi_pushr = dspi_data_to_pushr(dspi, 1);
+			/* Only write the TXDATA part of the register */
+			writew(SPI_PUSHR_TXDATA(dspi_pushr),
+			       dspi->base + SPI_PUSHR);
+		}
 	}
+
+	return initial_len - dspi->len;
 }
 
 static void dspi_eoq_read(struct fsl_dspi *dspi)
 {
-	int fifo_size = DSPI_FIFO_SIZE;
+	enum frame_mode rx_frame_mode = get_frame_mode(dspi);
+	unsigned int rx_bytes_count = 0;
+	unsigned int rx_frames_count = 0;
 
-	/* Read one FIFO entry at and push to rx buffer */
-	while ((dspi->rx < dspi->rx_end) && fifo_size--)
-		dspi_push_rx(dspi, fifo_read(dspi));
+	while (dspi->rx < dspi->rx_end &&
+	       rx_frames_count < dspi->queue_size) {
+		dspi_data_from_popr(dspi, rx_frame_mode);
+		rx_bytes_count += bytes_per_frame(rx_frame_mode);
+		rx_frames_count++;
+	}
+
+	return rx_bytes_count;
 }
 
 static int dspi_transfer_one_message(struct spi_master *master,
