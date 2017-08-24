@@ -115,7 +115,9 @@
 
 /* POP RX FIFO Register (SPI_POPR) */
 #define SPI_POPR		0x38
-#define SPI_POPR_RXDATA(x)	((x) & 0x0000ffff)
+#define SPI_POPR_RXDATA_8(x)    ((x) & 0x000000ff)
+#define SPI_POPR_RXDATA_16(x)   ((x) & 0x0000ffff)
+#define SPI_POPR_RXDATA_32(x)   ((x) & 0xffffffff)
 
 /* Transmit FIFO Registers (SPI_TXFRn) */
 #define SPI_TXFR0		0x3c
@@ -698,6 +700,30 @@ static void dspi_tcfq_read(struct fsl_dspi *dspi)
 	dspi_push_rx(dspi, fifo_read(dspi));
 }
 
+static void dspi_data_from_popr(struct fsl_dspi *dspi,
+				enum frame_mode rx_frame_mode)
+{
+	u32 rxdata;
+
+	regmap_read(dspi->regmap, SPI_POPR, &rxdata);
+
+	switch (rx_frame_mode) {
+	case FM_BYTES_4:
+		if (!(dspi->dataflags & TRAN_STATE_RX_VOID))
+			*(u32 *)dspi->rx = SPI_POPR_RXDATA_32(rxdata);
+		break;
+	case FM_BYTES_2:
+		if (!(dspi->dataflags & TRAN_STATE_RX_VOID))
+			*(u16 *)dspi->rx = SPI_POPR_RXDATA_16(rxdata);
+		break;
+	default:
+		if (!(dspi->dataflags & TRAN_STATE_RX_VOID))
+			*(u8 *)dspi->rx = SPI_POPR_RXDATA_8(rxdata);
+		break;
+	}
+
+	dspi->rx += bytes_per_frame(rx_frame_mode);
+ }
 static void dspi_eoq_write(struct fsl_dspi *dspi)
 {
 	int fifo_size = DSPI_FIFO_SIZE;
