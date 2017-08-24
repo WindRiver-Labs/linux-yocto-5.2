@@ -152,15 +152,6 @@ static int imx_snvs_pwrkey_probe(struct platform_device *pdev)
 	pdata->input = input;
 	platform_set_drvdata(pdev, pdata);
 
-	error = devm_request_irq(&pdev->dev, pdata->irq,
-			       imx_snvs_pwrkey_interrupt,
-			       0, pdev->name, pdev);
-
-	if (error) {
-		dev_err(&pdev->dev, "interrupt not available.\n");
-		return error;
-	}
-
 	error = input_register_device(input);
 	if (error < 0) {
 		dev_err(&pdev->dev, "failed to register input device\n");
@@ -171,6 +162,16 @@ static int imx_snvs_pwrkey_probe(struct platform_device *pdev)
 	error = dev_pm_set_wake_irq(&pdev->dev, pdata->irq);
 	if (error)
 		dev_err(&pdev->dev, "irq wake enable failed.\n");
+
+	error = devm_request_irq(&pdev->dev, pdata->irq,
+			       imx_snvs_pwrkey_interrupt,
+			       0, pdev->name, pdev);
+
+	if (error) {
+		dev_err(&pdev->dev, "interrupt not available.\n");
+		input_unregister_device(input);
+		return error;
+	}
 
 	return 0;
 }
