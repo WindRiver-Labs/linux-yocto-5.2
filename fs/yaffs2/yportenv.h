@@ -62,7 +62,7 @@
 #define YAFFS_LOSTNFOUND_MODE		0700
 
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 5, 0))
-#define Y_CURRENT_TIME CURRENT_TIME.tv_sec
+#define Y_CURRENT_TIME ktime_get_real_seconds()
 #define Y_TIME_CONVERT(x) (x).tv_sec
 #else
 #define Y_CURRENT_TIME CURRENT_TIME

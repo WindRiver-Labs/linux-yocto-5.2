@@ -238,7 +238,7 @@ MODULE_PARM(yaffs_gc_control, "i");
 
 
 #define update_dir_time(dir) do {\
-			(dir)->i_ctime = (dir)->i_mtime = CURRENT_TIME; \
+			(dir)->i_ctime = (dir)->i_mtime = current_time(dir); \
 		} while (0)
 
 static void yaffs_fill_inode_from_obj(struct inode *inode,
