@@ -510,11 +510,9 @@ static int memac_init_phy(struct net_device *net_dev,
 	struct phy_device       *phy_dev;
 	__ETHTOOL_DECLARE_LINK_MODE_MASK(mask) = { 0, };
 
-	if (of_phy_is_fixed_link(mac_dev->phy_node)) {
-		phy_dev = of_phy_attach(net_dev, mac_dev->phy_node,
-					0, mac_dev->phy_if);
-	} else if ((macdev2enetinterface(mac_dev) == e_ENET_MODE_XGMII_10000) ||
-		   (macdev2enetinterface(mac_dev) == e_ENET_MODE_SGMII_2500)) {
+	if ((macdev2enetinterface(mac_dev) == e_ENET_MODE_XGMII_10000) ||
+	    (macdev2enetinterface(mac_dev) == e_ENET_MODE_SGMII_2500) ||
+	    of_phy_is_fixed_link(mac_dev->phy_node)) {
 		phy_dev = of_phy_connect(net_dev, mac_dev->phy_node,
 					 &adjust_link_void, 0,
 					 mac_dev->phy_if);
