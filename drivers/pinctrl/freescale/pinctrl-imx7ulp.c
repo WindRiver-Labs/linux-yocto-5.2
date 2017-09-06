@@ -400,6 +400,8 @@ static struct imx_pinctrl_soc_info imx7ulp_pinctrl_info_0 = {
 	.decodes = imx7ulp_cfg_decodes,
 	.num_decodes = ARRAY_SIZE(imx7ulp_cfg_decodes),
 	.fixup = imx7ulp_cfg_params_fixup,
+	.ibe_bit = BIT(16),
+	.obe_bit = BIT(17),
 };
 
 static struct imx_pinctrl_soc_info imx7ulp_pinctrl_info_1 = {
@@ -409,6 +411,8 @@ static struct imx_pinctrl_soc_info imx7ulp_pinctrl_info_1 = {
 	.gpio_set_direction = imx7ulp_pmx_gpio_set_direction,
 	.mux_mask = BM_MUX_MODE,
 	.mux_shift = BP_MUX_MODE,
+	.ibe_bit = BIT(16),
+	.obe_bit = BIT(17),
 };
 
 static struct of_device_id imx7ulp_pinctrl_of_match[] = {
