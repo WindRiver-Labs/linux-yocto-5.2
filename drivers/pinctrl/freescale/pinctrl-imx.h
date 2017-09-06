@@ -84,6 +84,8 @@ struct imx_pinctrl_soc_info {
 	/* MUX_MODE shift and mask in case SHARE_MUX_CONF_REG */
 	unsigned int mux_mask;
 	u8 mux_shift;
+	u32 ibe_bit;
+	u32 obe_bit;
 
 	/* generic pinconf */
 	bool generic_pinconf;
