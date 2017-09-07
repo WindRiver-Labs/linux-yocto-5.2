@@ -93,6 +93,9 @@ int dwc3_host_init(struct dwc3 *dwc)
 	if (dwc->quirk_reverse_in_out)
 		props[prop_idx++].name = "quirk-reverse-in-out";
 
+	if (dwc->quirk_stop_transfer_in_block)
+		props[prop_idx++].name = "quirk-stop-transfer-in-block";
+
 	if (dwc->usb3_lpm_capable)
 		props[prop_idx++] = PROPERTY_ENTRY_BOOL("usb3-lpm-capable");
 
