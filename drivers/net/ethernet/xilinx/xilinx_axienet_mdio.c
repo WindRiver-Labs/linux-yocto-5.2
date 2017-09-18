@@ -126,6 +126,7 @@ int axienet_mdio_setup(struct axienet_local *lp, struct device_node *np)
 {
 	int ret;
 	u32 clk_div, host_clock;
+
 	struct mii_bus *bus;
 	struct resource res;
 	struct device_node *np1;
