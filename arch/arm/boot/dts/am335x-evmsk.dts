@@ -470,6 +470,10 @@
 	status = "okay";
 };
 
+&gpmc {
+	status = "okay";
+};
+
 &i2c0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c0_pins>;
