@@ -208,7 +208,7 @@ config ARCH_ROCKCHIP
 	  like the RK3368.
 
 config ARCH_S32
-	bool "Freescale S32 family" if ARCH_VEXPRESS
+	bool "Freescale S32 family"
 	select PINCTRL
 	select ARCH_S32_CLK
 	help
