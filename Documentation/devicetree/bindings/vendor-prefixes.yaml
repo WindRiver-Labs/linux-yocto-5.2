@@ -603,6 +603,8 @@ patternProperties:
     description: New Vision Display
   "^nvidia,.*":
     description: NVIDIA
+  "^nwl,.*":
+    description: Northwest Logic
   "^nxp,.*":
     description: NXP Semiconductors
   "^oceanic,.*":
