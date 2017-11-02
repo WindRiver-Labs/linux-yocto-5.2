@@ -10,6 +10,7 @@
 #include <linux/genalloc.h>
 #include <linux/interrupt.h>
 #include <linux/module.h>
+#include <linux/psci.h>
 #include <asm/cacheflush.h>
 #include <asm/cpuidle.h>
 #include <asm/fncpy.h>
@@ -17,6 +18,8 @@
 #include <asm/proc-fns.h>
 #include <asm/suspend.h>
 #include <asm/tlb.h>
+
+#include <uapi/linux/psci.h>
 
 #include "common.h"
 #include "cpuidle.h"
@@ -83,6 +86,11 @@ struct imx6_cpuidle_pm_info {
 
 static void (*imx6sx_wfi_in_iram_fn)(void __iomem *iram_vbase);
 
+#define MX6SX_POWERDWN_IDLE_PARAM	\
+	((1 << PSCI_0_2_POWER_STATE_ID_SHIFT) | \
+	 (1 << PSCI_0_2_POWER_STATE_AFFL_SHIFT) | \
+	 (PSCI_POWER_STATE_TYPE_POWER_DOWN << PSCI_0_2_POWER_STATE_TYPE_SHIFT))
+
 static int imx6_idle_finish(unsigned long val)
 {
 	/*
@@ -94,7 +102,11 @@ static int imx6_idle_finish(unsigned long val)
 	 * just call flush_cache_all() is fine.
 	 */
 	flush_cache_all();
-	imx6sx_wfi_in_iram_fn(wfi_iram_base);
+	if (psci_ops.cpu_suspend)
+		psci_ops.cpu_suspend(MX6SX_POWERDWN_IDLE_PARAM,
+				     __pa(cpu_resume));
+	else
+		imx6sx_wfi_in_iram_fn(wfi_iram_base);
 
 	return 0;
 }
