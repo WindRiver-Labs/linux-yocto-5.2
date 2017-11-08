@@ -86,6 +86,8 @@ static DEFINE_STATIC_KEY_FALSE(supports_pseudo_nmis);
 /* ppi_nmi_refs[n] == number of cpus having ppi[n + 16] set as NMI */
 static refcount_t ppi_nmi_refs[16];
 
+static void __iomem *iomuxc_gpr_base;
+
 static struct gic_kvm_info gic_v3_kvm_info;
 static DEFINE_PER_CPU(bool, has_rss);
 
@@ -923,6 +925,7 @@ static void gic_send_sgi(u64 cluster_id, u16 tlist, unsigned int irq)
 static void gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 {
 	int cpu;
+	u32 val;
 
 	if (WARN_ON(irq >= 16))
 		return;
@@ -939,8 +942,18 @@ static void gic_raise_softirq(const struct cpumask *mask, unsigned int irq)
 
 		tlist = gic_compute_target_list(&cpu, mask, cluster_id);
 		gic_send_sgi(cluster_id, tlist, irq);
-	}
 
+		if (iomuxc_gpr_base) {
+			/* pending the IRQ32 to wakeup the core */
+			val = readl_relaxed(iomuxc_gpr_base + 0x4);
+			val |= (1 << 12);
+			writel_relaxed(val, iomuxc_gpr_base + 0x4);
+			/* delay for a while to make sure cores wakeup done */
+			udelay(50);
+			val &= ~(1 << 12);
+			writel_relaxed(val, iomuxc_gpr_base + 0x4);
+		}
+	}
 	/* Force the above writes to ICC_SGI1R_EL1 to be executed */
 	isb();
 }
@@ -1536,6 +1549,9 @@ static int __init gic_of_init(struct device_node *node, struct device_node *pare
 		}
 		rdist_regs[i].phys_base = res.start;
 	}
+
+	/* sw workaround for IPI can't wakeup CORE ERRATA(ERR011171) on i.MX8MQ */
+	iomuxc_gpr_base = of_iomap(node, 2);
 
 	if (of_property_read_u64(node, "redistributor-stride", &redist_stride))
 		redist_stride = 0;
