@@ -80,6 +80,8 @@ static int mxsfb_set_pixel_fmt(struct mxsfb_drm_private *mxsfb)
 
 	writel(ctrl1, mxsfb->base + LCDC_CTRL1);
 	writel(ctrl, mxsfb->base + LCDC_CTRL);
+	ctrl = readl(mxsfb->base + LCDC_CTRL);
+	ctrl1 = readl(mxsfb->base + LCDC_CTRL1);
 
 	return 0;
 }
@@ -118,9 +120,15 @@ static void mxsfb_enable_controller(struct mxsfb_drm_private *mxsfb)
 {
 	u32 reg;
 
+	if (mxsfb->enabled)
+		return;
+
 	if (mxsfb->clk_disp_axi)
 		clk_prepare_enable(mxsfb->clk_disp_axi);
 	clk_prepare_enable(mxsfb->clk);
+
+	writel(CTRL2_OUTSTANDING_REQS__REQ_16,
+		mxsfb->base + LCDC_V4_CTRL2 + REG_SET);
 
 	/* If it was disabled, re-enable the mode again */
 	writel(CTRL_DOTCLK_MODE, mxsfb->base + LCDC_CTRL + REG_SET);
@@ -130,12 +138,22 @@ static void mxsfb_enable_controller(struct mxsfb_drm_private *mxsfb)
 	reg |= VDCTRL4_SYNC_SIGNALS_ON;
 	writel(reg, mxsfb->base + LCDC_VDCTRL4);
 
+	writel(CTRL_MASTER, mxsfb->base + LCDC_CTRL + REG_SET);
 	writel(CTRL_RUN, mxsfb->base + LCDC_CTRL + REG_SET);
+
+	writel(CTRL1_RECOVERY_ON_UNDERFLOW, mxsfb->base + LCDC_CTRL1 + REG_SET);
+
+	mxsfb->enabled = true;
 }
 
 static void mxsfb_disable_controller(struct mxsfb_drm_private *mxsfb)
 {
 	u32 reg;
+
+	if (!mxsfb->enabled)
+		return;
+
+	writel(CTRL_RUN, mxsfb->base + LCDC_CTRL + REG_CLR);
 
 	/*
 	 * Even if we disable the controller here, it will still continue
@@ -146,13 +164,17 @@ static void mxsfb_disable_controller(struct mxsfb_drm_private *mxsfb)
 	readl_poll_timeout(mxsfb->base + LCDC_CTRL, reg, !(reg & CTRL_RUN),
 			   0, 1000);
 
+	writel(CTRL_MASTER, mxsfb->base + LCDC_CTRL + REG_CLR);
+
 	reg = readl(mxsfb->base + LCDC_VDCTRL4);
 	reg &= ~VDCTRL4_SYNC_SIGNALS_ON;
 	writel(reg, mxsfb->base + LCDC_VDCTRL4);
 
-	clk_disable_unprepare(mxsfb->clk);
 	if (mxsfb->clk_disp_axi)
 		clk_disable_unprepare(mxsfb->clk_disp_axi);
+	clk_disable_unprepare(mxsfb->clk);
+
+	mxsfb->enabled = false;
 }
 
 /*
@@ -204,6 +226,8 @@ static void mxsfb_crtc_mode_set_nofb(struct mxsfb_drm_private *mxsfb)
 {
 	struct drm_display_mode *m = &mxsfb->pipe.crtc.state->adjusted_mode;
 	const u32 bus_flags = mxsfb->connector.display_info.bus_flags;
+	u32 hbp = m->crtc_hblank_end - m->crtc_hsync_end;
+	u32 vbp = m->crtc_vblank_end - m->crtc_vsync_end;
 	u32 vdctrl0, vsync_pulse_len, hsync_pulse_len;
 	int err;
 
@@ -266,18 +290,25 @@ static void mxsfb_crtc_mode_set_nofb(struct mxsfb_drm_private *mxsfb)
 	       VDCTRL2_SET_HSYNC_PERIOD(m->crtc_htotal),
 	       mxsfb->base + LCDC_VDCTRL2);
 
-	writel(SET_HOR_WAIT_CNT(m->crtc_htotal - m->crtc_hsync_start) |
-	       SET_VERT_WAIT_CNT(m->crtc_vtotal - m->crtc_vsync_start),
+	writel(SET_HOR_WAIT_CNT(hbp + hsync_pulse_len) |
+	       SET_VERT_WAIT_CNT(vbp + vsync_pulse_len),
 	       mxsfb->base + LCDC_VDCTRL3);
 
 	writel(SET_DOTCLK_H_VALID_DATA_CNT(m->hdisplay),
 	       mxsfb->base + LCDC_VDCTRL4);
+
+	if (mxsfb->gem != NULL) {
+		writel(mxsfb->gem->paddr,
+		       mxsfb->base + mxsfb->devdata->next_buf);
+		mxsfb->gem = NULL;
+	}
 }
 
 void mxsfb_crtc_enable(struct mxsfb_drm_private *mxsfb)
 {
 	dma_addr_t paddr;
 
+	writel(0, mxsfb->base + LCDC_CTRL);
 	mxsfb_enable_axi_clk(mxsfb);
 	mxsfb_crtc_mode_set_nofb(mxsfb);
 
