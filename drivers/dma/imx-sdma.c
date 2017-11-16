@@ -2318,6 +2318,8 @@ static int sdma_probe(struct platform_device *pdev)
 	if (!sdma)
 		return -ENOMEM;
 
+	sdma->clk_ratio = of_property_read_bool(np, "fsl,ratio-1-1");
+
 	spin_lock_init(&sdma->channel_0_lock);
 
 	sdma->dev = &pdev->dev;
