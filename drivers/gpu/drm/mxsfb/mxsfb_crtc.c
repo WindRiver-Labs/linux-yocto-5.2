@@ -120,9 +120,6 @@ static void mxsfb_enable_controller(struct mxsfb_drm_private *mxsfb)
 {
 	u32 reg;
 
-	if (mxsfb->enabled)
-		return;
-
 	if (mxsfb->clk_disp_axi)
 		clk_prepare_enable(mxsfb->clk_disp_axi);
 	clk_prepare_enable(mxsfb->clk);
@@ -142,16 +139,11 @@ static void mxsfb_enable_controller(struct mxsfb_drm_private *mxsfb)
 	writel(CTRL_RUN, mxsfb->base + LCDC_CTRL + REG_SET);
 
 	writel(CTRL1_RECOVERY_ON_UNDERFLOW, mxsfb->base + LCDC_CTRL1 + REG_SET);
-
-	mxsfb->enabled = true;
 }
 
 static void mxsfb_disable_controller(struct mxsfb_drm_private *mxsfb)
 {
 	u32 reg;
-
-	if (!mxsfb->enabled)
-		return;
 
 	writel(CTRL_RUN, mxsfb->base + LCDC_CTRL + REG_CLR);
 
@@ -173,8 +165,6 @@ static void mxsfb_disable_controller(struct mxsfb_drm_private *mxsfb)
 	if (mxsfb->clk_disp_axi)
 		clk_disable_unprepare(mxsfb->clk_disp_axi);
 	clk_disable_unprepare(mxsfb->clk);
-
-	mxsfb->enabled = false;
 }
 
 /*
@@ -308,9 +298,14 @@ void mxsfb_crtc_enable(struct mxsfb_drm_private *mxsfb)
 {
 	dma_addr_t paddr;
 
+	if (mxsfb->enabled)
+		return;
+
 	writel(0, mxsfb->base + LCDC_CTRL);
 	mxsfb_enable_axi_clk(mxsfb);
 	mxsfb_crtc_mode_set_nofb(mxsfb);
+
+	mxsfb->enabled = true;
 
 	/* Write cur_buf as well to avoid an initial corrupt frame */
 	paddr = mxsfb_get_fb_paddr(mxsfb);
@@ -324,8 +319,13 @@ void mxsfb_crtc_enable(struct mxsfb_drm_private *mxsfb)
 
 void mxsfb_crtc_disable(struct mxsfb_drm_private *mxsfb)
 {
+	if (!mxsfb->enabled)
+		return;
+
 	mxsfb_disable_controller(mxsfb);
 	mxsfb_disable_axi_clk(mxsfb);
+
+	mxsfb->enabled = false;
 }
 
 void mxsfb_plane_atomic_update(struct mxsfb_drm_private *mxsfb,
