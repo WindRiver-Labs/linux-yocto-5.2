@@ -4856,6 +4856,14 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 }
 EXPORT_SYMBOL_GPL(spi_nor_scan);
 
+void spi_nor_shutdown(struct spi_nor *nor)
+{
+	if (nor->addr_width == 3 &&
+		(nor->mtd.size >> nor->shift) > 0x1000000)
+		write_ear(nor, 0);
+}
+EXPORT_SYMBOL_GPL(spi_nor_shutdown);
+
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR("Huang Shijie <shijie8@gmail.com>");
 MODULE_AUTHOR("Mike Lavender");
