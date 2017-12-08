@@ -36,6 +36,9 @@
 #include "mxsfb_drv.h"
 #include "mxsfb_regs.h"
 
+/* The eLCDIF max possible CRTCs */
+#define MAX_CRTCS 1
+
 enum mxsfb_devtype {
 	MXSFB_V3,
 	MXSFB_V4,
@@ -134,6 +137,8 @@ static void mxsfb_pipe_enable(struct drm_simple_display_pipe *pipe,
 		dev_warn(drm->dev, "No connector attached, using default\n");
 		mxsfb->connector = &mxsfb->panel_connector;
 	}
+
+	drm_crtc_vblank_on(&mxsfb->pipe.crtc);
 
 	pm_runtime_get_sync(drm->dev);
 	drm_panel_prepare(mxsfb->panel);
@@ -248,7 +253,7 @@ static int mxsfb_load(struct drm_device *drm, unsigned long flags)
 
 	pm_runtime_enable(drm->dev);
 
-	ret = drm_vblank_init(drm, drm->mode_config.num_crtc);
+	ret = drm_vblank_init(drm, MAX_CRTCS);
 	if (ret < 0) {
 		dev_err(drm->dev, "Failed to initialise vblank\n");
 		goto err_vblank;
@@ -270,6 +275,8 @@ static int mxsfb_load(struct drm_device *drm, unsigned long flags)
 		dev_err(drm->dev, "Cannot setup simple display pipe\n");
 		goto err_vblank;
 	}
+
+	drm_crtc_vblank_off(&mxsfb->pipe.crtc);
 
 	/*
 	 * Attach panel only if there is one.
