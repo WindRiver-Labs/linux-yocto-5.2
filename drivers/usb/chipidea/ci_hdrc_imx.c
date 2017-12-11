@@ -552,6 +552,11 @@ static int ci_hdrc_imx_probe(struct platform_device *pdev)
 	if (pdata.flags & CI_HDRC_SUPPORTS_RUNTIME_PM)
 		data->supports_runtime_pm = true;
 
+	if (of_find_property(np, "ci-disable-lpm", NULL)) {
+		data->supports_runtime_pm = false;
+		pdata.flags &= ~CI_HDRC_SUPPORTS_RUNTIME_PM;
+	}
+
 	if (of_find_property(np, "fsl,anatop", NULL) && data->usbmisc_data) {
 		data->anatop = syscon_regmap_lookup_by_phandle(np,
 							"fsl,anatop");
