@@ -446,8 +446,10 @@ static int xilinx_drm_platform_probe(struct platform_device *pdev)
 		return PTR_ERR(drm);
 
 	private = devm_kzalloc(drm->dev, sizeof(*private), GFP_KERNEL);
-	if (!private)
-		return -ENOMEM;
+	if (!private) {
+		ret = -ENOMEM;
+		goto err_drm;
+	}
 
 	drm_mode_config_init(drm);
 
@@ -456,7 +458,7 @@ static int xilinx_drm_platform_probe(struct platform_device *pdev)
 	if (IS_ERR(private->crtc)) {
 		DRM_DEBUG_DRIVER("failed to create xilinx crtc\n");
 		ret = PTR_ERR(private->crtc);
-		goto err_out;
+		goto err_config;
 	}
 
 	while ((encoder_node = of_parse_phandle(drm->dev->of_node,
@@ -466,14 +468,14 @@ static int xilinx_drm_platform_probe(struct platform_device *pdev)
 		if (IS_ERR(encoder)) {
 			DRM_DEBUG_DRIVER("failed to create xilinx encoder\n");
 			ret = PTR_ERR(encoder);
-			goto err_out;
+			goto err_config;
 		}
 
 		connector = xilinx_drm_connector_create(drm, encoder, i);
 		if (IS_ERR(connector)) {
 			DRM_DEBUG_DRIVER("failed to create xilinx connector\n");
 			ret = PTR_ERR(connector);
-			goto err_out;
+			goto err_config;
 		}
 
 		i++;
@@ -564,10 +566,12 @@ static int xilinx_drm_platform_probe(struct platform_device *pdev)
 
 err_master:
 	component_master_del(drm->dev, &xilinx_drm_ops);
-err_out:
+err_config:
 	drm_mode_config_cleanup(drm);
 	if (ret == -EPROBE_DEFER)
 		DRM_INFO("load() is defered & will be called again\n");
+err_drm:
+	drm_dev_put(drm);
 	return ret;
 }
 
