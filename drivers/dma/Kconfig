@@ -233,6 +233,8 @@ config FSL_QDMA
          This module can be found on NXP Layerscape SoCs.
 	  The qdma driver only work on  SoCs with a DPAA hardware block.
 
+source "drivers/dma/dpaa2-qdma/Kconfig"
+
 config FSL_RAID
         tristate "Freescale RAID engine Support"
         depends on FSL_SOC && !ASYNC_TX_ENABLE_CHANNEL_SWITCH
