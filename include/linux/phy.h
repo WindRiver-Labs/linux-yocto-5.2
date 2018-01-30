@@ -430,6 +430,7 @@ struct phy_device {
 	void *priv;
 
 	/* Interrupt and Polling infrastructure */
+	struct work_struct phy_queue;
 	struct delayed_work state_queue;
 
 	struct mutex lock;
