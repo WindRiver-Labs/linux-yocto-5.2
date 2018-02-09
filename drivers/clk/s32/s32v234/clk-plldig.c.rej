@@ -1,0 +1,19 @@
+diff a/drivers/clk/s32/s32v234/clk-plldig.c b/drivers/clk/s32/s32v234/clk-plldig.c	(rejected hunks)
+@@ -41,7 +41,7 @@ struct clk_plldig {
+ 
+ #define to_clk_plldig(_hw) container_of(_hw, struct clk_plldig, hw)
+ 
+-static unsigned long get_pllx_max_vco_rate(enum s32_plldig_type plltype)
++static unsigned long get_pllx_max_vco_rate(enum s32v234_plldig_type plltype)
+ {
+ 	switch (plltype) {
+ 	case S32_PLLDIG_ARM:
+@@ -62,7 +62,7 @@ static unsigned long get_pllx_max_vco_rate(enum s32_plldig_type plltype)
+ 	}
+ }
+ 
+-static unsigned long get_pllx_phiy_max_rate(enum s32_plldig_type plltype,
++static unsigned long get_pllx_phiy_max_rate(enum s32v234_plldig_type plltype,
+ 					    unsigned int phino)
+ {
+ 	switch (plltype) {
