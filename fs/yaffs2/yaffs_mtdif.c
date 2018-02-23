@@ -18,7 +18,7 @@
 #include "linux/mtd/mtd.h"
 #include "linux/types.h"
 #include "linux/time.h"
-#include "linux/mtd/nand.h"
+#include "linux/mtd/rawnand.h"
 #include "linux/kernel.h"
 #include "linux/version.h"
 #include "linux/types.h"
