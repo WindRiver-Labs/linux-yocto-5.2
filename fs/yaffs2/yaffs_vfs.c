@@ -136,7 +136,7 @@
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26))
 #define Y_INIT_TIMER(a)	init_timer(a)
 #else
-#define Y_INIT_TIMER(a)	init_timer_on_stack(a)
+#define Y_INIT_TIMER(a)	timer_setup_on_stack(a, NULL, 0)
 #endif
 
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27))
@@ -2065,10 +2065,16 @@ static unsigned yaffs_bg_gc_urgency(struct yaffs_dev *dev)
 }
 
 #ifdef YAFFS_COMPILE_BACKGROUND
+struct yaffs_timer {
+	struct timer_list timer;
+	struct task_struct *tsk;
+};
 
-void yaffs_background_waker(unsigned long data)
+void yaffs_background_waker(struct timer_list *t)
 {
-	wake_up_process((struct task_struct *)data);
+	struct yaffs_timer *yt = from_timer(yt, t, timer);
+
+	wake_up_process(yt->tsk);
 }
 
 static int yaffs_bg_thread_fn(void *data)
@@ -2082,7 +2088,7 @@ static int yaffs_bg_thread_fn(void *data)
 	unsigned int urgency;
 
 	int gc_result;
-	struct timer_list timer;
+	struct yaffs_timer yt;
 
 	yaffs_trace(YAFFS_TRACE_BACKGROUND,
 		"yaffs_background starting for dev %p", (void *)dev);
@@ -2135,15 +2141,15 @@ static int yaffs_bg_thread_fn(void *data)
 		if (time_before(expires, now))
 			expires = now + HZ;
 
-		Y_INIT_TIMER(&timer);
-		timer.expires = expires + 1;
-		timer.data = (unsigned long)current;
-		timer.function = yaffs_background_waker;
+		Y_INIT_TIMER(&yt.timer);
+		yt.timer.function = yaffs_background_waker;
+		yt.timer.expires = expires + 1;
+		yt.tsk = current;
 
 		set_current_state(TASK_INTERRUPTIBLE);
-		add_timer(&timer);
+		add_timer(&yt.timer);
 		schedule();
-		del_timer_sync(&timer);
+		del_timer_sync(&yt.timer);
 #else
 		msleep(10);
 #endif
