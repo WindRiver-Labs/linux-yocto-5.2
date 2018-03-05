@@ -47,7 +47,6 @@
 #include <linux/stringify.h>
 #include <linux/bitops.h>
 #include <linux/gfp.h>
-#include <linux/kmemcheck.h>
 #include <linux/random.h>
 #include <linux/jhash.h>
 
@@ -3225,8 +3224,6 @@ static void __lockdep_init_map(struct lockdep_map *lock, const char *name,
 {
 	int i;
 
-	kmemcheck_mark_initialized(lock, sizeof(*lock));
-
 	for (i = 0; i < NR_LOCKDEP_CACHING_CLASSES; i++)
 		lock->class_cache[i] = NULL;
 
@@ -3917,6 +3914,7 @@ static void check_flags(unsigned long flags)
 		}
 	}
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 	/*
 	 * We dont accurately track softirq state in e.g.
 	 * hardirq contexts (such as on 4KSTACKS), so only
@@ -3931,6 +3929,7 @@ static void check_flags(unsigned long flags)
 			DEBUG_LOCKS_WARN_ON(!current->softirqs_enabled);
 		}
 	}
+#endif
 
 	if (!debug_locks)
 		print_irqtrace_events(current);

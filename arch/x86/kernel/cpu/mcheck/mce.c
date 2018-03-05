@@ -42,6 +42,7 @@
 #include <linux/debugfs.h>
 #include <linux/irq_work.h>
 #include <linux/export.h>
+#include <linux/jiffies.h>
 #include <linux/jump_label.h>
 
 #include <asm/intel-family.h>
@@ -105,6 +106,10 @@ static struct work_struct mce_work;
 static struct irq_work mce_irq_work;
 
 static void (*quirk_no_way_out)(int bank, struct mce *m, struct pt_regs *regs);
+
+#ifndef mce_unmap_kpfn
+static void mce_unmap_kpfn(unsigned long pfn);
+#endif
 
 /*
  * CPU/chipset specific EDAC code can register a notifier call here to print
@@ -582,7 +587,8 @@ static int srao_decode_notifier(struct notifier_block *nb, unsigned long val,
 
 	if (mce_usable_address(mce) && (mce->severity == MCE_AO_SEVERITY)) {
 		pfn = mce->addr >> PAGE_SHIFT;
-		memory_failure(pfn, MCE_VECTOR, 0);
+		if (memory_failure(pfn, MCE_VECTOR, 0))
+			mce_unmap_kpfn(pfn);
 	}
 
 	return NOTIFY_OK;
@@ -1049,12 +1055,13 @@ static int do_memory_failure(struct mce *m)
 	ret = memory_failure(m->addr >> PAGE_SHIFT, MCE_VECTOR, flags);
 	if (ret)
 		pr_err("Memory error not recovered");
+	else
+		mce_unmap_kpfn(m->addr >> PAGE_SHIFT);
 	return ret;
 }
 
-#if defined(arch_unmap_kpfn) && defined(CONFIG_MEMORY_FAILURE)
-
-void arch_unmap_kpfn(unsigned long pfn)
+#ifndef mce_unmap_kpfn
+static void mce_unmap_kpfn(unsigned long pfn)
 {
 	unsigned long decoy_addr;
 
@@ -1065,7 +1072,7 @@ void arch_unmap_kpfn(unsigned long pfn)
 	 * We would like to just call:
 	 *	set_memory_np((unsigned long)pfn_to_kaddr(pfn), 1);
 	 * but doing that would radically increase the odds of a
-	 * speculative access to the posion page because we'd have
+	 * speculative access to the poison page because we'd have
 	 * the virtual address of the kernel 1:1 mapping sitting
 	 * around in registers.
 	 * Instead we get tricky.  We create a non-canonical address
@@ -1090,7 +1097,6 @@ void arch_unmap_kpfn(unsigned long pfn)
 
 	if (set_memory_np(decoy_addr, 1))
 		pr_warn("Could not invalidate pfn=0x%lx from 1:1 map\n", pfn);
-
 }
 #endif
 
@@ -1345,7 +1351,7 @@ int memory_failure(unsigned long pfn, int vector, int flags)
 static unsigned long check_interval = INITIAL_CHECK_INTERVAL;
 
 static DEFINE_PER_CPU(unsigned long, mce_next_interval); /* in jiffies */
-static DEFINE_PER_CPU(struct timer_list, mce_timer);
+static DEFINE_PER_CPU(struct hrtimer, mce_timer);
 
 static unsigned long mce_adjust_timer_default(unsigned long interval)
 {
@@ -1354,26 +1360,18 @@ static unsigned long mce_adjust_timer_default(unsigned long interval)
 
 static unsigned long (*mce_adjust_timer)(unsigned long interval) = mce_adjust_timer_default;
 
-static void __start_timer(struct timer_list *t, unsigned long interval)
+static void __start_timer(struct hrtimer *t, unsigned long iv)
 {
-	unsigned long when = jiffies + interval;
-	unsigned long flags;
+	if (!iv)
+		return;
 
-	local_irq_save(flags);
-
-	if (!timer_pending(t) || time_before(when, t->expires))
-		mod_timer(t, round_jiffies(when));
-
-	local_irq_restore(flags);
+	hrtimer_start_range_ns(t, ns_to_ktime(jiffies_to_usecs(iv) * 1000ULL),
+			       0, HRTIMER_MODE_REL_PINNED);
 }
 
-static void mce_timer_fn(unsigned long data)
+static  enum hrtimer_restart mce_timer_fn(struct hrtimer *timer)
 {
-	struct timer_list *t = this_cpu_ptr(&mce_timer);
-	int cpu = smp_processor_id();
 	unsigned long iv;
-
-	WARN_ON(cpu != data);
 
 	iv = __this_cpu_read(mce_next_interval);
 
@@ -1397,7 +1395,11 @@ static void mce_timer_fn(unsigned long data)
 
 done:
 	__this_cpu_write(mce_next_interval, iv);
-	__start_timer(t, iv);
+	if (!iv)
+		return HRTIMER_NORESTART;
+
+	hrtimer_forward_now(timer, ns_to_ktime(jiffies_to_nsecs(iv)));
+	return HRTIMER_RESTART;
 }
 
 /*
@@ -1405,7 +1407,7 @@ done:
  */
 void mce_timer_kick(unsigned long interval)
 {
-	struct timer_list *t = this_cpu_ptr(&mce_timer);
+	struct hrtimer *t = this_cpu_ptr(&mce_timer);
 	unsigned long iv = __this_cpu_read(mce_next_interval);
 
 	__start_timer(t, interval);
@@ -1420,7 +1422,7 @@ static void mce_timer_delete_all(void)
 	int cpu;
 
 	for_each_online_cpu(cpu)
-		del_timer_sync(&per_cpu(mce_timer, cpu));
+		hrtimer_cancel(&per_cpu(mce_timer, cpu));
 }
 
 /*
@@ -1749,7 +1751,7 @@ static void __mcheck_cpu_clear_vendor(struct cpuinfo_x86 *c)
 	}
 }
 
-static void mce_start_timer(struct timer_list *t)
+static void mce_start_timer(struct hrtimer *t)
 {
 	unsigned long iv = check_interval * HZ;
 
@@ -1762,18 +1764,19 @@ static void mce_start_timer(struct timer_list *t)
 
 static void __mcheck_cpu_setup_timer(void)
 {
-	struct timer_list *t = this_cpu_ptr(&mce_timer);
-	unsigned int cpu = smp_processor_id();
+	struct hrtimer *t = this_cpu_ptr(&mce_timer);
 
-	setup_pinned_timer(t, mce_timer_fn, cpu);
+	hrtimer_init(t, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	t->function = mce_timer_fn;
 }
 
 static void __mcheck_cpu_init_timer(void)
 {
-	struct timer_list *t = this_cpu_ptr(&mce_timer);
-	unsigned int cpu = smp_processor_id();
+	struct hrtimer *t = this_cpu_ptr(&mce_timer);
 
-	setup_pinned_timer(t, mce_timer_fn, cpu);
+	hrtimer_init(t, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	t->function = mce_timer_fn;
+
 	mce_start_timer(t);
 }
 
@@ -2275,7 +2278,7 @@ static int mce_cpu_dead(unsigned int cpu)
 
 static int mce_cpu_online(unsigned int cpu)
 {
-	struct timer_list *t = this_cpu_ptr(&mce_timer);
+	struct hrtimer *t = this_cpu_ptr(&mce_timer);
 	int ret;
 
 	mce_device_create(cpu);
@@ -2292,10 +2295,10 @@ static int mce_cpu_online(unsigned int cpu)
 
 static int mce_cpu_pre_down(unsigned int cpu)
 {
-	struct timer_list *t = this_cpu_ptr(&mce_timer);
+	struct hrtimer *t = this_cpu_ptr(&mce_timer);
 
 	mce_disable_cpu();
-	del_timer_sync(t);
+	hrtimer_cancel(t);
 	mce_threshold_remove_device(cpu);
 	mce_device_remove(cpu);
 	return 0;
