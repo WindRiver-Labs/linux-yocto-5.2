@@ -950,14 +950,6 @@ void __tasklet_hi_schedule(struct tasklet_struct *t)
 }
 EXPORT_SYMBOL(__tasklet_hi_schedule);
 
-void __tasklet_hi_schedule_first(struct tasklet_struct *t)
-{
-	BUG_ON(!irqs_disabled());
-
-	__tasklet_hi_schedule(t);
-}
-EXPORT_SYMBOL(__tasklet_hi_schedule_first);
-
 void  tasklet_enable(struct tasklet_struct *t)
 {
 	if (!atomic_dec_and_test(&t->count))
