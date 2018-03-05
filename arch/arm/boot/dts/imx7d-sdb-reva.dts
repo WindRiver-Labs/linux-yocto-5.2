@@ -11,10 +11,37 @@
 		pinctrl-0 = <&pinctrl_usb_otg2_vbus_reg_reva>;
 		gpio = <&gpio4 7 GPIO_ACTIVE_HIGH>;
 	};
+
+	reg_pcie: regulator-pcie {
+		compatible = "regulator-fixed";
+		regulator-name = "MPCIE_3V3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&extended_io 6 GPIO_ACTIVE_HIGH>;
+		regulator-always-on;
+		enable-active-high;
+	};
+
+	sound-hdmi {
+		cpu-dai = <&sai1>;
+	};
+};
+
+&epdc {
+	pinctrl-0 = <&pinctrl_epdc0>;
+	en-gpios = <&extended_io 5 GPIO_ACTIVE_LOW>;
 };
 
 &fec2 {
 	/delete-property/phy-supply;
+	pinctrl-0 = <&pinctrl_enet2>;
+	pinctrl-assert-gpios = <>;
+};
+
+&i2c4 {
+	ov5647_mipi: ov5647_mipi@36 {
+		pwn-gpios = <&extended_io 7 GPIO_ACTIVE_HIGH>;
+	};
 };
 
 &iomuxc {
@@ -36,5 +63,35 @@
 				MX7D_PAD_UART3_CTS_B__GPIO4_IO7		0x14
 			>;
 		};
+
+		pinctrl_uart5: uart5grp {
+			fsl,pins = <
+				MX7D_PAD_SAI1_TX_BCLK__UART5_DCE_TX 0x79
+				MX7D_PAD_SAI1_RX_DATA__UART5_DCE_RX 0x79
+				MX7D_PAD_SAI1_TX_SYNC__UART5_DCE_CTS 0x79
+				MX7D_PAD_SAI1_TX_DATA__UART5_DCE_RTS 0x79
+			>;
+		};
+
+		pinctrl_uart5dte: uart5dtegrp {
+			fsl,pins = <
+				MX7D_PAD_SAI1_TX_BCLK__UART5_DTE_RX 0x79
+				MX7D_PAD_SAI1_RX_DATA__UART5_DTE_TX 0x79
+				MX7D_PAD_SAI1_TX_SYNC__UART5_DTE_RTS 0x79
+				MX7D_PAD_SAI1_TX_DATA__UART5_DTE_CTS 0x79
+			>;
+		};
 	};
+};
+
+&iomuxc {
+	pinctrl-0 = <&pinctrl_hog_1 &pinctrl_usbotg2_pwr_1>;
+};
+
+&iomuxc_lpsr {
+	pinctrl-0 = <&pinctrl_hog_2>;
+};
+
+&uart5 {
+	fsl,uart-has-rtscts;
 };
