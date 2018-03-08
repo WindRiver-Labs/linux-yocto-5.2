@@ -38,11 +38,10 @@ Required properties for VDMA:
 - xlnx,num-fstores: Should be the number of framebuffers as configured in h/w.
 
 Optional properties for AXI DMA:
-- xlnx,sg-length-width: Should be set to the width in bits of the length
-	register as configured in h/w. Takes values {8...26}. If the property
-	is missing or invalid then the default value 23 is used. This is the
-	maximum value that is supported by all IP versions.
 - xlnx,mcdma: Tells whether configured for multi-channel mode in the hardware.
+- xlnx,sg-length-width: Should be set to the width of buffer length register as
+	configured in hardware. If this property is missing or has invalid width
+	i.e not in range of 8-23, maximum buffer length width 23 bits is used.
 Optional properties for VDMA:
 - xlnx,flush-fsync: Tells which channel to Flush on Frame sync.
 	It takes following values:
