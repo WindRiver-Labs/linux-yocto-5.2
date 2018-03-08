@@ -1802,7 +1802,7 @@ static struct dma_async_tx_descriptor *xilinx_cdma_prep_sg(
 	 */
 	while (true) {
 		len = min_t(size_t, src_avail, dst_avail);
-		len = min_t(size_t, len, XILINX_DMA_MAX_TRANS_LEN);
+		len = min_t(size_t, len, chan->xdev->max_buffer_len);
 		if (len == 0)
 			goto fetch;
 
