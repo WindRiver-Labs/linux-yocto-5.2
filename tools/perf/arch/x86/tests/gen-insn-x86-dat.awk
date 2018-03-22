@@ -1,4 +1,4 @@
-#!/bin/awk -f
+#!/usr/bin/awk -f
 # gen-insn-x86-dat.awk: script to convert data for the insn-x86 test
 # Copyright (c) 2015, Intel Corporation.
 #
