@@ -3271,6 +3271,23 @@ static int _regulator_do_set_suspend_voltage(struct regulator_dev *rdev,
 	return 0;
 }
 
+static inline bool _regulator_should_adjust_supply(struct regulator_dev *rdev)
+{
+	/* Check for adjustable supply */
+	if (!rdev->supply)
+		return false;
+	if (!regulator_ops_is_valid(rdev->supply->rdev, REGULATOR_CHANGE_VOLTAGE))
+		return false;
+
+	/* Check for need to adjust supply */
+	if (rdev->desc->min_dropout_uV)
+		return true;
+	if (!(rdev->desc->ops->get_voltage || rdev->desc->ops->get_voltage_sel))
+		return true;
+
+	return false;
+}
+
 static int regulator_set_voltage_unlocked(struct regulator *regulator,
 					  int min_uV, int max_uV,
 					  suspend_state_t state)
@@ -3337,11 +3354,7 @@ static int regulator_set_voltage_rdev(struct regulator_dev *rdev, int min_uV,
 	int supply_change_uV = 0;
 	int ret;
 
-	if (rdev->supply &&
-	    regulator_ops_is_valid(rdev->supply->rdev,
-				   REGULATOR_CHANGE_VOLTAGE) &&
-	    (rdev->desc->min_dropout_uV || !(rdev->desc->ops->get_voltage ||
-					   rdev->desc->ops->get_voltage_sel))) {
+	if (_regulator_should_adjust_supply(rdev)) {
 		int current_supply_uV;
 		int selector;
 
