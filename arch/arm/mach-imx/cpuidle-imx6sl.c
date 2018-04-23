@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2014-2015 Freescale Semiconductor, Inc.
- * Copyright 2017 NXP.
+ * Copyright 2017-2018 NXP.
  */
 
 #include <linux/busfreq-imx.h>
@@ -71,11 +71,11 @@ static int imx6sl_enter_wait(struct cpuidle_device *dev,
 
 	if ((mode == BUS_FREQ_AUDIO) || (mode == BUS_FREQ_ULTRA_LOW)) {
 		/*
-		 * bit 1 used for low power mode;
-		 * bit 2 used for the ldo2p5_dummmy enable
+		 * bit 2 used for low power mode;
+		 * bit 1 used for the ldo2p5_dummmy enable
 		 */
 		if (psci_ops.cpu_suspend) {
-			psci_ops.cpu_suspend((MX6SL_POWERDWN_IDLE_PARAM | ((BUS_FREQ_AUDIO ? 1 : 0) << 2) |
+			psci_ops.cpu_suspend((MX6SL_POWERDWN_IDLE_PARAM | ((mode == BUS_FREQ_AUDIO ? 1 : 0) << 2) |
 				(ldo2p5_dummy_enable ? 1 : 0) << 1), __pa(cpu_resume));
 		} else {
 			imx6sl_wfi_in_iram_fn(wfi_iram_base, (mode == BUS_FREQ_AUDIO) ? 1 : 0,
