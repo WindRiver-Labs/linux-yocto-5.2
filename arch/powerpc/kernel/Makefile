@@ -3,7 +3,8 @@
 # Makefile for the linux kernel.
 #
 
-CFLAGS_ptrace.o		+= -DUTS_MACHINE='"$(UTS_MACHINE)"'
+CFLAGS_ptrace.o		+= -DUTS_MACHINE='"$(UTS_MACHINE)"' $(call cc-disable-warning, attribute-alias)
+CFLAGS_syscalls.o	+= $(call cc-disable-warning, attribute-alias)
 
 # Disable clang warning for using setjmp without setjmp.h header
 CFLAGS_crash.o		+= $(call cc-disable-warning, builtin-requires-header)
