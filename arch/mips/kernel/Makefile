@@ -2,6 +2,8 @@
 #
 # Makefile for the Linux/MIPS kernel.
 #
+CFLAGS_signal.o		+= $(call cc-disable-warning, attribute-alias)
+CFLAGS_syscall.o	+= $(call cc-disable-warning, attribute-alias)
 
 extra-y		:= head.o vmlinux.lds
 
