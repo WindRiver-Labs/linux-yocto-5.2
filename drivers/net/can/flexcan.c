@@ -322,7 +322,7 @@ static const struct flexcan_devtype_data fsl_ls1021a_r2_devtype_data = {
 };
 
 static struct flexcan_devtype_data fsl_s32v234_devtype_data = {
-	.features = FLEXCAN_HAS_V10_FEATURES | FLEXCAN_HAS_MECR_FEATURES,
+	.quirks = FLEXCAN_QUIRK_DISABLE_RXFG | FLEXCAN_QUIRK_DISABLE_MECR,
 };
 
 static const struct can_bittiming_const flexcan_bittiming_const = {
