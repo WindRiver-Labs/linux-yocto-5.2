@@ -117,7 +117,8 @@ struct kioctx {
 	long			nr_pages;
 
 	struct rcu_head		free_rcu;
-	struct swork_event	free_work;      /* see free_ioctx() */
+	struct work_struct	free_work;	/* see free_ioctx() */
+	struct swork_event	free_swork;	/* see free_ioctx() */
 
 	/*
 	 * signals when all in-flight requests are done
@@ -637,7 +638,7 @@ static void free_ioctx_reqs(struct percpu_ref *ref)
  */
 static void free_ioctx_users_work(struct swork_event *sev)
 {
-	struct kioctx *ctx = container_of(sev, struct kioctx, free_work);
+	struct kioctx *ctx = container_of(sev, struct kioctx, free_swork);
 	struct aio_kiocb *req;
 
 	spin_lock_irq(&ctx->ctx_lock);
@@ -660,8 +661,8 @@ static void free_ioctx_users(struct percpu_ref *ref)
 {
 	struct kioctx *ctx = container_of(ref, struct kioctx, users);
 
-	INIT_SWORK(&ctx->free_work, free_ioctx_users_work);
-	swork_queue(&ctx->free_work);
+	INIT_SWORK(&ctx->free_swork, free_ioctx_users_work);
+	swork_queue(&ctx->free_swork);
 }
 
 static int ioctx_add_table(struct kioctx *ctx, struct mm_struct *mm)
