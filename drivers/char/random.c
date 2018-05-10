@@ -944,15 +944,19 @@ static void crng_reseed(struct crng_state *crng, struct entropy_store *r)
 		wake_up_interruptible(&crng_init_wait);
 		/* pr_notice("random: crng init done\n"); */
 		if (unseeded_warning.missed) {
+#if 0
 			pr_notice("random: %d get_random_xx warning(s) missed "
 				  "due to ratelimiting\n",
 				  unseeded_warning.missed);
+#endif
 			unseeded_warning.missed = 0;
 		}
 		if (urandom_warning.missed) {
+#if 0
 			pr_notice("random: %d urandom warning(s) missed "
 				  "due to ratelimiting\n",
 				  urandom_warning.missed);
+#endif
 			urandom_warning.missed = 0;
 		}
 	}

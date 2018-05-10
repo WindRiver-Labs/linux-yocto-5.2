@@ -950,7 +950,7 @@ void __tasklet_hi_schedule(struct tasklet_struct *t)
 }
 EXPORT_SYMBOL(__tasklet_hi_schedule);
 
-void  tasklet_enable(struct tasklet_struct *t)
+void tasklet_enable(struct tasklet_struct *t)
 {
 	if (!atomic_dec_and_test(&t->count))
 		return;
@@ -1034,16 +1034,14 @@ again:
 	}
 }
 
-static void tasklet_action(struct softirq_action *a)
+static __latent_entropy void tasklet_action(struct softirq_action *a)
 {
 	struct tasklet_struct *list;
 
 	local_irq_disable();
-
 	list = __this_cpu_read(tasklet_vec.head);
 	__this_cpu_write(tasklet_vec.head, NULL);
 	__this_cpu_write(tasklet_vec.tail, this_cpu_ptr(&tasklet_vec.head));
-
 	local_irq_enable();
 
 	__tasklet_action(a, list);
@@ -1058,8 +1056,6 @@ static __latent_entropy void tasklet_hi_action(struct softirq_action *a)
 	list = __this_cpu_read(tasklet_hi_vec.head);
 	__this_cpu_write(tasklet_hi_vec.head, NULL);
 	__this_cpu_write(tasklet_hi_vec.tail, this_cpu_ptr(&tasklet_hi_vec.head));
-
-	local_irq_enable();
 
 	__tasklet_action(a, list);
 }
