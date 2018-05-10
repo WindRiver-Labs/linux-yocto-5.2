@@ -797,20 +797,6 @@ SYSCALL_DEFINE1(timer_getoverrun, timer_t, timer_id)
 	return overrun;
 }
 
-/*
- * Protected by RCU!
- */
-static void timer_wait_for_callback(const struct k_clock *kc, struct k_itimer *timr)
-{
-#ifdef CONFIG_PREEMPT_RT_FULL
-	if (kc->timer_set == common_timer_set)
-		hrtimer_wait_for_timer(&timr->it.real.timer);
-	else
-		/* FIXME: Whacky hack for posix-cpu-timers */
-		schedule_timeout(1);
-#endif
-}
-
 static void common_hrtimer_arm(struct k_itimer *timr, ktime_t expires,
 			       bool absolute, bool sigev_none)
 {

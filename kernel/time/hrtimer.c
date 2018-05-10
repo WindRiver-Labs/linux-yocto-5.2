@@ -1291,9 +1291,9 @@ static void __hrtimer_init(struct hrtimer *timer, clockid_t clock_id,
 	cpu_base = raw_cpu_ptr(&hrtimer_bases);
 
 	/*
-	 * Posix magic: Relative CLOCK_REALTIME timers are not affected by
+	 * POSIX magic: Relative CLOCK_REALTIME timers are not affected by
 	 * clock modifications, so they needs to become CLOCK_MONOTONIC to
-	 * ensure Posix compliance.
+	 * ensure POSIX compliance.
 	 */
 	if (clock_id == CLOCK_REALTIME && mode & HRTIMER_MODE_REL)
 		clock_id = CLOCK_MONOTONIC;
@@ -1742,13 +1742,12 @@ int nanosleep_copyout(struct restart_block *restart, struct timespec64 *ts)
 	return -ERESTART_RESTARTBLOCK;
 }
 
-static int __sched do_nanosleep(struct hrtimer_sleeper *t, enum hrtimer_mode mode,
-				unsigned long state)
+static int __sched do_nanosleep(struct hrtimer_sleeper *t, enum hrtimer_mode mode)
 {
 	struct restart_block *restart;
 
 	do {
-		set_current_state(state);
+		set_current_state(TASK_INTERRUPTIBLE);
 		hrtimer_start_expires(&t->timer, mode);
 
 		if (likely(t->task))
@@ -1791,9 +1790,8 @@ static long __sched hrtimer_nanosleep_restart(struct restart_block *restart)
 	return ret;
 }
 
-static long __hrtimer_nanosleep(const struct timespec64 *rqtp,
-				const enum hrtimer_mode mode, const clockid_t clockid,
-				unsigned long state)
+long hrtimer_nanosleep(const struct timespec64 *rqtp,
+		       const enum hrtimer_mode mode, const clockid_t clockid)
 {
 	struct restart_block *restart;
 	struct hrtimer_sleeper t;
@@ -1806,7 +1804,7 @@ static long __hrtimer_nanosleep(const struct timespec64 *rqtp,
 
 	hrtimer_init_sleeper_on_stack(&t, clockid, mode, current);
 	hrtimer_set_expires_range_ns(&t.timer, timespec64_to_ktime(*rqtp), slack);
-	ret = do_nanosleep(&t, mode, state);
+	ret = do_nanosleep(&t, mode);
 	if (ret != -ERESTART_RESTARTBLOCK)
 		goto out;
 
@@ -1823,12 +1821,6 @@ static long __hrtimer_nanosleep(const struct timespec64 *rqtp,
 out:
 	destroy_hrtimer_on_stack(&t.timer);
 	return ret;
-}
-
-long hrtimer_nanosleep(const struct timespec64 *rqtp,
-		       const enum hrtimer_mode mode, const clockid_t clockid)
-{
-	return __hrtimer_nanosleep(rqtp, mode, clockid, TASK_INTERRUPTIBLE);
 }
 
 SYSCALL_DEFINE2(nanosleep, struct timespec __user *, rqtp,

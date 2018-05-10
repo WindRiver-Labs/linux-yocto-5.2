@@ -598,9 +598,9 @@ static int kiocb_cancel(struct aio_kiocb *kiocb)
  * aio_free_ring(), so the double bouncing through kioctx->free_rcu and
  * ->free_work.
  */
-static void free_ioctx(struct swork_event *sev)
+static void free_ioctx(struct work_struct *work)
 {
-	struct kioctx *ctx = container_of(sev, struct kioctx, free_work);
+	struct kioctx *ctx = container_of(work, struct kioctx, free_work);
 
 	pr_debug("freeing %p\n", ctx);
 
@@ -615,8 +615,8 @@ static void free_ioctx_rcufn(struct rcu_head *head)
 {
 	struct kioctx *ctx = container_of(head, struct kioctx, free_rcu);
 
-	INIT_SWORK(&ctx->free_work, free_ioctx);
-	swork_queue(&ctx->free_work);
+	INIT_WORK(&ctx->free_work, free_ioctx);
+	schedule_work(&ctx->free_work);
 }
 
 static void free_ioctx_reqs(struct percpu_ref *ref)
