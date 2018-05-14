@@ -191,7 +191,7 @@
 
 			qspi_boot: partition@0 {
 				label = "Boot and fpga data";
-				reg = <0x0 0x4000000>;
+				reg = <0x00910000 0x036F0000>;
 			};
 
 			qspi_rootfs: partition@4000000 {
