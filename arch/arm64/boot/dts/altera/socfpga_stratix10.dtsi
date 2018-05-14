@@ -522,6 +522,9 @@
 				compatible = "intel,stratix10-svc";
 				method = "smc";
 				memory-region = <&service_reserved>;
+				rsu {
+					compatible = "intel,stratix10-rsu";
+				};
 			};
 		};
 	};
