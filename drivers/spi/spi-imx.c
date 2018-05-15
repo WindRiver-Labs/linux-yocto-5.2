@@ -630,11 +630,12 @@ static void mx51_setup_wml(struct spi_imx_data *spi_imx)
 	if (spi_imx->devtype_data->devtype == IMX6UL_ECSPI)
 		tx_wml = spi_imx->wml / 2;
 
-	writel(MX51_ECSPI_DMA_RX_WML(spi_imx->wml - 1) |
-		MX51_ECSPI_DMA_TX_WML(tx_wml) |
-		MX51_ECSPI_DMA_RXT_WML(spi_imx->wml) |
-		MX51_ECSPI_DMA_TEDEN | MX51_ECSPI_DMA_RXDEN |
-		MX51_ECSPI_DMA_RXTDEN, spi_imx->base + MX51_ECSPI_DMA);
+	if (spi_imx->usedma)
+		writel(MX51_ECSPI_DMA_RX_WML(spi_imx->wml - 1) |
+			MX51_ECSPI_DMA_TX_WML(tx_wml) |
+			MX51_ECSPI_DMA_RXT_WML(spi_imx->wml) |
+			MX51_ECSPI_DMA_TEDEN | MX51_ECSPI_DMA_RXDEN |
+			MX51_ECSPI_DMA_RXTDEN, spi_imx->base + MX51_ECSPI_DMA);
 }
 
 static int mx51_ecspi_rx_available(struct spi_imx_data *spi_imx)
