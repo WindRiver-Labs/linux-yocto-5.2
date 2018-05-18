@@ -2,6 +2,7 @@
 #
 # Makefile for the Linux/MIPS-specific parts of the memory manager.
 #
+CFLAGS_cache.o			+= $(call cc-disable-warning, attribute-alias)
 
 obj-y				+= cache.o dma-default.o extable.o fault.o \
 				   gup.o init.o mmap.o page.o page-funcs.o \
