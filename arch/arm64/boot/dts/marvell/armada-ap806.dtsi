@@ -28,3 +28,15 @@
 		reg = <0x278 0xa30>;
 	};
 };
+
+&ap_sdhci0 {
+	/*
+	 * SoC based on AP806 revision A0, A1 and A2 should use slow mode
+	 * settings for Ap SDHCI due to HW Erratum HWE-7296210
+	 * AP806 revesion B0 and later has this erratum fixed and the slow
+	 * mode could be removed in board DTS:
+	 *     /delete-property/marvell,xenon-phy-slow-mode;
+	 * Starting from B0 revision, the AP SDHCI can run with HS400 timing.
+	 */
+	marvell,xenon-phy-slow-mode;
+};

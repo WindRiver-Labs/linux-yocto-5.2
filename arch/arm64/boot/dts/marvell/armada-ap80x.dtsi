@@ -300,7 +300,6 @@
 				clocks = <&ap_clk 4>;
 				dma-coherent;
 				iommus = <&smmu 0x5>;
-				marvell,xenon-phy-slow-mode;
 				status = "disabled";
 			};
 
