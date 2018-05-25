@@ -385,9 +385,10 @@ failed:
   * spaces in the beginning of the line is trimmed away.
   * Return a pointer to a static buffer.
   **/
+#define MODPOST_MAX_LINE 32768
 char *get_next_line(unsigned long *pos, void *file, unsigned long size)
 {
-	static char line[4096];
+	static char line[MODPOST_MAX_LINE];
 	int skip = 1;
 	size_t len = 0;
 	signed char *p = (signed char *)file + *pos;
@@ -402,8 +403,11 @@ char *get_next_line(unsigned long *pos, void *file, unsigned long size)
 		if (*p != '\n' && (*pos < size)) {
 			len++;
 			*s++ = *p++;
-			if (len > 4095)
+			if (len > (sizeof(line)-1)) {
+				warn(" %s: line exceeds buffer size %zu bytes\n"
+				     , __func__, sizeof(line));
 				break; /* Too long, stop */
+			}
 		} else {
 			/* End of string */
 			*s = '\0';

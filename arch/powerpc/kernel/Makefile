@@ -3,7 +3,9 @@
 # Makefile for the linux kernel.
 #
 
-CFLAGS_ptrace.o		+= -DUTS_MACHINE='"$(UTS_MACHINE)"'
+CFLAGS_ptrace.o		+= -DUTS_MACHINE='"$(UTS_MACHINE)"' $(call cc-disable-warning, attribute-alias)
+CFLAGS_ptrace.o		+= $(call cc-disable-warning, array-bounds)
+CFLAGS_syscalls.o	+= $(call cc-disable-warning, attribute-alias)
 
 subdir-ccflags-$(CONFIG_PPC_WERROR) := -Werror
 
