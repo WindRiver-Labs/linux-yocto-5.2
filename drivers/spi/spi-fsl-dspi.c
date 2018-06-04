@@ -220,7 +220,7 @@ static const struct fsl_dspi_devtype_data coldfire_data = {
 	.max_register = 0x88,
 };
 
-static const struct fsl_dspi_devtype_data s32v234_data = {
+static const struct fsl_dspi_devtype_data s32_data = {
 	.trans_mode = DSPI_EOQ_MODE,
 	.max_clock_factor = 1,
 	.extended_mode = 1,
@@ -1106,7 +1106,8 @@ static const struct of_device_id fsl_dspi_dt_ids[] = {
 	{ .compatible = "fsl,vf610-dspi", .data = &vf610_data, },
 	{ .compatible = "fsl,ls1021a-v1.0-dspi", .data = &ls1021a_v1_data, },
 	{ .compatible = "fsl,ls2085a-dspi", .data = &ls2085a_data, },
-	{ .compatible = "fsl,s32v234-dspi", .data = (void *)&s32v234_data, },
+	{ .compatible = "fsl,s32v234-dspi", .data = (void *)&s32_data, },
+	{ .compatible = "fsl,s32gen1-dspi", .data = (void *)&s32_data, },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, fsl_dspi_dt_ids);
