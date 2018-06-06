@@ -18,3 +18,4 @@ obj-$(CONFIG_DRM_TI_SN65DSI86) += ti-sn65dsi86.o
 obj-$(CONFIG_DRM_TI_TFP410) += ti-tfp410.o
 obj-y += synopsys/
 obj-$(CONFIG_DRM_NWL_DSI) += nwl-dsi.o
+obj-$(CONFIG_DRM_SEC_MIPI_DSIM) += sec-dsim.o
