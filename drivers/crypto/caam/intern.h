@@ -9,6 +9,7 @@
 
 #ifndef INTERN_H
 #define INTERN_H
+#include "regs.h"
 
 /* Currently comes from Kconfig param as a ^2 (driver-required) */
 #define JOBR_DEPTH (1 << CONFIG_CRYPTO_DEV_FSL_CAAM_RINGSIZE)
@@ -35,8 +36,7 @@ struct caam_jrentry_info {
 	void (*callbk)(struct device *dev, u32 *desc, u32 status, void *arg);
 	void *cbkarg;	/* Argument per ring entry */
 	u32 *desc_addr_virt;	/* Stored virt addr for postprocessing */
-	/* CAAM Pointer Size in MCFGR[PS] is 0 by default (32bits) */
-	u32 desc_addr_dma;	/* Stored bus addr for done matching */
+	caam_dma_addr_t desc_addr_dma;	/* Stored bus addr for done matching */
 	u32 desc_size;	/* Stored size for postprocessing, header derived */
 };
 
@@ -57,8 +57,7 @@ struct caam_drv_private_jr {
 	spinlock_t inplock ____cacheline_aligned; /* Input ring index lock */
 	u32 inpring_avail;	/* Number of free entries in input ring */
 	int head;			/* entinfo (s/w ring) head index */
-	/* CAAM Pointer Size in MCFGR[PS] is 0 by default (32bits) */
-	u32 *inpring;	/* Base of input ring, alloc DMA-safe */
+	caam_dma_addr_t *inpring;	/* Base of input ring, alloc DMA-safe */
 	int out_ring_read_index;	/* Output index "tail" */
 	int tail;			/* entinfo (s/w ring) tail index */
 	struct jr_outentry *outring;	/* Base of output ring, DMA-safe */
