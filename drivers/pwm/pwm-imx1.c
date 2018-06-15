@@ -28,6 +28,7 @@
 struct pwm_imx1_chip {
 	struct clk *clk_ipg;
 	struct clk *clk_per;
+	struct clk	*clk_32k;
 	void __iomem *mmio_base;
 	struct pwm_chip chip;
 };
@@ -49,6 +50,15 @@ static int pwm_imx1_clk_prepare_enable(struct pwm_chip *chip)
 		return ret;
 	}
 
+	if (imx->clk_32k) {
+		ret = clk_prepare_enable(imx->clk_32k);
+		if (ret) {
+			clk_disable_unprepare(imx->clk_per);
+			clk_disable_unprepare(imx->clk_ipg);
+			return ret;
+		}
+	}
+
 	return 0;
 }
 
@@ -58,6 +68,8 @@ static void pwm_imx1_clk_disable_unprepare(struct pwm_chip *chip)
 
 	clk_disable_unprepare(imx->clk_per);
 	clk_disable_unprepare(imx->clk_ipg);
+	if (imx->clk_32k)
+		clk_disable_unprepare(imx->clk_32k);
 }
 
 static int pwm_imx1_config(struct pwm_chip *chip,
@@ -162,6 +174,10 @@ static int pwm_imx1_probe(struct platform_device *pdev)
 
 		return ret;
 	}
+
+	imx->clk_32k = devm_clk_get(&pdev->dev, "32k");
+	if (IS_ERR(imx->clk_32k))
+		imx->clk_32k = NULL;
 
 	imx->chip.ops = &pwm_imx1_ops;
 	imx->chip.dev = &pdev->dev;
