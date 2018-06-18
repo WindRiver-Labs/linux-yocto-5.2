@@ -316,6 +316,17 @@ static void zynqmp_qspi_set_tapdelay(struct zynqmp_qspi *xqspi, u32 baudrateval)
 	zynqmp_gqspi_write(xqspi, GQSPI_DATA_DLY_ADJ_OFST, datadlyadj);
 }
 
+static u32 zynqmp_disable_intr(struct zynqmp_qspi *xqspi)
+{
+	u32 value;
+
+	zynqmp_gqspi_write(xqspi, GQSPI_IDR_OFST, GQSPI_ISR_IDR_MASK);
+	value = zynqmp_gqspi_read(xqspi, GQSPI_IMASK_OFST);
+	zynqmp_gqspi_write(xqspi, GQSPI_IDR_OFST, GQSPI_ISR_IDR_MASK);
+
+	return value;
+}
+
 /**
  * zynqmp_qspi_init_hw -	Initialize the hardware
  * @xqspi:	Pointer to the zynqmp_qspi structure
@@ -341,9 +352,7 @@ static void zynqmp_qspi_init_hw(struct zynqmp_qspi *xqspi)
 	/* Select the GQSPI mode */
 	zynqmp_gqspi_write(xqspi, GQSPI_SEL_OFST, GQSPI_SEL_MASK);
 	/* Clear and disable interrupts */
-	zynqmp_gqspi_write(xqspi, GQSPI_ISR_OFST,
-			   zynqmp_gqspi_read(xqspi, GQSPI_ISR_OFST) |
-			   GQSPI_ISR_WR_TO_CLR_MASK);
+	zynqmp_disable_intr(xqspi);
 	/* Clear the DMA STS */
 	zynqmp_gqspi_write(xqspi, GQSPI_QSPIDMA_DST_I_STS_OFST,
 			   zynqmp_gqspi_read(xqspi,
@@ -783,11 +792,12 @@ static irqreturn_t zynqmp_qspi_irq(int irq, void *dev_id)
 
 	if ((xqspi->bytes_to_receive == 0) && (xqspi->bytes_to_transfer == 0)
 			&& ((status & GQSPI_IRQ_MASK) == GQSPI_IRQ_MASK)) {
-		zynqmp_gqspi_write(xqspi, GQSPI_IDR_OFST, GQSPI_ISR_IDR_MASK);
+		zynqmp_disable_intr(xqspi);
 		xqspi->isinstr = false;
 		spi_finalize_current_transfer(master);
 		ret = IRQ_HANDLED;
 	}
+
 	return ret;
 }
 
@@ -1025,7 +1035,6 @@ static int zynqmp_qspi_start_transfer(struct spi_master *master,
 	if (xqspi->txbuf != NULL)
 		/* Enable interrupts for TX */
 		zynqmp_gqspi_write(xqspi, GQSPI_IER_OFST,
-				   GQSPI_IER_TXEMPTY_MASK |
 					GQSPI_IER_GENFIFOEMPTY_MASK |
 					GQSPI_IER_TXNOT_FULL_MASK);
 
@@ -1039,8 +1048,7 @@ static int zynqmp_qspi_start_transfer(struct spi_master *master,
 		} else {
 			zynqmp_gqspi_write(xqspi, GQSPI_IER_OFST,
 					GQSPI_IER_GENFIFOEMPTY_MASK |
-					GQSPI_IER_RXNEMPTY_MASK |
-					GQSPI_IER_RXEMPTY_MASK);
+					GQSPI_IER_RXNEMPTY_MASK);
 		}
 	}
 
