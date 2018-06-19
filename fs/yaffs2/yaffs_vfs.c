@@ -1558,7 +1558,7 @@ static int yaffs_unlink(struct inode *dir, struct dentry *dentry)
 
 	if (ret_val == YAFFS_OK) {
 		inode_dec_link_count(dentry->d_inode);
-		dir->i_version++;
+		atomic64_inc(&dir->i_version);
 		yaffs_gross_unlock(dev);
 		update_dir_time(dir);
 		return 0;
@@ -1710,6 +1710,7 @@ static int yaffs_readdir(struct file *file, struct dir_context *ctx)
 	int ret_val = 0;
 
 	char name[YAFFS_MAX_NAME_LENGTH + 1];
+	u64 i_version;
 
 	obj = yaffs_dentry_to_obj(file->f_path.dentry);
 	dev = obj->my_dev;
@@ -1760,10 +1761,11 @@ static int yaffs_readdir(struct file *file, struct dir_context *ctx)
 
 	/* If the directory has changed since the open or last call to
 	   readdir, rewind to after the 2 canned entries. */
-	if (file->f_version != inode->i_version) {
+	i_version = atomic64_read(&inode->i_version);
+	if (file->f_version != i_version) {
 		offset = 2;
 		ctx->pos = offset;
-		file->f_version = inode->i_version;
+		file->f_version = i_version;
 	}
 
 	while (sc->next_return) {
