@@ -34,6 +34,10 @@
 		};
 	};
 
+	chosen {
+		stdout-path = &uart4;
+	};
+
 	gpio-keys {
 		compatible = "gpio-keys";
 		pinctrl-names = "default";
