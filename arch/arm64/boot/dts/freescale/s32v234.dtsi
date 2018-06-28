@@ -167,13 +167,11 @@
 			};
 
 			swt0:swt@4000A000 {
-				compatible = "fsl,s32v234-wdt", "fsl,sac58r-wdt";
-				reg = <0x0 0x4000A000 0x0 0x1000>;
-				/*
-				clocks = <&v2m_oscclk2>;
-				clock-names = "swt";
-				*/
-				status = "disabled";
+ 				compatible = "fsl,s32v234-wdt", "fsl,sac58r-wdt";
+ 				reg = <0x0 0x4000A000 0x0 0x1000>;
+				clocks = <&clks S32V234_CLK_FIRC>;
+ 				clock-names = "swt";
+ 				status = "disabled";
 			};
 
 			stm0: stm@4000D000{
