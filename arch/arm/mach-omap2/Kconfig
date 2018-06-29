@@ -58,6 +58,8 @@ config SOC_AM33XX
 	bool "TI AM33XX"
 	depends on ARCH_MULTI_V7
 	select ARCH_OMAP2PLUS
+	select MEMORY
+	select OMAP_GPMC
 	select ARM_CPU_SUSPEND if PM
 
 config SOC_AM43XX
