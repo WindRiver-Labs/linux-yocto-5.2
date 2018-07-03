@@ -1046,10 +1046,16 @@ static int __init caam_pkc_init(void)
 	}
 
 	/* Determine public key hardware accelerator presence. */
-	if (priv->era < 10)
-		pk_inst = (rd_reg32(&priv->ctrl->perfmon.cha_num_ls) &
-			   CHA_ID_LS_PK_MASK) >> CHA_ID_LS_PK_SHIFT;
-	else
+	if (priv->era < 10) {
+		if (priv->has_seco) {
+			int i = priv->first_jr_index;
+			pk_inst = (rd_reg32(&priv->>jr[i]->perfmon.cha_num_ls) &
+				   CHA_ID_LS_PK_MASK) >> CHA_ID_LS_PK_SHIFT;
+		} else {
+			pk_inst = (rd_reg32(&priv->ctrl->perfmon.cha_num_ls) &
+				   CHA_ID_LS_PK_MASK) >> CHA_ID_LS_PK_SHIFT;
+		}
+	} else
 		pk_inst = rd_reg32(&priv->ctrl->vreg.pkha) & CHA_VER_NUM_MASK;
 
 	/* Do not register algorithms if PKHA is not present. */
