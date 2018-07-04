@@ -31,6 +31,19 @@
 		i2c2 = &cp1_i2c0;
 	};
 
+	cp0_vccq_sd0_reg: cp0_vccq_sd0 {
+		compatible = "regulator-gpio";
+		regulator-name = "cp0-vccq-sd0";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		gpios = <&expander0 15 GPIO_ACTIVE_HIGH>;
+		gpios-states = <0>;
+		states = <1800000 0x1
+			  3300000 0x0>;
+		enable-active-high;
+	};
+
 	cp0_reg_usb3_0_vbus: cp0-usb3-0-vbus {
 		compatible = "regulator-fixed";
 		regulator-name = "cp0-usb3h0-vbus";
@@ -370,6 +383,9 @@
 
 &cp0_sdhci0 {
 	status = "okay";
-	bus-width = <8>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdhci_pins>;
+	bus-width = <4>;
+	vqmmc-supply = <&cp0_vccq_sd0_reg>;
 	non-removable;
 };

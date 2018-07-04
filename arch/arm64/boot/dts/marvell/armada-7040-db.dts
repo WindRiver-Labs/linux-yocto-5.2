@@ -28,6 +28,19 @@
 		ethernet2 = &cp0_eth2;
 	};
 
+	cp0_vccq_sd0_reg: cp0_vccq_sd0 {
+		compatible = "regulator-gpio";
+		regulator-name = "cp0-vccq-sd0";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		gpios = <&expander0 15 GPIO_ACTIVE_HIGH>;
+		gpios-states = <0>;
+		states = <1800000 0x1
+			  3300000 0x0>;
+		enable-active-high;
+	};
+
 	cp0_exp_usb3_0_current_regulator: gpio-regulator {
 		compatible = "regulator-gpio";
 		regulator-name = "cp0-usb3-0-current-regulator";
@@ -259,8 +272,10 @@
 
 &cp0_sdhci0 {
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdhci_pins>;
 	bus-width = <4>;
-	no-1-8-v;
+	vqmmc-supply = <&cp0_vccq_sd0_reg>;
 	cd-gpios = <&expander0 12 GPIO_ACTIVE_LOW>;
 };
 
