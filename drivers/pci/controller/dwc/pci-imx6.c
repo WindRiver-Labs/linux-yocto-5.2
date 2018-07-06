@@ -2148,6 +2148,7 @@ static int pci_imx_resume_noirq(struct device *dev)
 			dev_info(dev, "pcie link is down after resume.\n");
 	}
 
+	mdelay(50);
 	return ret;
 }
 
