@@ -26,4 +26,6 @@ source "drivers/staging/android/ion/Kconfig"
 
 endif # if ANDROID
 
+source "drivers/staging/android/ion/Kconfig"
+
 endmenu
