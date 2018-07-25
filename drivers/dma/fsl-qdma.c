@@ -122,6 +122,8 @@
 
 #define FSL_QDMA_BLOCK_BASE_OFFSET(fsl_qdma_engine, x)			\
 	(((fsl_qdma_engine)->block_offset) * (x))
+static DEFINE_PER_CPU(u64, pre_addr);
+static DEFINE_PER_CPU(u64, pre_queue);
 
 /**
  * struct fsl_qdma_format - This is the struct holding describing compound
@@ -512,11 +514,47 @@ static struct fsl_qdma_queue
 			queue_temp->n_cq = queue_size[i];
 			queue_temp->id = i;
 			queue_temp->virt_head = queue_temp->cq;
-			queue_temp->virt_tail = queue_temp->cq;
+	 		queue_temp->virt_tail = queue_temp->cq;
+         
+			/*
+                         * The dma pool for queue command buffer
+                         */
+                        queue_temp->comp_pool =
+                        dma_pool_create("comp_pool",
+                                      &pdev->dev,
+                                      FSL_QDMA_BASE_BUFFER_SIZE,
+                                      16, 0);
+                        if (!queue_temp->comp_pool) {
+                                dma_free_coherent(&pdev->dev,
+                                         sizeof(struct fsl_qdma_format) *
+                                         queue_size[i],
+                                         queue_temp->cq,
+                                         queue_temp->bus_addr);
+                                return NULL;
+                        }
+                        /*
+                         * The dma pool for queue command buffer
+                         */
+                        queue_temp->sg_pool =
+                        dma_pool_create("sg_pool",
+                                       &pdev->dev,
+                                       FSL_QDMA_EXPECT_SG_ENTRY_NUM * 16,
+                                       64, 0);
+                        if (!queue_temp->sg_pool) {
+                                dma_free_coherent(&pdev->dev,
+                                         sizeof(struct fsl_qdma_format) *
+                                         queue_size[i],
+                                         queue_temp->cq,
+                                         queue_temp->bus_addr);
+                                dma_pool_destroy(queue_temp->comp_pool);
+                                return NULL;
+                        }
+
 			/*
 			 * List for queue command buffer
 			 */
 			INIT_LIST_HEAD(&queue_temp->comp_used);
+			INIT_LIST_HEAD(&queue_temp->comp_free);
 			spin_lock_init(&queue_temp->queue_lock);
 		}
 	}
