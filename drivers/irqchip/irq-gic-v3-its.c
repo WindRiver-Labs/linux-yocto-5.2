@@ -1556,7 +1556,7 @@ static void its_free_prop_table(struct page *prop_page)
 		   get_order(LPI_PROPBASE_SZ));
 }
 
-static int __init its_alloc_lpi_tables(void)
+static int __init its_alloc_lpi_prop_table(void)
 {
 	phys_addr_t paddr;
 
@@ -1854,17 +1854,15 @@ static int its_alloc_collections(struct its_node *its)
 	return 0;
 }
 
-static struct page *its_allocate_pending_table(unsigned int cpu)
+static struct page *its_allocate_pending_table(gfp_t gfp_flags)
 {
 	struct page *pend_page;
-	unsigned int order;
 	/*
 	 * The pending pages have to be at least 64kB aligned,
 	 * hence the 'max(LPI_PENDBASE_SZ, SZ_64K)' below.
 	 */
-	order = get_order(max_t(u32, LPI_PENDBASE_SZ, SZ_64K));
-	pend_page = alloc_pages_node(cpu_to_node(cpu), GFP_KERNEL | __GFP_ZERO,
-				     order);
+	pend_page = alloc_pages(gfp_flags | __GFP_ZERO,
+				get_order(max_t(u32, LPI_PENDBASE_SZ, SZ_64K)));
 	if (!pend_page)
 		return NULL;
 
@@ -1880,25 +1878,31 @@ static void its_free_pending_table(struct page *pt)
 		   get_order(max_t(u32, LPI_PENDBASE_SZ, SZ_64K)));
 }
 
-static int its_alloc_pend_page(unsigned int cpu)
+static int __init allocate_lpi_tables(void)
 {
-	struct page *pend_page;
-	phys_addr_t paddr;
+	int err, cpu;
 
-	pend_page = gic_data_rdist_cpu(cpu)->pend_page;
-	if (pend_page)
-		return 0;
+	err = its_alloc_lpi_prop_table();
+	if (err)
+		return err;
 
-	pend_page = its_allocate_pending_table(cpu);
-	if (!pend_page) {
-		pr_err("Failed to allocate PENDBASE for CPU%d\n",
-		       smp_processor_id());
-		return -ENOMEM;
+	/*
+	 * We allocate all the pending tables anyway, as we may have a
+	 * mix of RDs that have had LPIs enabled, and some that
+	 * don't. We'll free the unused ones as each CPU comes online.
+	 */
+	for_each_possible_cpu(cpu) {
+		struct page *pend_page;
+
+		pend_page = its_allocate_pending_table(GFP_NOWAIT);
+		if (!pend_page) {
+			pr_err("Failed to allocate PENDBASE for CPU%d\n", cpu);
+			return -ENOMEM;
+		}
+
+		gic_data_rdist_cpu(cpu)->pend_page = pend_page;
 	}
 
-	paddr = page_to_phys(pend_page);
-	pr_info("CPU%d: using LPI pending table @%pa\n", cpu, &paddr);
-	gic_data_rdist_cpu(cpu)->pend_page = pend_page;
 	return 0;
 }
 
@@ -1906,12 +1910,14 @@ static void its_cpu_init_lpis(void)
 {
 	void __iomem *rbase = gic_data_rdist_rd_base();
 	struct page *pend_page;
+	phys_addr_t paddr;
 	u64 val, tmp;
 
-	/* If we didn't allocate the pending table yet, do it now */
-	pend_page = gic_data_rdist()->pend_page;
-	if (!pend_page)
+	if (gic_data_rdist()->lpi_enabled)
 		return;
+
+	pend_page = gic_data_rdist()->pend_page;
+	paddr = page_to_phys(pend_page);
 
 	/* set PROPBASE */
 	val = (page_to_phys(gic_rdists->prop_page) |
@@ -1964,6 +1970,10 @@ static void its_cpu_init_lpis(void)
 
 	/* Make sure the GIC has seen the above */
 	dsb(sy);
+	gic_data_rdist()->lpi_enabled = true;
+	pr_info("GICv3: CPU%d: using LPI pending table @%pa\n",
+		smp_processor_id(),
+		&paddr);
 }
 
 static void its_cpu_init_collection(struct its_node *its)
@@ -2744,7 +2754,7 @@ static int its_vpe_init(struct its_vpe *vpe)
 		return vpe_id;
 
 	/* Allocate VPT */
-	vpt_page = its_allocate_pending_table(raw_smp_processor_id());
+	vpt_page = its_allocate_pending_table(GFP_KERNEL);
 	if (!vpt_page) {
 		its_vpe_id_free(vpe_id);
 		return -ENOMEM;
@@ -3439,16 +3449,6 @@ static int redist_disable_lpis(void)
 	u64 timeout = USEC_PER_SEC;
 	u64 val;
 
-	/*
-	 * If coming via a CPU hotplug event, we don't need to disable
-	 * LPIs before trying to re-enable them. They are already
-	 * configured and all is well in the world. Detect this case
-	 * by checking the allocation of the pending table for the
-	 * current CPU.
-	 */
-	if (gic_data_rdist()->pend_page)
-		return 0;
-
 	if (!gic_rdists_supports_plpis()) {
 		pr_info("CPU%d: LPIs not supported\n", smp_processor_id());
 		return -ENXIO;
@@ -3458,7 +3458,18 @@ static int redist_disable_lpis(void)
 	if (!(val & GICR_CTLR_ENABLE_LPIS))
 		return 0;
 
-	pr_warn("CPU%d: Booted with LPIs enabled, memory probably corrupted\n",
+	/*
+	 * If coming via a CPU hotplug event, we don't need to disable
+	 * LPIs before trying to re-enable them. They are already
+	 * configured and all is well in the world.
+	 */
+	if (gic_data_rdist()->lpi_enabled)
+		return 0;
+
+	/*
+	 * From that point on, we only try to do some damage control.
+	 */
+	pr_warn("GICv3: CPU%d: Booted with LPIs enabled, memory probably corrupted\n",
 		smp_processor_id());
 	add_taint(TAINT_CRAP, LOCKDEP_STILL_OK);
 
@@ -3714,18 +3725,9 @@ int __init its_init(struct fwnode_handle *handle, struct rdists *rdists,
 	}
 
 	gic_rdists = rdists;
-	err = its_alloc_lpi_tables();
-	if (err)
-		return err;
 
-	err = cpuhp_setup_state(CPUHP_BP_PREPARE_DYN, "irqchip/arm/gicv3:prepare",
-				its_alloc_pend_page, NULL);
-	if (err < 0) {
-		pr_warn("ITS: Can't register CPU-hoplug callback.\n");
-		return err;
-	}
-	err = its_alloc_pend_page(smp_processor_id());
-	if (err < 0)
+	err = allocate_lpi_tables();
+	if (err)
 		return err;
 
 	list_for_each_entry(its, &its_nodes, entry)
