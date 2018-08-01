@@ -382,9 +382,9 @@ static void fsl_qdma_comp_fill_memcpy(struct fsl_qdma_comp *fsl_comp,
 }
 
 /*
- * Pre-request full command descriptor for enqueue.
+ * Pre-request command descriptor and compound S/G for enqueue.
  */
-static int fsl_qdma_pre_request_enqueue_desc(struct fsl_qdma_queue *queue)
+static int fsl_qdma_pre_request_enqueue_comp_desc(struct fsl_qdma_queue *queue)
 {
 	int i;
 	struct fsl_qdma_comp *comp_temp, *_comp_temp;
@@ -434,6 +434,25 @@ err_alloc:
 	}
 
 	return -ENOMEM;
+}
+
+/*
+ * Pre-request source and destination descriptor for enqueue.
+ */
+static int fsl_qdma_pre_request_enqueue_sd_desc(struct fsl_qdma_queue *queue)
+{
+        struct fsl_qdma_comp *comp_temp, *_comp_temp;
+
+        list_for_each_entry_safe(comp_temp, _comp_temp,
+                                &queue->comp_free, list) {
+                comp_temp->desc_virt_addr = dma_pool_alloc(queue->desc_pool,
+                                                GFP_KERNEL,
+                                                &comp_temp->desc_bus_addr);
+                if (!comp_temp->desc_virt_addr)
+                        return -ENOMEM;
+        }
+ 
+        return 0;
 }
 
 /*
@@ -1049,7 +1068,7 @@ static int fsl_qdma_alloc_chan_resources(struct dma_chan *chan)
 	if (!fsl_queue->desc_pool)
 		goto err_desc_pool;
 
-	ret = fsl_qdma_pre_request_enqueue_desc(fsl_queue);
+	ret = fsl_qdma_pre_request_enqueue_comp_desc(fsl_queue);
 	if (ret) {
 		dev_err(chan->device->dev,
 			"failed to alloc dma buffer for S/G descriptor\n");
