@@ -296,46 +296,19 @@ static struct hwrng caam_rng = {
 	.read		= caam_read,
 };
 
-static void __exit caam_rng_exit(void)
+void caam_rng_exit(void)
 {
 	caam_jr_free(rng_ctx->jrdev);
 	hwrng_unregister(&caam_rng);
 	kfree(rng_ctx);
 }
 
-static int __init caam_rng_init(void)
+int caam_rng_init(struct device *ctrldev)
 {
 	struct device *dev;
-	struct device_node *dev_node;
-	struct platform_device *pdev;
-	struct caam_drv_private *priv;
 	u32 rng_inst;
+	struct caam_drv_private *priv = dev_get_drvdata(ctrldev);
 	int err;
-
-	dev_node = of_find_compatible_node(NULL, NULL, "fsl,sec-v4.0");
-	if (!dev_node) {
-		dev_node = of_find_compatible_node(NULL, NULL, "fsl,sec4.0");
-		if (!dev_node)
-			return -ENODEV;
-	}
-
-	pdev = of_find_device_by_node(dev_node);
-	if (!pdev) {
-		of_node_put(dev_node);
-		return -ENODEV;
-	}
-
-	priv = dev_get_drvdata(&pdev->dev);
-	of_node_put(dev_node);
-
-	/*
-	 * If priv is NULL, it's probably because the caam driver wasn't
-	 * properly initialized (e.g. RNG4 init failed). Thus, bail out here.
-	 */
-	if (!priv) {
-		err = -ENODEV;
-		goto out_put_dev;
-	}
 
 	/* Check for an instantiated RNG before registration */
 	if (priv->era < 10)
@@ -345,7 +318,7 @@ static int __init caam_rng_init(void)
 		rng_inst = rd_reg32(&priv->ctrl->vreg.rng) & CHA_VER_NUM_MASK;
 
 	if (!rng_inst) {
-		err = -ENODEV;
+		err = 0;
 		goto out_put_dev;
 	}
 
@@ -364,7 +337,7 @@ static int __init caam_rng_init(void)
 	if (err)
 		goto free_rng_ctx;
 
-	put_device(&pdev->dev);
+	put_device(ctrldev);
 	dev_info(dev, "registering rng-caam\n");
 	return hwrng_register(&caam_rng);
 
@@ -373,13 +346,7 @@ free_rng_ctx:
 free_caam_alloc:
 	caam_jr_free(dev);
 out_put_dev:
-	put_device(&pdev->dev);
+	put_device(ctrldev);
 	return err;
 }
 
-module_init(caam_rng_init);
-module_exit(caam_rng_exit);
-
-MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("FSL CAAM support for hw_random API");
-MODULE_AUTHOR("Freescale Semiconductor - NMG");
