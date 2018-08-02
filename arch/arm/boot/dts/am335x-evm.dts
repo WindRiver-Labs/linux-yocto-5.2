@@ -806,7 +806,7 @@
 };
 
 &dcan1 {
-	status = "disabled";	/* Enable only if Profile 1 is selected */
+	status = "okay";	/* Enable only if Profile 1 is selected */
 	pinctrl-names = "default";
 	pinctrl-0 = <&dcan1_pins_default>;
 };
