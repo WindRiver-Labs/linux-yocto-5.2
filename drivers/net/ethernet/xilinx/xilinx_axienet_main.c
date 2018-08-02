@@ -1459,7 +1459,7 @@ axienet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 				 */
 				if (skb->sk)
 					skb_set_owner_w(new_skb, skb->sk);
-				dev_kfree_skb(skb);
+				dev_kfree_skb_any(skb);
 				skb = new_skb;
 			}
 
