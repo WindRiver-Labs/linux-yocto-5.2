@@ -399,8 +399,6 @@ static u8 spi_nor_convert_3to4_read(u8 opcode)
 		{ SPINOR_OP_READ_1_2_2,	SPINOR_OP_READ_1_2_2_4B },
 		{ SPINOR_OP_READ_1_1_4,	SPINOR_OP_READ_1_1_4_4B },
 		{ SPINOR_OP_READ_1_4_4,	SPINOR_OP_READ_1_4_4_4B },
-		{ SPINOR_OP_READ_1_1_8,	SPINOR_OP_READ_1_1_8_4B },
-		{ SPINOR_OP_READ_1_8_8,	SPINOR_OP_READ_1_8_8_4B },
 
 		{ SPINOR_OP_READ_1_1_1_DTR,	SPINOR_OP_READ_1_1_1_DTR_4B },
 		{ SPINOR_OP_READ_1_2_2_DTR,	SPINOR_OP_READ_1_2_2_DTR_4B },
@@ -417,8 +415,6 @@ static u8 spi_nor_convert_3to4_program(u8 opcode)
 		{ SPINOR_OP_PP,		SPINOR_OP_PP_4B },
 		{ SPINOR_OP_PP_1_1_4,	SPINOR_OP_PP_1_1_4_4B },
 		{ SPINOR_OP_PP_1_4_4,	SPINOR_OP_PP_1_4_4_4B },
-		{ SPINOR_OP_PP_1_1_8,	SPINOR_OP_PP_1_1_8_4B },
-		{ SPINOR_OP_PP_1_8_8,	SPINOR_OP_PP_1_8_8_4B },
 	};
 
 	return spi_nor_convert_opcode(opcode, spi_nor_3to4_program,
@@ -1973,11 +1969,8 @@ static const struct flash_info spi_nor_ids[] = {
 	{ "mt25qu02g",   INFO(0x20bb22, 0, 64 * 1024, 4096, SECT_4K | USE_FSR | SPI_NOR_QUAD_READ | NO_CHIP_ERASE) },
 
 	/* Micron */
-	{
-		"mt35xu512aba", INFO(0x2c5b1a, 0, 128 * 1024, 512,
-			SECT_4K | USE_FSR | SPI_NOR_OCTAL_READ |
-			SPI_NOR_4B_OPCODES)
-	},
+	{"mt35xu512aba", INFO(0x2c5b1a, 0, 128 * 1024, 512, SECT_4K | SPI_NOR_OCTAL_READ) },
+	{"mt35xu512aba", INFO(0x2c5b1a, 0, 128 * 1024, 512, SECT_4K | SPI_NOR_OCTAL_READ | SPI_NOR_SKIP_SFDP) },
 
 	/* PMC */
 	{ "pm25lv512",   INFO(0,        0, 32 * 1024,    2, SECT_4K_PMC) },
@@ -3702,10 +3695,10 @@ static int spi_nor_init_params(struct spi_nor *nor,
 	}
 
 	if (info->flags & SPI_NOR_OCTAL_READ) {
-		params->hwcaps.mask |= SNOR_HWCAPS_READ_1_1_8;
-		spi_nor_set_read_settings(&params->reads[SNOR_CMD_READ_1_1_8],
-					  0, 8, SPINOR_OP_READ_1_1_8,
-					  SNOR_PROTO_1_1_8);
+		params->hwcaps.mask |= SNOR_HWCAPS_READ_1_8_8_DTR;
+		spi_nor_set_read_settings(&params->reads[SNOR_CMD_READ_1_8_8_DTR],
+					  0, 8, SPINOR_OP_READ_1_8_8_DTR_4B,
+					  SNOR_PROTO_1_8_8_DTR);
 	}
 
 	/* Page Program settings. */
