@@ -128,11 +128,11 @@ obj-$(CONFIG_MIPS_CPS_PM)	+= pm-cps.o
 ifeq ($(CONFIG_CPU_MIPSR2), y)
 CFLAGS_DSP 			= -DHAVE_AS_DSP
 
-CFLAGS_signal.o			= $(CFLAGS_DSP)
-CFLAGS_signal32.o		= $(CFLAGS_DSP)
-CFLAGS_process.o		= $(CFLAGS_DSP)
-CFLAGS_branch.o			= $(CFLAGS_DSP)
-CFLAGS_ptrace.o			= $(CFLAGS_DSP)
+CFLAGS_signal.o			+= $(CFLAGS_DSP)
+CFLAGS_signal32.o		+= $(CFLAGS_DSP)
+CFLAGS_process.o		+= $(CFLAGS_DSP)
+CFLAGS_branch.o			+= $(CFLAGS_DSP)
+CFLAGS_ptrace.o			+= $(CFLAGS_DSP)
 endif
 
 CPPFLAGS_vmlinux.lds		:= $(KBUILD_CFLAGS)
