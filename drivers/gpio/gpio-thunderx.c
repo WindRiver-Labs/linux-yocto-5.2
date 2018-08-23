@@ -575,11 +575,13 @@ static int thunderx_gpio_spi_irq_set_type(struct irq_data *data,
 		container_of(chip, struct thunderx_gpio, chip);
 	unsigned int line = data->hwirq;
 	u64 bit_cfg;
+	unsigned long flags;
 
 	irqd_set_trigger_type(data, flow_type);
 
 	bit_cfg = GLITCH_FILTER_400NS | GPIO_BIT_CFG_INT_EN;
 
+	raw_spin_lock_irqsave(&gpio->lock, flags);
 	if (flow_type & IRQ_TYPE_EDGE_BOTH) {
 		irq_set_handler_locked(data, handle_edge_irq);
 		bit_cfg |= GPIO_BIT_CFG_INT_TYPE;
@@ -587,7 +589,6 @@ static int thunderx_gpio_spi_irq_set_type(struct irq_data *data,
 		irq_set_handler_locked(data, handle_level_irq);
 	}
 
-	raw_spin_lock(&gpio->lock);
 	if (flow_type & (IRQ_TYPE_EDGE_FALLING | IRQ_TYPE_LEVEL_LOW)) {
 		bit_cfg |= GPIO_BIT_CFG_PIN_XOR;
 		set_bit(line, gpio->invert_mask);
@@ -596,7 +597,7 @@ static int thunderx_gpio_spi_irq_set_type(struct irq_data *data,
 	}
 	clear_bit(line, gpio->od_mask);
 	writeq(bit_cfg, gpio->register_base + bit_cfg_reg(line));
-	raw_spin_unlock(&gpio->lock);
+	raw_spin_unlock_irqrestore(&gpio->lock, flags);
 
 	return IRQ_SET_MASK_OK;
 }
@@ -681,6 +682,7 @@ static int thunderx_gpio_irq_set_type(struct irq_data *data,
 
 	bit_cfg = txline->fil_bits | GPIO_BIT_CFG_INT_EN;
 
+	raw_spin_lock_irqsave(&txgpio->lock, flags);
 	if (flow_type & IRQ_TYPE_EDGE_BOTH) {
 		irq_set_handler_locked(data, handle_fasteoi_ack_irq);
 		bit_cfg |= GPIO_BIT_CFG_INT_TYPE;
@@ -688,7 +690,6 @@ static int thunderx_gpio_irq_set_type(struct irq_data *data,
 		irq_set_handler_locked(data, handle_fasteoi_mask_irq);
 	}
 
-	raw_spin_lock_irqsave(&txgpio->lock, flags);
 	if (flow_type & (IRQ_TYPE_EDGE_FALLING | IRQ_TYPE_LEVEL_LOW)) {
 		bit_cfg |= GPIO_BIT_CFG_PIN_XOR;
 		set_bit(txline->line, txgpio->invert_mask);
