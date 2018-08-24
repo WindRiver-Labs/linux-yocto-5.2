@@ -30,6 +30,7 @@
 #include <drm/drm_fourcc.h>
 #include <drm/drm_mipi_dsi.h>
 #include <drm/drm_panel.h>
+#include <drm/drm_probe_helper.h>
 #include <video/videomode.h>
 #include <video/mipi_display.h>
 
@@ -1317,10 +1318,11 @@ static bool sec_mipi_dsim_bridge_mode_fixup(struct drm_bridge *bridge,
 }
 
 static void sec_mipi_dsim_bridge_mode_set(struct drm_bridge *bridge,
-					  struct drm_display_mode *mode,
-					  struct drm_display_mode *adjusted_mode)
+					  const struct drm_display_mode *mode,
+					  const struct drm_display_mode *adjusted_mode)
 {
 	struct sec_mipi_dsim *dsim = bridge->driver_private;
+	struct drm_display_mode adjusted_mode_tmp;
 
 	/* This hook is called when the display pipe is completely
 	 * off. And since the pm runtime is implemented, the dsim
@@ -1330,7 +1332,25 @@ static void sec_mipi_dsim_bridge_mode_set(struct drm_bridge *bridge,
 	 * so it is called not every time atomic commit.
 	 */
 
-	drm_display_mode_to_videomode(adjusted_mode, &dsim->vmode);
+	/* workaround for CEA standard mode "1280x720@60"
+	 * display on 4 data lanes with Non-burst with sync
+	 * pulse DSI mode, since use the standard horizontal
+	 * timings cannot display correctly. And this code
+	 * cannot be put into the dsim Bridge's mode_fixup,
+	 * since the DSI device lane number change always
+	 * happens after that.
+	 */
+	if (!strcmp(mode->name, "1280x720") &&
+	    mode->vrefresh == 60	    &&
+	    dsim->lanes == 4		    &&
+	    dsim->mode_flags & MIPI_DSI_MODE_VIDEO_SYNC_PULSE) {
+	    memcpy(&adjusted_mode_tmp, adjusted_mode, sizeof(struct drm_display_mode));
+		adjusted_mode_tmp.hsync_start += 2;
+		adjusted_mode_tmp.hsync_end   += 2;
+		adjusted_mode_tmp.htotal      += 2;
+		drm_display_mode_to_videomode(&adjusted_mode_tmp, &dsim->vmode);
+	} else
+		drm_display_mode_to_videomode(adjusted_mode, &dsim->vmode);
 }
 
 static const struct drm_bridge_funcs sec_mipi_dsim_bridge_funcs = {
