@@ -44,11 +44,11 @@ static int can_rx_offload_napi_poll(struct napi_struct *napi, int quota)
 
 	while ((work_done < quota) &&
 	       (skb = skb_dequeue(&offload->skb_queue))) {
-		struct can_frame *cf = (struct can_frame *)skb->data;
+		struct canfd_frame *cfd = (struct canfd_frame *)skb->data;
 
 		work_done++;
 		stats->rx_packets++;
-		stats->rx_bytes += cf->can_dlc;
+		stats->rx_bytes += cfd->len;
 		netif_receive_skb(skb);
 	}
 
@@ -133,12 +133,16 @@ can_rx_offload_offload_one(struct can_rx_offload *offload, unsigned int n)
 {
 	struct sk_buff *skb = NULL, *skb_error = NULL;
 	struct can_rx_offload_cb *cb;
-	struct can_frame *cf;
+	struct canfd_frame *cfd;
 	int ret;
 
 	if (likely(skb_queue_len(&offload->skb_queue) <
 		   offload->skb_queue_len_max)) {
-		skb = alloc_can_skb(offload->dev, &cf);
+                if (offload->fd_enable)
+                        skb = alloc_canfd_skb(offload->dev, &cfd);
+                else
+                        skb = alloc_can_skb(offload->dev,
+                                            (struct can_frame **)&cfd);
 		if (unlikely(!skb))
 			skb_error = ERR_PTR(-ENOMEM);	/* skb alloc failed */
 	} else {
@@ -149,10 +153,9 @@ can_rx_offload_offload_one(struct can_rx_offload *offload, unsigned int n)
 	 * overflow buffer.
 	 */
 	if (unlikely(skb_error)) {
-		struct can_frame cf_overflow;
 		u32 timestamp;
 
-		ret = offload->mailbox_read(offload, &cf_overflow,
+		ret = offload->mailbox_read(offload, offload->skb_overflow,
 					    &timestamp, n);
 
 		/* Mailbox was empty. */
@@ -177,7 +180,7 @@ can_rx_offload_offload_one(struct can_rx_offload *offload, unsigned int n)
 	}
 
 	cb = can_rx_offload_get_cb(skb);
-	ret = offload->mailbox_read(offload, cf, &cb->timestamp, n);
+	ret = offload->mailbox_read(offload, skb, &cb->timestamp, n);
 
 	/* Mailbox was empty. */
 	if (unlikely(!ret)) {
@@ -330,6 +333,8 @@ EXPORT_SYMBOL_GPL(can_rx_offload_queue_tail);
 
 static int can_rx_offload_init_queue(struct net_device *dev, struct can_rx_offload *offload, unsigned int weight)
 {
+	struct canfd_frame *cfd;
+
 	offload->dev = dev;
 
 	/* Limit queue len to 4x the weight (rounted to next power of two) */
@@ -342,6 +347,15 @@ static int can_rx_offload_init_queue(struct net_device *dev, struct can_rx_offlo
 
 	dev_dbg(dev->dev.parent, "%s: skb_queue_len_max=%d\n",
 		__func__, offload->skb_queue_len_max);
+
+	if (offload->fd_enable)
+		offload->skb_overflow = alloc_canfd_skb(offload->dev, &cfd);
+	else
+		offload->skb_overflow = alloc_can_skb(offload->dev,
+						      (struct can_frame **)&cfd);
+
+	if (unlikely(!offload->skb_overflow))
+		return -ENOMEM;
 
 	return 0;
 }
@@ -386,6 +400,7 @@ void can_rx_offload_del(struct can_rx_offload *offload)
 {
 	netif_napi_del(&offload->napi);
 	skb_queue_purge(&offload->skb_queue);
+	kfree_skb(offload->skb_overflow);
 }
 EXPORT_SYMBOL_GPL(can_rx_offload_del);
 
