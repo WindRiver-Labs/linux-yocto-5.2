@@ -159,20 +159,6 @@ static int nxp_config_init(struct phy_device *phydev)
 	phydev->interrupts = PHY_INTERRUPT_ENABLED;
 	phydev->drv->config_intr(phydev);
 
-	/* Setup and queue a polling function:
-	 *
-	 * The phy_queue is normally used to schedule the interrupt handler
-	 * from interrupt context after an irq has been received.
-	 * Here it is repurposed as scheduling mechanism for the poll function
-	 */
-	if (((struct nxp_specific_data *)phydev->priv)->poll_setup == 0) {
-		cancel_work_sync(&phydev->phy_queue);
-		INIT_WORK(&phydev->phy_queue, poll);
-		queue_work(system_power_efficient_wq, &phydev->phy_queue);
-
-		((struct nxp_specific_data *)phydev->priv)->poll_setup = 1;
-	}
-
 	return 0;
 
 /* error handling */
@@ -246,9 +232,6 @@ static void nxp_remove(struct phy_device *phydev)
 		kzfree(phydev->priv);
 		phydev->priv = NULL;
 	}
-
-	/* cancel scheduled work */
-	cancel_work_sync(&phydev->phy_queue);
 }
 
 /* Clears any pending interrupts */
@@ -430,7 +413,7 @@ static void poll(struct work_struct *work)
 
 	/* requeue poll function */
 	msleep(POLL_PAUSE);	/* msleep is non-blocking */
-	queue_work(system_power_efficient_wq, &phydev->phy_queue);
+	phy_trigger_machine(phydev);
 }
 
 /* helper function, waits until a given condition is met
@@ -2008,12 +1991,16 @@ static struct phy_device *search_mdio_by_id(struct mii_bus *bus, int phy_id)
 		phydev = mdiobus_get_phy(bus, addr);
 		if (phydev) {
 			if ((phydev->phy_id & NXP_PHY_ID_MASK) == phy_id) {
-				pr_alert("found the given phy\n");
+				pr_debug("Found a phy with id %x on bus %s\n",
+					 phy_id, bus->name);
 
 				return phydev;
 			}
 		}
 	}
+
+	pr_info("Could not find a phy with id %x on bus %s\n",
+		phy_id, bus->name);
 	return NULL;
 }
 
@@ -2134,7 +2121,7 @@ static int TJA1102p1_fixup_register(void)
 		if (err)
 			goto drv_registration_error;
 
-		pr_alert("Successfully registered fixup: %s\n",
+		pr_info("Successfully registered fixup: %s\n",
 			 nxp_TJA1102p1_fixup_driver.name);
 	}
 
@@ -2162,7 +2149,7 @@ static void unregister_TJA1102p1_fixup(void)
 	/* check if the fixup drv was previously loaded */
 	drv = driver_find("TJA1102_p1", phydev->mdio.dev.bus);
 	if (drv) {
-		dev_alert(&phydev->mdio.dev, "unloading fixup driver\n");
+		dev_info(&phydev->mdio.dev, "unloading fixup driver\n");
 		phy_driver_unregister(&nxp_TJA1102p1_fixup_driver);
 	}
 }
@@ -2172,7 +2159,7 @@ static int __init nxp_init(void)
 {
 	int err;
 
-	pr_alert("loading NXP PHY driver: [%s]\n",
+	pr_info("loading NXP PHY driver: [%s]\n",
 		 (managed_mode ? "managed mode" : "autonomous mode"));
 
 	err = phy_drivers_register(nxp_drivers, ARRAY_SIZE(nxp_drivers),
@@ -2197,7 +2184,7 @@ module_init(nxp_init);
 /* module exit function */
 static void __exit nxp_exit(void)
 {
-	pr_alert("unloading NXP PHY driver\n");
+	pr_info("unloading NXP PHY driver\n");
 	unregister_TJA1102p1_fixup();
 	phy_drivers_unregister(nxp_drivers, ARRAY_SIZE(nxp_drivers));
 }
