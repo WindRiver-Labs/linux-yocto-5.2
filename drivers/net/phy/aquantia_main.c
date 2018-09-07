@@ -489,24 +489,90 @@ static int aqr_ack_interrupt(struct phy_device *phydev)
 	return (reg < 0) ? reg : 0;
 }
 
+static int aquantia_read_advert(struct phy_device *phydev)
+{
+	int adv, adv1;
+
+	/* Setup standard advertisement */
+	adv = phy_read_mmd(phydev, MDIO_MMD_AN,
+			   MDIO_AN_10GBT_CTRL);
+
+	/* Aquantia vendor specific advertisments */
+	adv1 = phy_read_mmd(phydev, MDIO_MMD_AN,
+			    MDIO_AN_VENDOR_PROV_CTRL);
+
+	/*100BaseT_full is supported by default*/
+	linkmode_mod_bit(ADVERTISED_100baseT_Full, phydev->advertising, 
+			ADVERTISED_100baseT_Full);
+
+	if (adv & 0x1000)
+	        linkmode_mod_bit(ADVERTISED_10000baseT_Full, phydev->advertising, 
+				ADVERTISED_10000baseT_Full);
+	else
+		linkmode_clear_bit(ADVERTISED_10000baseT_Full, phydev->advertising);
+	if (adv1 & 0x8000)
+		linkmode_mod_bit(ADVERTISED_1000baseT_Full, phydev->advertising,
+				ADVERTISED_1000baseT_Full);
+	else
+		linkmode_clear_bit(ADVERTISED_1000baseT_Full, phydev->advertising);
+	if (adv1 & 0x400)
+		linkmode_mod_bit(ADVERTISED_2500baseX_Full, phydev->advertising,
+				ADVERTISED_2500baseX_Full);
+	else
+		linkmode_clear_bit(ADVERTISED_2500baseX_Full, phydev->advertising);
+	return 0;
+}
+
 static int aqr_read_status(struct phy_device *phydev)
 {
-	int val;
+	int reg;
 
-	if (phydev->autoneg == AUTONEG_ENABLE) {
-		val = phy_read_mmd(phydev, MDIO_MMD_AN, MDIO_AN_RX_LP_STAT1);
-		if (val < 0)
-			return val;
+	/* Read the link status twice; the bit is latching low */
+	reg = aquantia_read_reg(phydev, MDIO_MMD_AN, MDIO_STAT1);
+	reg = aquantia_read_reg(phydev, MDIO_MMD_AN, MDIO_STAT1);
 
-		linkmode_mod_bit(ETHTOOL_LINK_MODE_1000baseT_Full_BIT,
-				 phydev->lp_advertising,
-				 val & MDIO_AN_RX_LP_STAT1_1000BASET_FULL);
-		linkmode_mod_bit(ETHTOOL_LINK_MODE_1000baseT_Half_BIT,
-				 phydev->lp_advertising,
-				 val & MDIO_AN_RX_LP_STAT1_1000BASET_HALF);
+	if (reg & MDIO_STAT1_LSTATUS)
+		phydev->link = 1;
+	else
+		phydev->link = 0;
+
+	mdelay(10);
+	reg = aquantia_read_reg(phydev, MDIO_MMD_PMAPMD, MDIO_CTRL1);
+
+	if ((reg & MDIO_CTRL1_SPEEDSELEXT) == MDIO_CTRL1_SPEEDSELEXT)
+		reg &= MDIO_CTRL1_SPEEDSEL;
+	else
+		reg &= MDIO_CTRL1_SPEEDSELEXT;
+
+	switch (reg) {
+	case MDIO_PMA_CTRL1_AQ_SPEED5000:
+		phydev->speed = SPEED_5000;
+		break;
+	case MDIO_PMA_CTRL1_AQ_SPEED2500:
+		phydev->speed = SPEED_2500;
+		break;
+	case MDIO_PMA_CTRL1_AQ_SPEED10:
+		phydev->speed = SPEED_10;
+		break;
+	case MDIO_PMA_CTRL1_SPEED100:
+		phydev->speed = SPEED_100;
+		break;
+	case MDIO_PMA_CTRL1_SPEED1000:
+		phydev->speed = SPEED_1000;
+		break;
+	case MDIO_CTRL1_SPEED10G:
+		phydev->speed = SPEED_10000;
+		break;
+	default:
+		phydev->speed = SPEED_UNKNOWN;
+		break;
 	}
 
-	return genphy_c45_read_status(phydev);
+	phydev->duplex = DUPLEX_FULL;
+
+	aquantia_read_advert(phydev);
+
+	return 0;
 }
 
 static int aqr107_read_downshift_event(struct phy_device *phydev)
