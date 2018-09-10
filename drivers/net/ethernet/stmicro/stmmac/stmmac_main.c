@@ -4409,6 +4409,7 @@ int stmmac_suspend(struct device *dev)
 
 	mutex_lock(&priv->lock);
 
+	netif_carrier_off(ndev);
 	netif_device_detach(ndev);
 	stmmac_stop_all_queues(priv);
 
@@ -4477,6 +4478,9 @@ int stmmac_resume(struct device *dev)
 	if (!netif_running(ndev))
 		return 0;
 
+	if (ndev->phydev)
+		phy_start(ndev->phydev);
+
 	/* Power Down bit, into the PM register, is cleared
 	 * automatically as soon as a magic packet or a Wake-up frame
 	 * is received. Anyway, it's better to manually clear
@@ -4515,9 +4519,6 @@ int stmmac_resume(struct device *dev)
 	stmmac_start_all_queues(priv);
 
 	mutex_unlock(&priv->lock);
-
-	if (ndev->phydev)
-		phy_start(ndev->phydev);
 
 	return 0;
 }
