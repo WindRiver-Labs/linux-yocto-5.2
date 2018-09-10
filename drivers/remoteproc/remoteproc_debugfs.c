@@ -43,17 +43,8 @@ static ssize_t rproc_trace_read(struct file *filp, char __user *userbuf,
 	struct rproc_mem_entry *trace = &data->trace_mem;
 	void *va;
 	char buf[100];
-	int len;
 
-	va = rproc_da_to_va(data->rproc, trace->da, trace->len);
-
-	if (!va) {
-		len = scnprintf(buf, sizeof(buf), "Trace %s not available\n",
-				trace->name);
-		va = buf;
-	} else {
-		len = strnlen(va, trace->len);
-	}
+	int len = strnlen(trace->va, trace->len);
 
 	return simple_read_from_buffer(userbuf, count, ppos, va, len);
 }

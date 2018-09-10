@@ -69,6 +69,10 @@ static ssize_t state_store(struct device *dev,
 	struct rproc *rproc = to_rproc(dev);
 	int ret = 0;
 
+	/* restrict sysfs operations if not allowed by remoteproc drivers */
+	if (rproc->deny_sysfs_ops)
+		return -EPERM;
+
 	if (sysfs_streq(buf, "start")) {
 		if (rproc->state == RPROC_RUNNING)
 			return -EBUSY;
