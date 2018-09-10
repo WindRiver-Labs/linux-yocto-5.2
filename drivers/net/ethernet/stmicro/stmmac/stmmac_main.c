@@ -4427,7 +4427,8 @@ int stmmac_suspend(struct device *dev)
 		pinctrl_pm_select_sleep_state(priv->device);
 		/* Disable clock in case of PWM is off */
 		clk_disable(priv->plat->pclk);
-		clk_disable(priv->plat->stmmac_clk);
+		if (!of_machine_is_compatible("altr,socfpga-stratix10"))
+			clk_disable(priv->plat->stmmac_clk);
 	}
 	mutex_unlock(&priv->lock);
 
