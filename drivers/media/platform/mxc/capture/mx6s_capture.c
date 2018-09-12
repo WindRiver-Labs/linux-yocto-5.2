@@ -295,6 +295,11 @@ struct mx6s_csi_mux {
 	u8 req_bit;
 };
 
+struct mx6s_csi_soc {
+	bool rx_fifo_rst;
+	int baseaddr_switch;
+};
+
 struct mx6s_csi_dev {
 	struct device		*dev;
 	struct video_device *vdev;
@@ -341,7 +346,7 @@ struct mx6s_csi_dev {
 
 	bool csi_mipi_mode;
 	bool csi_two_8bit_sensor_mode;
-	const bool *rx_fifo_rst;
+	const struct mx6s_csi_soc *soc;
 	struct mx6s_csi_mux csi_mux;
 };
 
@@ -447,7 +452,9 @@ static void csisw_reset(struct mx6s_csi_dev *csi_dev)
 	isr = csi_read(csi_dev, CSI_CSISR);
 	csi_write(csi_dev, isr, CSI_CSISR);
 
-	/* Ensable csi  */
+	cr18 |= csi_dev->soc->baseaddr_switch;
+
+	/* Enable csi  */
 	cr18 |= BIT_CSI_ENABLE;
 	csi_write(csi_dev, cr18, CSI_CSICR18);
 }
@@ -859,7 +866,7 @@ static int mx6s_configure_csi(struct mx6s_csi_dev *csi_dev)
 		csi_write(csi_dev, cr1, CSI_CSICR1);
 
 		cr18 = csi_read(csi_dev, CSI_CSICR18);
-		cr18 &= BIT_MIPI_DATA_FORMAT_MASK;
+		cr18 &= ~BIT_MIPI_DATA_FORMAT_MASK;
 		cr18 |= BIT_DATA_FROM_MIPI;
 
 		switch (csi_dev->fmt->pixelformat) {
@@ -1104,7 +1111,7 @@ static irqreturn_t mx6s_csi_irq_handler(int irq, void *data)
 
 	if (status & BIT_RFF_OR_INT) {
 		dev_warn(csi_dev->dev, "%s Rx fifo overflow\n", __func__);
-		if (*csi_dev->rx_fifo_rst)
+		if (csi_dev->soc->rx_fifo_rst)
 			csi_error_recovery(csi_dev);
 	}
 
@@ -1366,7 +1373,7 @@ static int mx6s_vidioc_qbuf(struct file *file, void *priv,
 
 	WARN_ON(priv != file->private_data);
 
-	return vb2_qbuf(&csi_dev->vb2_vidq, p);
+	return vb2_qbuf(&csi_dev->vb2_vidq, csi_dev->v4l2_dev.mdev, p);
 }
 
 static int mx6s_vidioc_dqbuf(struct file *file, void *priv,
@@ -1562,36 +1569,39 @@ static int mx6s_vidioc_streamoff(struct file *file, void *priv,
 	return 0;
 }
 
-static int mx6s_vidioc_cropcap(struct file *file, void *fh,
-			      struct v4l2_cropcap *a)
+static int mx6s_vidioc_g_pixelaspect(struct file *file, void *priv,
+								int type, struct v4l2_fract *f)
+
 {
 	struct mx6s_csi_dev *csi_dev = video_drvdata(file);
 
-	if (a->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+	if (type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
 	dev_dbg(csi_dev->dev, "VIDIOC_CROPCAP not implemented\n");
 
 	return 0;
 }
 
-static int mx6s_vidioc_g_crop(struct file *file, void *priv,
-			     struct v4l2_crop *a)
+static int mx6s_vidioc_g_selection(struct file *file, void *priv,
+					struct v4l2_selection *sel)
+
 {
 	struct mx6s_csi_dev *csi_dev = video_drvdata(file);
 
-	if (a->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+	if (sel->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
 	dev_dbg(csi_dev->dev, "VIDIOC_G_CROP not implemented\n");
 
 	return 0;
 }
 
-static int mx6s_vidioc_s_crop(struct file *file, void *priv,
-			     const struct v4l2_crop *a)
+static int mx6s_vidioc_s_selection(struct file *file, void *priv,
+				struct v4l2_selection *sel)
+
 {
 	struct mx6s_csi_dev *csi_dev = video_drvdata(file);
 
-	if (a->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+	if (sel->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
 
 	dev_dbg(csi_dev->dev, "VIDIOC_S_CROP not implemented\n");
@@ -1690,9 +1700,9 @@ static const struct v4l2_ioctl_ops mx6s_csi_ioctl_ops = {
 	.vidioc_try_fmt_vid_cap   = mx6s_vidioc_try_fmt_vid_cap,
 	.vidioc_g_fmt_vid_cap     = mx6s_vidioc_g_fmt_vid_cap,
 	.vidioc_s_fmt_vid_cap     = mx6s_vidioc_s_fmt_vid_cap,
-	.vidioc_cropcap       = mx6s_vidioc_cropcap,
-	.vidioc_s_crop        = mx6s_vidioc_s_crop,
-	.vidioc_g_crop        = mx6s_vidioc_g_crop,
+	.vidioc_g_pixelaspect       = mx6s_vidioc_g_pixelaspect,
+	.vidioc_s_selection        = mx6s_vidioc_s_selection,
+	.vidioc_g_selection        = mx6s_vidioc_g_selection,
 	.vidioc_reqbufs       = mx6s_vidioc_reqbufs,
 	.vidioc_querybuf      = mx6s_vidioc_querybuf,
 	.vidioc_qbuf          = mx6s_vidioc_qbuf,
@@ -1824,15 +1834,20 @@ static int mx6sx_register_subdevs(struct mx6s_csi_dev *csi_dev)
 		break;
 	}
 
-	csi_dev->subdev_notifier.subdevs = csi_dev->async_subdevs;
-	csi_dev->subdev_notifier.num_subdevs = 1;
+	v4l2_async_notifier_init(&csi_dev->subdev_notifier);
+	ret = v4l2_async_notifier_add_subdev(&csi_dev->subdev_notifier, &csi_dev->asd);
+	if(ret)
+		return ret;
+
 	csi_dev->subdev_notifier.ops = &mx6s_capture_async_ops;
 
 	ret = v4l2_async_notifier_register(&csi_dev->v4l2_dev,
 					&csi_dev->subdev_notifier);
-	if (ret)
+	if (ret) {
+		v4l2_async_notifier_cleanup(&csi_dev->subdev_notifier);
 		dev_err(csi_dev->dev,
 					"Error register async notifier regoster\n");
+	}
 
 	return ret;
 }
@@ -1899,7 +1914,7 @@ static int mx6s_csi_probe(struct platform_device *pdev)
 	of_id = of_match_node(mx6s_csi_dt_ids, csi_dev->dev->of_node);
 	if (!of_id)
 		return -EINVAL;
-	csi_dev->rx_fifo_rst = of_id->data;
+	csi_dev->soc = of_id->data;
 
 	snprintf(csi_dev->v4l2_dev.name,
 		 sizeof(csi_dev->v4l2_dev.name), "CSI");
@@ -1999,15 +2014,28 @@ static const struct dev_pm_ops mx6s_csi_pm_ops = {
 	SET_RUNTIME_PM_OPS(mx6s_csi_runtime_suspend, mx6s_csi_runtime_resume, NULL)
 };
 
-static const u8 mx6s_fifo_rst = true;
-static const u8 mx6sl_fifo_rst = false;
+static const struct mx6s_csi_soc mx6s_soc = {
+	.rx_fifo_rst = true,
+	.baseaddr_switch = 0,
+};
+static const struct mx6s_csi_soc mx6sl_soc = {
+	.rx_fifo_rst = false,
+	.baseaddr_switch = 0,
+};
+static const struct mx6s_csi_soc mx8mq_soc = {
+	.rx_fifo_rst = true,
+	.baseaddr_switch = 0x80030,
+};
 
 static const struct of_device_id mx6s_csi_dt_ids[] = {
 	{ .compatible = "fsl,imx6s-csi",
-	  .data = &mx6s_fifo_rst,
+	  .data = &mx6s_soc,
 	},
 	{ .compatible = "fsl,imx6sl-csi",
-	  .data = &mx6sl_fifo_rst,
+	  .data = &mx6sl_soc,
+	},
+	{ .compatible = "fsl,imx8mq-csi",
+	  .data = &mx8mq_soc,
 	},
 	{ /* sentinel */ }
 };
