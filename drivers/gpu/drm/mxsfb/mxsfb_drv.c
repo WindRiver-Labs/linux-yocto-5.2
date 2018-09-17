@@ -194,7 +194,6 @@ static void mxsfb_pipe_enable(struct drm_simple_display_pipe *pipe,
 	drm_panel_prepare(mxsfb->panel);
 	mxsfb_crtc_enable(mxsfb);
 	drm_panel_enable(mxsfb->panel);
-	pm_runtime_get_sync(mxsfb->dev);
 }
 
 static void mxsfb_pipe_disable(struct drm_simple_display_pipe *pipe)
