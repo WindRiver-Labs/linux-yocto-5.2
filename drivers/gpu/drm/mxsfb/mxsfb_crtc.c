@@ -272,9 +272,9 @@ static void mxsfb_disable_controller(struct mxsfb_drm_private *mxsfb)
 	reg &= ~VDCTRL4_SYNC_SIGNALS_ON;
 	writel(reg, mxsfb->base + LCDC_VDCTRL4);
 
+	clk_disable_unprepare(mxsfb->clk);
 	if (mxsfb->clk_disp_axi)
 		clk_disable_unprepare(mxsfb->clk_disp_axi);
-	clk_disable_unprepare(mxsfb->clk);
 }
 
 /*
@@ -419,6 +419,7 @@ void mxsfb_crtc_enable(struct mxsfb_drm_private *mxsfb)
 	if (mxsfb->devdata->flags & MXSFB_FLAG_BUSFREQ)
 		request_bus_freq(BUS_FREQ_HIGH);
 
+	mxsfb_enable_axi_clk(mxsfb);
 	writel(0, mxsfb->base + LCDC_CTRL);
 	mxsfb_enable_axi_clk(mxsfb);
 	mxsfb_crtc_mode_set_nofb(mxsfb);
