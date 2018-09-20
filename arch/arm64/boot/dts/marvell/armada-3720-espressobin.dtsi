@@ -38,6 +38,7 @@
 /* J9 */
 &pcie0 {
 	status = "okay";
+	/* Generic PHY, providing serdes lanes */
 	phys = <&comphy1 0>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pcie_reset_pins &pcie_clkreq_pins>;
@@ -94,6 +95,9 @@
 /* J7 */
 &usb3 {
 	status = "okay";
+	/* Generic PHY, providing serdes lanes */
+	phys = <&comphy0 0>;
+	phy-names = "usb";
 };
 
 /* J8 */
