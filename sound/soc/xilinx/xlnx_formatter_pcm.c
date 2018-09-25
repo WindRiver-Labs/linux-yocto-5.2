@@ -434,11 +434,13 @@ static int xlnx_formatter_pcm_hw_params(struct snd_pcm_substream *substream,
 	u32 aes_reg1_val, aes_reg2_val;
 	int status;
 	u64 size;
+	struct pl_card_data *prv;
 	struct snd_soc_pcm_runtime *prtd = substream->private_data;
 	struct snd_soc_component *component = snd_soc_rtdcom_lookup(prtd,
 								    DRV_NAME);
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct xlnx_pcm_stream_param *stream_data = runtime->private_data;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 
 	active_ch = params_channels(params);
 	if (active_ch > stream_data->ch_limit)
@@ -500,6 +502,12 @@ static int xlnx_formatter_pcm_hw_params(struct snd_pcm_substream *substream,
 	writel(val, stream_data->mmio + XLNX_AUD_PERIOD_CONFIG);
 	bytes_per_ch = DIV_ROUND_UP(params_period_bytes(params), active_ch);
 	writel(bytes_per_ch, stream_data->mmio + XLNX_BYTES_PER_CH);
+
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+		prv = snd_soc_card_get_drvdata(rtd->card);
+		writel(prv->mclk_ratio,
+		       stream_data->mmio + XLNX_AUD_FS_MULTIPLIER);
+	}
 
 	return 0;
 }
