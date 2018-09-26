@@ -1989,6 +1989,13 @@ asmlinkage int vprintk_emit(int facility, int level,
 	bool in_sched = false;
 	unsigned long flags;
 
+	/*
+	 * Fall back to early_printk if a debugging subsystem has
+	 * killed printk output
+	 */
+	if (unlikely(forced_early_printk(fmt, args)))
+		return 1;
+
 	if (level == LOGLEVEL_SCHED) {
 		level = LOGLEVEL_DEFAULT;
 		in_sched = true;
