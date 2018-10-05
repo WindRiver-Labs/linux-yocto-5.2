@@ -33,3 +33,5 @@ endif
 obj-$(CONFIG_CRYPTO_DEV_FSL_DPAA2_CAAM) += dpaa2_caam.o
 
 dpaa2_caam-y    := caamalg_qi2.o dpseci.o
+
+obj-$(CONFIG_CRYPTO_DEV_FSL_CAAM_TK_API) += tag_object.o
