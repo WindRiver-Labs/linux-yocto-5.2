@@ -64,6 +64,22 @@
 				clock-frequency = <25000000>;
 			};
 		};
+
+		gpio_fpga: gpio@f9001080 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "snps,dw-apb-gpio";
+			reg = <0xf9001080 0x4>;
+			status = "disabled";
+
+			portfpga: gpio-controller@0 {
+				compatible = "snps,dw-apb-gpio-port";
+				gpio-controller;
+				#gpio-cells = <2>;
+				snps,nr-gpios = <8>;
+				reg = <0>;
+			};
+		};
 	};
 };
 
