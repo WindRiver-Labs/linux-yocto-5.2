@@ -81,6 +81,7 @@ Optional properties:
   mux state of 1 indicates host mode.
 - mux-control-names: Shall be "usb_switch" if mux-controls is specified.
 - pinctrl-names: Names for optional pin modes in "default", "host", "device".
+- phy-charger-detection: enable USB PHY charger detection function
   In case of HSIC-mode, "idle" and "active" pin modes are mandatory. In this
   case, the "idle" state needs to pull down the data and strobe pin
   and the "active" state needs to pull up the strobe pin.
