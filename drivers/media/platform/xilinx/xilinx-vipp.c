@@ -319,7 +319,6 @@ static int xvip_graph_build_dma(struct xvip_composite_device *xdev)
 		}
 	}
 
-	of_node_put(ep);
 	return ret;
 }
 
