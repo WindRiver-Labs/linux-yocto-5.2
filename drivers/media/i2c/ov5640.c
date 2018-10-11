@@ -86,6 +86,7 @@
 #define OV5640_REG_POLARITY_CTRL00	0x4740
 #define OV5640_REG_MIPI_CTRL00		0x4800
 #define OV5640_REG_DEBUG_MODE		0x4814
+#define OV5640_REG_PCLK_PERIOD		0x4837
 #define OV5640_REG_ISP_FORMAT_MUX_CTRL	0x501f
 #define OV5640_REG_PRE_ISP_TEST_SET1	0x503d
 #define OV5640_REG_SDE_CTRL0		0x5580
@@ -304,7 +305,7 @@ static const struct reg_value ov5640_init_setting_30fps_VGA[] = {
 	{0x302e, 0x08, 0, 0}, {0x4300, 0x3f, 0, 0},
 	{0x501f, 0x00, 0, 0}, {0x4407, 0x04, 0, 0},
 	{0x440e, 0x00, 0, 0}, {0x460b, 0x35, 0, 0}, {0x460c, 0x22, 0, 0},
-	{0x3824, 0x02, 0, 0},
+	{0x3824, 0x02, 0, 0}, {0x482a, 0x06, 0, 0},
 	{0x5000, 0xa7, 0, 0}, {0x5001, 0xa3, 0, 0}, {0x5180, 0xff, 0, 0},
 	{0x5181, 0xf2, 0, 0}, {0x5182, 0x00, 0, 0}, {0x5183, 0x14, 0, 0},
 	{0x5184, 0x25, 0, 0}, {0x5185, 0x24, 0, 0}, {0x5186, 0x09, 0, 0},
@@ -1220,8 +1221,9 @@ static int ov5640_set_sclk(struct ov5640_dev *sensor,
 			   const struct ov5640_mode_info *mode)
 {
 	u8 sysdiv, prediv, mult, pll_rdiv, sclk_rdiv, mipi_div, pclk_div;
+	u8 pclk_period;
 	int ret;
-	unsigned long rate;
+	unsigned long sclk, rate, pclk;
 	unsigned char bpp;
 
 	/*
@@ -1238,12 +1240,25 @@ static int ov5640_set_sclk(struct ov5640_dev *sensor,
 	pll_rdiv = (sensor->ep.bus_type == V4L2_MBUS_CSI2_DPHY) ?
 		   OV5640_PLL_MIPI_ROOT_DIV : OV5640_PLL_DVP_ROOT_DIV;
 
-	ov5640_calc_sclk(sensor, rate, &sysdiv, &prediv, pll_rdiv,
-			 &mult, &sclk_rdiv);
+	sclk = ov5640_calc_sclk(sensor, rate, &sysdiv, &prediv, pll_rdiv,
+				&mult, &sclk_rdiv);
 
 	if (sensor->ep.bus_type == V4L2_MBUS_CSI2_DPHY) {
 		mipi_div = (sensor->current_mode->scaler) ? 2 : 1;
 		pclk_div = 1;
+
+		/*
+		 * Calculate pclk period * number of CSI2 lanes in ns for MIPI
+		 * timing.
+		 */
+		pclk = sclk * sclk_rdiv / mipi_div;
+		pclk_period = (u8)((1000000000UL + pclk / 2UL) / pclk);
+		pclk_period = pclk_period *
+			      sensor->ep.bus.mipi_csi2.num_data_lanes;
+		ret = ov5640_write_reg(sensor, OV5640_REG_PCLK_PERIOD,
+				       pclk_period);
+		if (ret)
+			return ret;
 	} else {
 		mipi_div = 1;
 		pclk_div = (sensor->current_mode->scaler) ? 2 : 1;
