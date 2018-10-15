@@ -132,6 +132,7 @@ int fsl_edma_terminate_all(struct dma_chan *chan)
 	fsl_edma_disable_request(fsl_chan);
 	fsl_chan->edesc = NULL;
 	fsl_chan->idle = true;
+	fsl_chan->vchan.cyclic = NULL;
 	vchan_get_all_descriptors(&fsl_chan->vchan, &head);
 	spin_unlock_irqrestore(&fsl_chan->vchan.lock, flags);
 	vchan_dma_desc_free_list(&fsl_chan->vchan, &head);
