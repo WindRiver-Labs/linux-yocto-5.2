@@ -28,6 +28,10 @@ static char dpaa2_ethtool_stats[][ETH_GSTRING_LEN] = {
 	"[hw] rx nobuffer discards",
 	"[hw] tx discarded frames",
 	"[hw] tx confirmed frames",
+	"[hw] tx dequeued bytes",
+	"[hw] tx dequeued frames",
+	"[hw] tx rejected bytes",
+	"[hw] tx rejected frames",
 };
 
 #define DPAA2_ETH_NUM_STATS	ARRAY_SIZE(dpaa2_ethtool_stats)
@@ -281,7 +285,7 @@ static void dpaa2_eth_get_ethtool_stats(struct net_device *net_dev,
 	       sizeof(u64) * (DPAA2_ETH_NUM_STATS + DPAA2_ETH_NUM_EXTRA_STATS));
 
 	/* Print standard counters, from DPNI statistics */
-	for (j = 0; j <= 2; j++) {
+	for (j = 0; j <= 3; j++) {
 		err = dpni_get_statistics(priv->mc_io, 0, priv->mc_token,
 					  j, 0, &dpni_stats);
 		if (err != 0)
@@ -295,6 +299,9 @@ static void dpaa2_eth_get_ethtool_stats(struct net_device *net_dev,
 			break;
 		case 2:
 			num_cnt = sizeof(dpni_stats.page_2) / sizeof(u64);
+			break;
+		case 3:
+			num_cnt = sizeof(dpni_stats.page_3) / sizeof(u64);
 			break;
 		}
 		for (k = 0; k < num_cnt; k++)
