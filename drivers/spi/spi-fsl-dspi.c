@@ -37,13 +37,7 @@
 /* Module Configuration Register (SPI_MCR) */
 #define SPI_MCR			0x00
 #define SPI_MCR_MASTER		(1 << 31)
-
-#if defined(CONFIG_SOC_S32V234)
-#define SPI_MCR_PCSIS		(0xFF << 16)
-#else
-#define SPI_MCR_PCSIS		(0x3F << 16)
-#endif
-
+#define SPI_MCR_PCSIS(x)	((x) << 16)
 #define SPI_MCR_CLR_TXF		(1 << 11)
 #define SPI_MCR_CLR_RXF		(1 << 10)
 #define SPI_MCR_XSPI		(1 << 3)
@@ -100,11 +94,7 @@
 #define SPI_PUSHR_CTCNT		(SPI_PUSHR_CMD_CTCNT << 16)
 #define SPI_PUSHR_CMD_PCS(x)	((1 << x) & 0x003f)
 
-#if defined(CONFIG_SOC_S32V234)
-#define SPI_PUSHR_PCS(x)	(((1 << x) & 0x000000ff) << 16)
-#else
-#define SPI_PUSHR_PCS(x)	(((1 << x) & 0x0000003f) << 16)
-#endif
+#define SPI_PUSHR_PCS(x, y)	(((1 << (x)) & (y)) << 16)
 #define SPI_PUSHR_TXDATA(x)	((x) & 0x0000ffff)
 
 #define SPI_PUSHR_SLAVE		0x34
@@ -260,6 +250,7 @@ struct fsl_dspi {
 	const struct fsl_dspi_devtype_data *devtype_data;
 	size_t			queue_size;
 	size_t			fifo_size;
+	u32			pcs_mask;
 
 	wait_queue_head_t	waitq;
 	u32			waitflags;
@@ -719,6 +710,25 @@ static void dspi_tcfq_read(struct fsl_dspi *dspi)
 
 }
 
+static u32 dspi_data_to_pushr(struct fsl_dspi *dspi, int tx_word)
+{
+	u16 data, cmd;
+
+	if (!(dspi->dataflags & TRAN_STATE_TX_VOID))
+		data = tx_word ? *(u16 *)dspi->tx : *(u8 *)dspi->tx;
+	else
+		data = dspi->void_write_data;
+
+	dspi->tx += tx_word + 1;
+	dspi->len -= tx_word + 1;
+
+	cmd = dspi->tx_cmd;
+	if (dspi->len > 0)
+		cmd |= SPI_PUSHR_CMD_CONT;
+
+	return (cmd << 16) | SPI_PUSHR_TXDATA(data);
+}
+
 static void dspi_data_from_popr(struct fsl_dspi *dspi,
 				enum frame_mode rx_frame_mode)
 {
@@ -986,6 +996,9 @@ static int dspi_setup(struct spi_device *spi)
 		cs_sck_delay = pdata->cs_sck_delay;
 		sck_cs_delay = pdata->sck_cs_delay;
 	}
+	
+	chip->mcr_val = SPI_MCR_MASTER | SPI_MCR_PCSIS(dspi->pcs_mask) |
+		SPI_MCR_CLR_TXF | SPI_MCR_CLR_RXF;
 
 	chip->void_write_data = 0;
 
@@ -1242,7 +1255,8 @@ static int dspi_probe(struct platform_device *pdev)
 			goto out_master_put;
 		}
 		master->num_chipselect = cs_num;
-
+		dspi->pcs_mask = (1 << cs_num) - 1;
+	
 		ret = of_property_read_u32(np, "bus-num", &bus_num);
 		if (ret < 0) {
 			dev_err(&pdev->dev, "can't get bus-num\n");
