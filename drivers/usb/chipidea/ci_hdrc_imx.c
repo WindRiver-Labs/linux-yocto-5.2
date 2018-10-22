@@ -18,6 +18,7 @@
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
 #include <linux/regulator/consumer.h>
+#include <linux/busfreq-imx.h>
 
 #include "ci.h"
 #include "ci_hdrc_imx.h"
@@ -323,16 +324,10 @@ static int ci_hdrc_imx_notify_event(struct ci_hdrc *ci, unsigned int event)
 				"hsic_set_connect failed, err=%d\n", ret);
 		break;
 	case CI_HDRC_CONTROLLER_VBUS_EVENT:
-		if (ci->vbus_active) {
+		if (ci->vbus_active)
 			ret = imx_usbmisc_charger_detection(mdata, true);
-			if (!ret && mdata->usb_phy->chg_type != SDP_TYPE)
-				ret = CI_HDRC_NOTIFY_RET_DEFER_EVENT;
-		} else {
+		else
 			ret = imx_usbmisc_charger_detection(mdata, false);
-		}
-		break;
-	case CI_HDRC_CONTROLLER_CHARGER_POST_EVENT:
-		imx_usbmisc_charger_secondary_detection(mdata);
 		break;
 	case CI_HDRC_IMX_TERM_SELECT_OVERRIDE_FS:
 		if (data->usbmisc_data)
@@ -622,7 +617,7 @@ static int __maybe_unused imx_controller_resume(struct device *dev)
 	request_bus_freq(BUS_FREQ_HIGH);
 	ret = imx_prepare_enable_clks(dev);
 	if (ret)
-		return err_bus_freq;
+		goto err_bus_freq;
 
 	data->in_lpm = false;
 
