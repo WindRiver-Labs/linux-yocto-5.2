@@ -31,12 +31,8 @@
 
 #define DRIVER_NAME "fsl-dspi"
 
-#ifdef CONFIG_M5441x
-#define DSPI_FIFO_SIZE			16
-#else
-#define DSPI_FIFO_SIZE			4
-#endif
-#define DSPI_DMA_BUFSIZE		(DSPI_FIFO_SIZE * 1024)
+#define DSPI_FIFO_SIZE_DEFAULT		4
+#define DSPI_DMA_BUFSIZE(dspi)		(dspi->fifo_size * 1024)
 
 /* Module Configuration Register (SPI_MCR) */
 #define SPI_MCR			0x00
@@ -263,6 +259,7 @@ struct fsl_dspi {
 	u8			bytes_per_word;
 	const struct fsl_dspi_devtype_data *devtype_data;
 	size_t			queue_size;
+	size_t			fifo_size;
 
 	wait_queue_head_t	waitq;
 	u32			waitflags;
@@ -448,7 +445,7 @@ static int dspi_dma_xfer(struct fsl_dspi *dspi)
 	int ret = 0;
 
 	curr_remaining_bytes = dspi->len;
-	bytes_per_buffer = DSPI_DMA_BUFSIZE / DSPI_FIFO_SIZE;
+	bytes_per_buffer = DSPI_DMA_BUFSIZE(dspi) / dspi->fifo_size;
 	while (curr_remaining_bytes) {
 		/* Check if current transfer fits the DMA buffer */
 		dma->curr_xfer_len = curr_remaining_bytes
@@ -759,7 +756,7 @@ static void dspi_eoq_write(struct fsl_dspi *dspi)
 	fifo_entries_per_frm = (tx_frame_mode == FM_BYTES_4) ? 2 : 1;
 
 	while (dspi->len &&
-	       DSPI_FIFO_SIZE - fifo_entries_used >= fifo_entries_per_frm) {
+	       dspi->fifo_size - fifo_entries_used >= fifo_entries_per_frm) {
 
 		switch (tx_frame_mode) {
 		case FM_BYTES_4:
@@ -782,7 +779,8 @@ static void dspi_eoq_write(struct fsl_dspi *dspi)
 		tx_frames_count++;
 
 		if (dspi->len == 0 ||
-		    DSPI_FIFO_SIZE - fifo_entries_used < fifo_entries_per_frm) {
+		    dspi->fifo_size - fifo_entries_used <
+		    fifo_entries_per_frm) {
 
 			/* last transfer in the transfer */
 			dspi_pushr |= SPI_PUSHR_EOQ;
@@ -1212,6 +1210,7 @@ static int dspi_probe(struct platform_device *pdev)
 	const struct regmap_config *regmap_config;
 	struct fsl_dspi_platform_data *pdata;
 	int ret = 0, cs_num, bus_num;
+	u32 val;
 
 	master = spi_alloc_master(&pdev->dev, sizeof(struct fsl_dspi));
 	if (!master)
@@ -1261,6 +1260,12 @@ static int dspi_probe(struct platform_device *pdev)
 			goto out_master_put;
 		}
 	}
+
+	ret = of_property_read_u32(np, "spi-fifo-size", &val);
+	if (ret < 0)
+		dspi->fifo_size = DSPI_FIFO_SIZE_DEFAULT;
+	else
+		dspi->fifo_size = val;
 
 	if (dspi->devtype_data->xspi_mode)
 		master->bits_per_word_mask = SPI_BPW_RANGE_MASK(4, 32);
