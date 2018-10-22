@@ -168,7 +168,7 @@ static const struct fsl_dspi_devtype_data coldfire_data = {
 };
 
 struct fsl_dspi_dma {
-	/* Length of transfer in words of DSPI_FIFO_SIZE */
+	/* Length of transfer in words of fifo_size */
 	u32 curr_xfer_len;
 
 	u32 *tx_dma_buf;
@@ -420,14 +420,14 @@ static int dspi_request_dma(struct fsl_dspi *dspi, phys_addr_t phy_addr)
 		goto err_tx_channel;
 	}
 
-	dma->tx_dma_buf = dma_alloc_coherent(dev, DSPI_DMA_BUFSIZE,
+	dma->tx_dma_buf = dma_alloc_coherent(dev, DSPI_DMA_BUFSIZE(dspi),
 					&dma->tx_dma_phys, GFP_KERNEL);
 	if (!dma->tx_dma_buf) {
 		ret = -ENOMEM;
 		goto err_tx_dma_buf;
 	}
 
-	dma->rx_dma_buf = dma_alloc_coherent(dev, DSPI_DMA_BUFSIZE,
+	dma->rx_dma_buf = dma_alloc_coherent(dev, DSPI_DMA_BUFSIZE(dspi),
 					&dma->rx_dma_phys, GFP_KERNEL);
 	if (!dma->rx_dma_buf) {
 		ret = -ENOMEM;
@@ -464,10 +464,10 @@ static int dspi_request_dma(struct fsl_dspi *dspi, phys_addr_t phy_addr)
 	return 0;
 
 err_slave_config:
-	dma_free_coherent(dev, DSPI_DMA_BUFSIZE,
+	dma_free_coherent(dev, DSPI_DMA_BUFSIZE(dspi),
 			dma->rx_dma_buf, dma->rx_dma_phys);
 err_rx_dma_buf:
-	dma_free_coherent(dev, DSPI_DMA_BUFSIZE,
+	dma_free_coherent(dev, DSPI_DMA_BUFSIZE(dspi),
 			dma->tx_dma_buf, dma->tx_dma_phys);
 err_tx_dma_buf:
 	dma_release_channel(dma->chan_tx);
@@ -488,13 +488,14 @@ static void dspi_release_dma(struct fsl_dspi *dspi)
 	if (dma) {
 		if (dma->chan_tx) {
 			dma_unmap_single(dev, dma->tx_dma_phys,
-					DSPI_DMA_BUFSIZE, DMA_TO_DEVICE);
+					DSPI_DMA_BUFSIZE(dspi), DMA_TO_DEVICE);
 			dma_release_channel(dma->chan_tx);
 		}
 
 		if (dma->chan_rx) {
 			dma_unmap_single(dev, dma->rx_dma_phys,
-					DSPI_DMA_BUFSIZE, DMA_FROM_DEVICE);
+					DSPI_DMA_BUFSIZE(dspi),
+					DMA_FROM_DEVICE);
 			dma_release_channel(dma->chan_rx);
 		}
 	}
