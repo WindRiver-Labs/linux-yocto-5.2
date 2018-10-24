@@ -33,7 +33,6 @@ struct imx_usbmisc_data {
 	unsigned int evdo:1; /* set external vbus divider option */
 	unsigned int ulpi:1; /* connected to an ULPI phy */
 	unsigned int hsic:1; /* HSIC controlller */
-	unsigned int picophy:1; /* Samsung picophy */
 	enum usb_dr_mode available_role;
 	/*
 	 * Specifies the delay between powering up the xtal 24MHz clock
