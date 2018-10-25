@@ -197,12 +197,16 @@ static int dpaa2_dpio_probe(struct fsl_mc_device *dpio_dev)
 				desc.cpu);
 	}
 
-	/*
-	 * Set the CENA regs to be the cache enabled area of the portal to 
-	 * achieve the best performance.
-	 */
-	desc.regs_cena = ioremap_cache_ns(dpio_dev->regions[0].start,
-					  resource_size(&dpio_dev->regions[0]));	
+        if (dpio_dev->obj_desc.region_count < 3) {
+                /* No support for DDR backed portals, use classic mapping */
+                desc.regs_cena = ioremap_cache_ns(dpio_dev->regions[0].start,
+                                        resource_size(&dpio_dev->regions[0]));
+        } else {
+                desc.regs_cena = memremap(dpio_dev->regions[2].start,
+                                        resource_size(&dpio_dev->regions[2]),
+                                        MEMREMAP_WB);
+        }
+
 	if (IS_ERR(desc.regs_cena)) {
 		dev_err(dev, "ioremap_cache_ns failed\n");
 		err = PTR_ERR(desc.regs_cena);
