@@ -93,6 +93,7 @@
 	phy-handle = <&phy0>;
 
 	max-frame-size = <3800>;
+	snps,multicast-filter-bins = <256>;
 
 	mdio0 {
 		#address-cells = <1>;
