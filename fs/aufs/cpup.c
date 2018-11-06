@@ -438,13 +438,11 @@ static int au_cp_regular(struct au_cp_generic *cpg)
 		{
 			.bindex = cpg->bsrc,
 			.flags = O_RDONLY | O_NOATIME | O_LARGEFILE,
-			.label = &&out
 		},
 		{
 			.bindex = cpg->bdst,
 			.flags = O_WRONLY | O_NOATIME | O_LARGEFILE,
 			.force_wr = !!au_ftest_cpup(cpg->flags, RWDST),
-			.label = &&out_src
 		}
 	};
 	struct super_block *sb, *h_src_sb;
@@ -459,8 +457,12 @@ static int au_cp_regular(struct au_cp_generic *cpg)
 		f->file = au_h_open(cpg->dentry, f->bindex, f->flags,
 				    /*file*/NULL, f->force_wr);
 		err = PTR_ERR(f->file);
-		if (IS_ERR(f->file))
-			goto *f->label;
+		if (IS_ERR(f->file)) {
+			if (f->flags & O_RDONLY)
+				goto out;
+			else
+				goto out_src;
+		}
 	}
 
 	/* try stopping to update while we copyup */
