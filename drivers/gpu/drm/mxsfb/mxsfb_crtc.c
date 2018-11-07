@@ -401,20 +401,11 @@ static void mxsfb_crtc_mode_set_nofb(struct mxsfb_drm_private *mxsfb)
 
 	writel(SET_DOTCLK_H_VALID_DATA_CNT(m->hdisplay),
 	       mxsfb->base + LCDC_VDCTRL4);
-
-	if (mxsfb->gem != NULL) {
-		writel(mxsfb->gem->paddr,
-		       mxsfb->base + mxsfb->devdata->next_buf);
-		mxsfb->gem = NULL;
-	}
 }
 
 void mxsfb_crtc_enable(struct mxsfb_drm_private *mxsfb)
 {
 	dma_addr_t paddr;
-
-	if (mxsfb->enabled)
-		return;
 
 	if (mxsfb->devdata->flags & MXSFB_FLAG_BUSFREQ)
 		request_bus_freq(BUS_FREQ_HIGH);
@@ -423,8 +414,6 @@ void mxsfb_crtc_enable(struct mxsfb_drm_private *mxsfb)
 	writel(0, mxsfb->base + LCDC_CTRL);
 	mxsfb_enable_axi_clk(mxsfb);
 	mxsfb_crtc_mode_set_nofb(mxsfb);
-
-	mxsfb->enabled = true;
 
 	/* Write cur_buf as well to avoid an initial corrupt frame */
 	paddr = mxsfb_get_fb_paddr(mxsfb);
@@ -438,16 +427,11 @@ void mxsfb_crtc_enable(struct mxsfb_drm_private *mxsfb)
 
 void mxsfb_crtc_disable(struct mxsfb_drm_private *mxsfb)
 {
-	if (!mxsfb->enabled)
-		return;
-
 	mxsfb_disable_controller(mxsfb);
 	mxsfb_disable_axi_clk(mxsfb);
 
 	if (mxsfb->devdata->flags & MXSFB_FLAG_BUSFREQ)
 		release_bus_freq(BUS_FREQ_HIGH);
-
-	mxsfb->enabled = false;
 }
 
 void mxsfb_plane_atomic_update(struct mxsfb_drm_private *mxsfb,
@@ -455,7 +439,6 @@ void mxsfb_plane_atomic_update(struct mxsfb_drm_private *mxsfb,
 {
 	struct drm_simple_display_pipe *pipe = &mxsfb->pipe;
 	struct drm_crtc *crtc = &pipe->crtc;
-	struct drm_device *drm = crtc->dev;
 	struct drm_framebuffer *old_fb = old_state->fb;
 	struct drm_pending_vblank_event *event;
 	dma_addr_t paddr;
@@ -473,6 +456,9 @@ void mxsfb_plane_atomic_update(struct mxsfb_drm_private *mxsfb,
 	}
 	spin_unlock_irq(&crtc->dev->event_lock);
 
+	if (!fb || !old_fb)
+		return;
+
 	paddr = mxsfb_get_fb_paddr(mxsfb);
 	if (paddr) {
 		mxsfb_enable_axi_clk(mxsfb);
@@ -487,7 +473,7 @@ void mxsfb_plane_atomic_update(struct mxsfb_drm_private *mxsfb,
 	if (old_fb->format->format != fb->format->format) {
 		struct drm_format_name_buf old_fmt_buf;
 		struct drm_format_name_buf new_fmt_buf;
-		DRM_DEV_DEBUG_DRIVER(drm->dev,
+		DRM_DEV_DEBUG_DRIVER(mxsfb->dev,
 				"Switching pixel format: %s -> %s\n",
 				drm_get_format_name(old_fb->format->format, &old_fmt_buf),
 				drm_get_format_name(fb->format->format, &new_fmt_buf));
