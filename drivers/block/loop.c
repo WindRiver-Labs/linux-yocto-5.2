@@ -1235,6 +1235,9 @@ loop_get_status(struct loop_device *lo, struct loop_info64 *info)
 	struct kstat stat;
 	int ret;
 
+	ret = mutex_lock_killable_nested(&loop_ctl_mutex, 1);
+	if (ret)
+		return ret;
 	if (lo->lo_state != Lo_bound) {
 		mutex_unlock(&loop_ctl_mutex);
 		return -ENXIO;
@@ -1349,10 +1352,8 @@ loop_get_status_old(struct loop_device *lo, struct loop_info __user *arg) {
 	struct loop_info64 info64;
 	int err;
 
-	if (!arg) {
-		mutex_unlock(&loop_ctl_mutex);
+	if (!arg)
 		return -EINVAL;
-	}
 	err = loop_get_status(lo, &info64);
 	if (!err)
 		err = loop_info64_to_old(&info64, &info);
@@ -1367,10 +1368,8 @@ loop_get_status64(struct loop_device *lo, struct loop_info64 __user *arg) {
 	struct loop_info64 info64;
 	int err;
 
-	if (!arg) {
-		mutex_unlock(&loop_ctl_mutex);
+	if (!arg)
 		return -EINVAL;
-	}
 	err = loop_get_status(lo, &info64);
 	if (!err && copy_to_user(arg, &info64, sizeof(info64)))
 		err = -EFAULT;
@@ -1480,12 +1479,7 @@ static int lo_ioctl(struct block_device *bdev, fmode_t mode,
 		}
 		break;
 	case LOOP_GET_STATUS:
-		err = mutex_lock_killable_nested(&loop_ctl_mutex, 1);
-		if (err)
-			return err;
-		err = loop_get_status_old(lo, (struct loop_info __user *) arg);
-		/* loop_get_status() unlocks loop_ctl_mutex */
-		break;
+		return loop_get_status_old(lo, (struct loop_info __user *) arg);
 	case LOOP_SET_STATUS64:
 		err = -EPERM;
 		if ((mode & FMODE_WRITE) || capable(CAP_SYS_ADMIN)) {
@@ -1498,12 +1492,7 @@ static int lo_ioctl(struct block_device *bdev, fmode_t mode,
 		}
 		break;
 	case LOOP_GET_STATUS64:
-		err = mutex_lock_killable_nested(&loop_ctl_mutex, 1);
-		if (err)
-			return err;
-		err = loop_get_status64(lo, (struct loop_info64 __user *) arg);
-		/* loop_get_status() unlocks loop_ctl_mutex */
-		break;
+		return loop_get_status64(lo, (struct loop_info64 __user *) arg);
 	case LOOP_SET_CAPACITY:
 	case LOOP_SET_DIRECT_IO:
 	case LOOP_SET_BLOCK_SIZE:
@@ -1628,10 +1617,8 @@ loop_get_status_compat(struct loop_device *lo,
 	struct loop_info64 info64;
 	int err;
 
-	if (!arg) {
-		mutex_unlock(&loop_ctl_mutex);
+	if (!arg)
 		return -EINVAL;
-	}
 	err = loop_get_status(lo, &info64);
 	if (!err)
 		err = loop_info64_to_compat(&info64, arg);
@@ -1654,12 +1641,8 @@ static int lo_compat_ioctl(struct block_device *bdev, fmode_t mode,
 		}
 		break;
 	case LOOP_GET_STATUS:
-		err = mutex_lock_killable(&loop_ctl_mutex);
-		if (!err) {
-			err = loop_get_status_compat(lo,
-						     (struct compat_loop_info __user *)arg);
-			/* loop_get_status() unlocks loop_ctl_mutex */
-		}
+		err = loop_get_status_compat(lo,
+				     (struct compat_loop_info __user *)arg);
 		break;
 	case LOOP_SET_CAPACITY:
 	case LOOP_CLR_FD:
