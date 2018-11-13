@@ -289,7 +289,7 @@
 		reg = <0>;
 		nand-rb = <0>;
 		nand-on-flash-bbt;
-		nand-ecc-strength = <4>;
+		nand-ecc-strength = <8>;
 		nand-ecc-step-size = <512>;
 
 		partitions {
