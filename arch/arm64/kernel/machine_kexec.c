@@ -258,6 +258,11 @@ static void machine_kexec_mask_interrupts(void)
 /**
  * machine_crash_shutdown - shutdown non-crashing cpus and save registers
  */
+
+extern void qman_crash_shutdown(void);
+extern void bman_crash_shutdown(void);
+extern void fm_crash_shutdown_all(void);
+
 void machine_crash_shutdown(struct pt_regs *regs)
 {
 	local_irq_disable();
@@ -268,7 +273,15 @@ void machine_crash_shutdown(struct pt_regs *regs)
 	/* for crashing cpu */
 	crash_save_cpu(regs, smp_processor_id());
 	machine_kexec_mask_interrupts();
-
+#ifdef CONFIG_FSL_SDK_FMAN
+	fm_crash_shutdown_all();
+#endif
+#ifdef CONFIG_FSL_QMAN_CONFIG
+	qman_crash_shutdown();
+#endif
+#ifdef CONFIG_FSL_BMAN_CONFIG
+	bman_crash_shutdown();
+#endif
 	pr_info("Starting crashdump kernel...\n");
 }
 
