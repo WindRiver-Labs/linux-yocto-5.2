@@ -400,6 +400,16 @@ struct alloc_node {
 	int is_alloced;
 };
 
+void qman_release_fqid_all(void)
+{
+	struct alloc_node *p;
+
+	list_for_each_entry(p, &(fqalloc.used), list) {
+		fq_cleanup(p->base);
+	}
+}
+EXPORT_SYMBOL(qman_release_fqid_all);
+
 /* #define DPA_ALLOC_DEBUG */
 
 #ifdef DPA_ALLOC_DEBUG
