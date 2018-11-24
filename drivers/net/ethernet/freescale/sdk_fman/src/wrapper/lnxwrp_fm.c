@@ -2913,6 +2913,42 @@ EXPORT_SYMBOL(fm_macsec_secy_get_txsc_phys_id);
 
 static t_Handle h_FmLnxWrp;
 
+#ifdef CONFIG_KEXEC
+static int fm_crash_shutdown(struct device *dev, void *data)
+{
+
+	t_LnxWrpFmDev   *p;
+
+        struct platform_driver *drv = data;
+
+        if (dev->driver != &drv->driver)
+                return 0;
+
+        p = dev_get_drvdata(dev);
+
+        if (p->h_Dev)
+                FM_Free(p->h_Dev);
+
+        return 0;
+}
+
+void fm_crash_shutdown_all(void)
+{
+        bus_for_each_dev(&platform_bus_type, NULL,
+                        &fm_driver, fm_crash_shutdown);
+}
+
+#ifdef CONFIG_PPC
+__init int fman_init_early(void)
+{
+        crash_shutdown_register(&fm_crash_shutdown_all);
+
+        return 0;
+}
+postcore_initcall_sync(fman_init_early);
+#endif
+#endif
+
 static int __init __cold fm_load (void)
 {
     if ((h_FmLnxWrp = LNXWRP_FM_Init()) == NULL)
