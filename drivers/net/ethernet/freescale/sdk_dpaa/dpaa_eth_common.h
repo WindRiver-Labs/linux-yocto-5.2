@@ -159,6 +159,9 @@ int dpa_get_ts(const struct dpa_priv_s *priv, enum port_type rx_tx,
 #endif /* CONFIG_FSL_DPAA_TS */
 int dpa_ioctl(struct net_device *dev, struct ifreq *rq, int cmd);
 int __cold dpa_remove(struct platform_device *of_dev);
+#if defined(CONFIG_KEXEC)
+void __cold dpa_shutdown(struct platform_device *of_dev);
+#endif
 struct mac_device * __cold __must_check
 __attribute__((nonnull)) dpa_mac_probe(struct platform_device *_of_dev);
 int dpa_set_mac_address(struct net_device *net_dev, void *addr);
