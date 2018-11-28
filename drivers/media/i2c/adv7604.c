@@ -2284,8 +2284,10 @@ static int adv76xx_set_edid(struct v4l2_subdev *sd, struct v4l2_edid *edid)
 		state->aspect_ratio.numerator = 16;
 		state->aspect_ratio.denominator = 9;
 
-		if (!state->edid.present)
+		if (!state->edid.present) {
 			state->edid.blocks = 0;
+			cec_phys_addr_invalidate(state->cec_adap);
+		}
 
 		v4l2_dbg(2, debug, sd, "%s: clear EDID pad %d, edid.present = 0x%x\n",
 				__func__, edid->pad, state->edid.present);
@@ -2474,7 +2476,7 @@ static int adv76xx_log_status(struct v4l2_subdev *sd)
 		"YCbCr Bt.601 (16-235)", "YCbCr Bt.709 (16-235)",
 		"xvYCC Bt.601", "xvYCC Bt.709",
 		"YCbCr Bt.601 (0-255)", "YCbCr Bt.709 (0-255)",
-		"sYCC", "Adobe YCC 601", "AdobeRGB", "invalid", "invalid",
+		"sYCC", "opYCC 601", "opRGB", "invalid", "invalid",
 		"invalid", "invalid", "invalid"
 	};
 	static const char * const rgb_quantization_range_txt[] = {
@@ -3108,12 +3110,9 @@ static int adv76xx_parse_dt(struct adv76xx_state *state)
 		return -EINVAL;
 
 	ret = v4l2_fwnode_endpoint_parse(of_fwnode_handle(endpoint), &bus_cfg);
-	if (ret) {
-		of_node_put(endpoint);
-		return ret;
-	}
-
 	of_node_put(endpoint);
+	if (ret)
+		return ret;
 
 	if (!of_property_read_u32(np, "default-input", &v))
 		state->pdata.default_input = v;
@@ -3502,6 +3501,7 @@ static int adv76xx_probe(struct i2c_client *client,
 	for (i = 0; i < state->source_pad; ++i)
 		state->pads[i].flags = MEDIA_PAD_FL_SINK;
 	state->pads[state->source_pad].flags = MEDIA_PAD_FL_SOURCE;
+	sd->entity.function = MEDIA_ENT_F_DV_DECODER;
 
 	err = media_entity_pads_init(&sd->entity, state->source_pad + 1,
 				state->pads);

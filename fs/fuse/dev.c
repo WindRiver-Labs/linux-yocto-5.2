@@ -127,6 +127,20 @@ static bool fuse_block_alloc(struct fuse_conn *fc, bool for_background)
 	return !fc->initialized || (for_background && fc->blocked);
 }
 
+static void fuse_drop_waiting(struct fuse_conn *fc)
+{
+	/*
+	 * lockess check of fc->connected is okay, because atomic_dec_and_test()
+	 * provides a memory barrier mached with the one in fuse_wait_aborted()
+	 * to ensure no wake-up is missed.
+	 */
+	if (atomic_dec_and_test(&fc->num_waiting) &&
+	    !READ_ONCE(fc->connected)) {
+		/* wake up aborters */
+		wake_up_all(&fc->blocked_waitq);
+	}
+}
+
 static struct fuse_req *__fuse_get_req(struct fuse_conn *fc, unsigned npages,
 				       bool for_background)
 {
@@ -175,7 +189,7 @@ static struct fuse_req *__fuse_get_req(struct fuse_conn *fc, unsigned npages,
 	return req;
 
  out:
-	atomic_dec(&fc->num_waiting);
+	fuse_drop_waiting(fc);
 	return ERR_PTR(err);
 }
 
@@ -285,7 +299,7 @@ void fuse_put_request(struct fuse_conn *fc, struct fuse_req *req)
 
 		if (test_bit(FR_WAITING, &req->flags)) {
 			__clear_bit(FR_WAITING, &req->flags);
-			atomic_dec(&fc->num_waiting);
+			fuse_drop_waiting(fc);
 		}
 
 		if (req->stolen_file)
@@ -371,7 +385,7 @@ static void request_end(struct fuse_conn *fc, struct fuse_req *req)
 	struct fuse_iqueue *fiq = &fc->iq;
 
 	if (test_and_set_bit(FR_FINISHED, &req->flags))
-		return;
+		goto put_request;
 
 	spin_lock(&fiq->waitq.lock);
 	list_del_init(&req->intr_entry);
@@ -381,12 +395,19 @@ static void request_end(struct fuse_conn *fc, struct fuse_req *req)
 	if (test_bit(FR_BACKGROUND, &req->flags)) {
 		spin_lock(&fc->lock);
 		clear_bit(FR_BACKGROUND, &req->flags);
-		if (fc->num_background == fc->max_background)
+		if (fc->num_background == fc->max_background) {
 			fc->blocked = 0;
-
-		/* Wake up next waiter, if any */
-		if (!fc->blocked && waitqueue_active(&fc->blocked_waitq))
 			wake_up(&fc->blocked_waitq);
+		} else if (!fc->blocked) {
+			/*
+			 * Wake up next waiter, if any.  It's okay to use
+			 * waitqueue_active(), as we've already synced up
+			 * fc->blocked with waiters with the wake_up() call
+			 * above.
+			 */
+			if (waitqueue_active(&fc->blocked_waitq))
+				wake_up(&fc->blocked_waitq);
+		}
 
 		if (fc->num_background == fc->congestion_threshold && fc->sb) {
 			clear_bdi_congested(fc->sb->s_bdi, BLK_RW_SYNC);
@@ -400,6 +421,7 @@ static void request_end(struct fuse_conn *fc, struct fuse_req *req)
 	wake_up(&req->waitq);
 	if (req->end)
 		req->end(fc, req);
+put_request:
 	fuse_put_request(fc, req);
 }
 
@@ -1300,12 +1322,14 @@ static ssize_t fuse_dev_do_read(struct fuse_dev *fud, struct file *file,
 		goto out_end;
 	}
 	list_move_tail(&req->list, &fpq->processing);
-	spin_unlock(&fpq->lock);
+	__fuse_get_request(req);
 	set_bit(FR_SENT, &req->flags);
+	spin_unlock(&fpq->lock);
 	/* matches barrier in request_wait_answer() */
 	smp_mb__after_atomic();
 	if (test_bit(FR_INTERRUPTED, &req->flags))
 		queue_interrupt(fiq, req);
+	fuse_put_request(fc, req);
 
 	return reqsize;
 
@@ -1362,8 +1386,8 @@ static ssize_t fuse_dev_splice_read(struct file *in, loff_t *ppos,
 	if (!fud)
 		return -EPERM;
 
-	bufs = kmalloc_array(pipe->buffers, sizeof(struct pipe_buffer),
-			     GFP_KERNEL);
+	bufs = kvmalloc_array(pipe->buffers, sizeof(struct pipe_buffer),
+			      GFP_KERNEL);
 	if (!bufs)
 		return -ENOMEM;
 
@@ -1396,7 +1420,7 @@ out:
 	for (; page_nr < cs.nr_segs; page_nr++)
 		put_page(bufs[page_nr].page);
 
-	kfree(bufs);
+	kvfree(bufs);
 	return ret;
 }
 
@@ -1704,8 +1728,10 @@ static int fuse_retrieve(struct fuse_conn *fc, struct inode *inode,
 	req->in.args[1].size = total_len;
 
 	err = fuse_request_send_notify_reply(fc, req, outarg->notify_unique);
-	if (err)
+	if (err) {
 		fuse_retrieve_end(fc, req);
+		fuse_put_request(fc, req);
+	}
 
 	return err;
 }
@@ -1864,16 +1890,20 @@ static ssize_t fuse_dev_do_write(struct fuse_dev *fud,
 
 	/* Is it an interrupt reply? */
 	if (req->intr_unique == oh.unique) {
+		__fuse_get_request(req);
 		spin_unlock(&fpq->lock);
 
 		err = -EINVAL;
-		if (nbytes != sizeof(struct fuse_out_header))
+		if (nbytes != sizeof(struct fuse_out_header)) {
+			fuse_put_request(fc, req);
 			goto err_finish;
+		}
 
 		if (oh.error == -ENOSYS)
 			fc->no_interrupt = 1;
 		else if (oh.error == -EAGAIN)
 			queue_interrupt(&fc->iq, req);
+		fuse_put_request(fc, req);
 
 		fuse_copy_finish(cs);
 		return nbytes;
@@ -1944,12 +1974,15 @@ static ssize_t fuse_dev_splice_write(struct pipe_inode_info *pipe,
 	if (!fud)
 		return -EPERM;
 
-	bufs = kmalloc_array(pipe->buffers, sizeof(struct pipe_buffer),
-			     GFP_KERNEL);
-	if (!bufs)
-		return -ENOMEM;
-
 	pipe_lock(pipe);
+
+	bufs = kvmalloc_array(pipe->nrbufs, sizeof(struct pipe_buffer),
+			      GFP_KERNEL);
+	if (!bufs) {
+		pipe_unlock(pipe);
+		return -ENOMEM;
+	}
+
 	nbuf = 0;
 	rem = 0;
 	for (idx = 0; idx < pipe->nrbufs && rem < len; idx++)
@@ -2003,7 +2036,7 @@ static ssize_t fuse_dev_splice_write(struct pipe_inode_info *pipe,
 		pipe_buf_release(pipe, &bufs[idx]);
 
 out:
-	kfree(bufs);
+	kvfree(bufs);
 	return ret;
 }
 
@@ -2087,8 +2120,7 @@ void fuse_abort_conn(struct fuse_conn *fc, bool is_abort)
 	if (fc->connected) {
 		struct fuse_dev *fud;
 		struct fuse_req *req, *next;
-		LIST_HEAD(to_end1);
-		LIST_HEAD(to_end2);
+		LIST_HEAD(to_end);
 
 		fc->connected = 0;
 		fc->blocked = 0;
@@ -2105,11 +2137,12 @@ void fuse_abort_conn(struct fuse_conn *fc, bool is_abort)
 				set_bit(FR_ABORTED, &req->flags);
 				if (!test_bit(FR_LOCKED, &req->flags)) {
 					set_bit(FR_PRIVATE, &req->flags);
-					list_move(&req->list, &to_end1);
+					__fuse_get_request(req);
+					list_move(&req->list, &to_end);
 				}
 				spin_unlock(&req->waitq.lock);
 			}
-			list_splice_init(&fpq->processing, &to_end2);
+			list_splice_tail_init(&fpq->processing, &to_end);
 			spin_unlock(&fpq->lock);
 		}
 		fc->max_background = UINT_MAX;
@@ -2117,9 +2150,9 @@ void fuse_abort_conn(struct fuse_conn *fc, bool is_abort)
 
 		spin_lock(&fiq->waitq.lock);
 		fiq->connected = 0;
-		list_splice_init(&fiq->pending, &to_end2);
-		list_for_each_entry(req, &to_end2, list)
+		list_for_each_entry(req, &fiq->pending, list)
 			clear_bit(FR_PENDING, &req->flags);
+		list_splice_tail_init(&fiq->pending, &to_end);
 		while (forget_pending(fiq))
 			kfree(dequeue_forget(fiq, 1, NULL));
 		wake_up_all_locked(&fiq->waitq);
@@ -2129,18 +2162,19 @@ void fuse_abort_conn(struct fuse_conn *fc, bool is_abort)
 		wake_up_all(&fc->blocked_waitq);
 		spin_unlock(&fc->lock);
 
-		while (!list_empty(&to_end1)) {
-			req = list_first_entry(&to_end1, struct fuse_req, list);
-			__fuse_get_request(req);
-			list_del_init(&req->list);
-			request_end(fc, req);
-		}
-		end_requests(fc, &to_end2);
+		end_requests(fc, &to_end);
 	} else {
 		spin_unlock(&fc->lock);
 	}
 }
 EXPORT_SYMBOL_GPL(fuse_abort_conn);
+
+void fuse_wait_aborted(struct fuse_conn *fc)
+{
+	/* matches implicit memory barrier in fuse_drop_waiting() */
+	smp_mb();
+	wait_event(fc->blocked_waitq, atomic_read(&fc->num_waiting) == 0);
+}
 
 int fuse_dev_release(struct inode *inode, struct file *file)
 {
@@ -2149,9 +2183,15 @@ int fuse_dev_release(struct inode *inode, struct file *file)
 	if (fud) {
 		struct fuse_conn *fc = fud->fc;
 		struct fuse_pqueue *fpq = &fud->pq;
+		LIST_HEAD(to_end);
 
+		spin_lock(&fpq->lock);
 		WARN_ON(!list_empty(&fpq->io));
-		end_requests(fc, &fpq->processing);
+		list_splice_init(&fpq->processing, &to_end);
+		spin_unlock(&fpq->lock);
+
+		end_requests(fc, &to_end);
+
 		/* Are we the last open device? */
 		if (atomic_dec_and_test(&fc->dev_count)) {
 			WARN_ON(fc->iq.fasync != NULL);

@@ -312,6 +312,24 @@ void ext4_itable_unused_set(struct super_block *sb,
 		bg->bg_itable_unused_hi = cpu_to_le16(count >> 16);
 }
 
+static void __ext4_update_tstamp(__le32 *lo, __u8 *hi)
+{
+	time64_t now = ktime_get_real_seconds();
+
+	now = clamp_val(now, 0, (1ull << 40) - 1);
+
+	*lo = cpu_to_le32(lower_32_bits(now));
+	*hi = upper_32_bits(now);
+}
+
+static time64_t __ext4_get_tstamp(__le32 *lo, __u8 *hi)
+{
+	return ((time64_t)(*hi) << 32) + le32_to_cpu(*lo);
+}
+#define ext4_update_tstamp(es, tstamp) \
+	__ext4_update_tstamp(&(es)->tstamp, &(es)->tstamp ## _hi)
+#define ext4_get_tstamp(es, tstamp) \
+	__ext4_get_tstamp(&(es)->tstamp, &(es)->tstamp ## _hi)
 
 static void __save_error_info(struct super_block *sb, const char *func,
 			    unsigned int line)
@@ -322,11 +340,12 @@ static void __save_error_info(struct super_block *sb, const char *func,
 	if (bdev_read_only(sb->s_bdev))
 		return;
 	es->s_state |= cpu_to_le16(EXT4_ERROR_FS);
-	es->s_last_error_time = cpu_to_le32(get_seconds());
+	ext4_update_tstamp(es, s_last_error_time);
 	strncpy(es->s_last_error_func, func, sizeof(es->s_last_error_func));
 	es->s_last_error_line = cpu_to_le32(line);
 	if (!es->s_first_error_time) {
 		es->s_first_error_time = es->s_last_error_time;
+		es->s_first_error_time_hi = es->s_last_error_time_hi;
 		strncpy(es->s_first_error_func, func,
 			sizeof(es->s_first_error_func));
 		es->s_first_error_line = cpu_to_le32(line);
@@ -776,26 +795,26 @@ void ext4_mark_group_bitmap_corrupted(struct super_block *sb,
 	struct ext4_sb_info *sbi = EXT4_SB(sb);
 	struct ext4_group_info *grp = ext4_get_group_info(sb, group);
 	struct ext4_group_desc *gdp = ext4_get_group_desc(sb, group, NULL);
+	int ret;
 
-	if ((flags & EXT4_GROUP_INFO_BBITMAP_CORRUPT) &&
-	    !EXT4_MB_GRP_BBITMAP_CORRUPT(grp)) {
-		percpu_counter_sub(&sbi->s_freeclusters_counter,
-					grp->bb_free);
-		set_bit(EXT4_GROUP_INFO_BBITMAP_CORRUPT_BIT,
-			&grp->bb_state);
+	if (flags & EXT4_GROUP_INFO_BBITMAP_CORRUPT) {
+		ret = ext4_test_and_set_bit(EXT4_GROUP_INFO_BBITMAP_CORRUPT_BIT,
+					    &grp->bb_state);
+		if (!ret)
+			percpu_counter_sub(&sbi->s_freeclusters_counter,
+					   grp->bb_free);
 	}
 
-	if ((flags & EXT4_GROUP_INFO_IBITMAP_CORRUPT) &&
-	    !EXT4_MB_GRP_IBITMAP_CORRUPT(grp)) {
-		if (gdp) {
+	if (flags & EXT4_GROUP_INFO_IBITMAP_CORRUPT) {
+		ret = ext4_test_and_set_bit(EXT4_GROUP_INFO_IBITMAP_CORRUPT_BIT,
+					    &grp->bb_state);
+		if (!ret && gdp) {
 			int count;
 
 			count = ext4_free_inodes_count(sb, gdp);
 			percpu_counter_sub(&sbi->s_freeinodes_counter,
 					   count);
 		}
-		set_bit(EXT4_GROUP_INFO_IBITMAP_CORRUPT_BIT,
-			&grp->bb_state);
 	}
 }
 
@@ -895,6 +914,18 @@ static inline void ext4_quota_off_umount(struct super_block *sb)
 	for (type = 0; type < EXT4_MAXQUOTAS; type++)
 		ext4_quota_off(sb, type);
 }
+
+/*
+ * This is a helper function which is used in the mount/remount
+ * codepaths (which holds s_umount) to fetch the quota file name.
+ */
+static inline char *get_qf_name(struct super_block *sb,
+				struct ext4_sb_info *sbi,
+				int type)
+{
+	return rcu_dereference_protected(sbi->s_qf_names[type],
+					 lockdep_is_held(&sb->s_umount));
+}
 #else
 static inline void ext4_quota_off_umount(struct super_block *sb)
 {
@@ -946,7 +977,7 @@ static void ext4_put_super(struct super_block *sb)
 	percpu_free_rwsem(&sbi->s_journal_flag_rwsem);
 #ifdef CONFIG_QUOTA
 	for (i = 0; i < EXT4_MAXQUOTAS; i++)
-		kfree(sbi->s_qf_names[i]);
+		kfree(get_qf_name(sb, sbi, i));
 #endif
 
 	/* Debugging code just in case the in-memory inode orphan list
@@ -1511,11 +1542,10 @@ static const char deprecated_msg[] =
 static int set_qf_name(struct super_block *sb, int qtype, substring_t *args)
 {
 	struct ext4_sb_info *sbi = EXT4_SB(sb);
-	char *qname;
+	char *qname, *old_qname = get_qf_name(sb, sbi, qtype);
 	int ret = -1;
 
-	if (sb_any_quota_loaded(sb) &&
-		!sbi->s_qf_names[qtype]) {
+	if (sb_any_quota_loaded(sb) && !old_qname) {
 		ext4_msg(sb, KERN_ERR,
 			"Cannot change journaled "
 			"quota options when quota turned on");
@@ -1532,8 +1562,8 @@ static int set_qf_name(struct super_block *sb, int qtype, substring_t *args)
 			"Not enough memory for storing quotafile name");
 		return -1;
 	}
-	if (sbi->s_qf_names[qtype]) {
-		if (strcmp(sbi->s_qf_names[qtype], qname) == 0)
+	if (old_qname) {
+		if (strcmp(old_qname, qname) == 0)
 			ret = 1;
 		else
 			ext4_msg(sb, KERN_ERR,
@@ -1546,7 +1576,7 @@ static int set_qf_name(struct super_block *sb, int qtype, substring_t *args)
 			"quotafile must be on filesystem root");
 		goto errout;
 	}
-	sbi->s_qf_names[qtype] = qname;
+	rcu_assign_pointer(sbi->s_qf_names[qtype], qname);
 	set_opt(sb, QUOTA);
 	return 1;
 errout:
@@ -1558,15 +1588,16 @@ static int clear_qf_name(struct super_block *sb, int qtype)
 {
 
 	struct ext4_sb_info *sbi = EXT4_SB(sb);
+	char *old_qname = get_qf_name(sb, sbi, qtype);
 
-	if (sb_any_quota_loaded(sb) &&
-		sbi->s_qf_names[qtype]) {
+	if (sb_any_quota_loaded(sb) && old_qname) {
 		ext4_msg(sb, KERN_ERR, "Cannot change journaled quota options"
 			" when quota turned on");
 		return -1;
 	}
-	kfree(sbi->s_qf_names[qtype]);
-	sbi->s_qf_names[qtype] = NULL;
+	rcu_assign_pointer(sbi->s_qf_names[qtype], NULL);
+	synchronize_rcu();
+	kfree(old_qname);
 	return 1;
 }
 #endif
@@ -1941,7 +1972,7 @@ static int parse_options(char *options, struct super_block *sb,
 			 int is_remount)
 {
 	struct ext4_sb_info *sbi = EXT4_SB(sb);
-	char *p;
+	char *p, __maybe_unused *usr_qf_name, __maybe_unused *grp_qf_name;
 	substring_t args[MAX_OPT_ARGS];
 	int token;
 
@@ -1972,11 +2003,13 @@ static int parse_options(char *options, struct super_block *sb,
 			 "Cannot enable project quota enforcement.");
 		return 0;
 	}
-	if (sbi->s_qf_names[USRQUOTA] || sbi->s_qf_names[GRPQUOTA]) {
-		if (test_opt(sb, USRQUOTA) && sbi->s_qf_names[USRQUOTA])
+	usr_qf_name = get_qf_name(sb, sbi, USRQUOTA);
+	grp_qf_name = get_qf_name(sb, sbi, GRPQUOTA);
+	if (usr_qf_name || grp_qf_name) {
+		if (test_opt(sb, USRQUOTA) && usr_qf_name)
 			clear_opt(sb, USRQUOTA);
 
-		if (test_opt(sb, GRPQUOTA) && sbi->s_qf_names[GRPQUOTA])
+		if (test_opt(sb, GRPQUOTA) && grp_qf_name)
 			clear_opt(sb, GRPQUOTA);
 
 		if (test_opt(sb, GRPQUOTA) || test_opt(sb, USRQUOTA)) {
@@ -2010,6 +2043,7 @@ static inline void ext4_show_quota_options(struct seq_file *seq,
 {
 #if defined(CONFIG_QUOTA)
 	struct ext4_sb_info *sbi = EXT4_SB(sb);
+	char *usr_qf_name, *grp_qf_name;
 
 	if (sbi->s_jquota_fmt) {
 		char *fmtname = "";
@@ -2028,11 +2062,14 @@ static inline void ext4_show_quota_options(struct seq_file *seq,
 		seq_printf(seq, ",jqfmt=%s", fmtname);
 	}
 
-	if (sbi->s_qf_names[USRQUOTA])
-		seq_show_option(seq, "usrjquota", sbi->s_qf_names[USRQUOTA]);
-
-	if (sbi->s_qf_names[GRPQUOTA])
-		seq_show_option(seq, "grpjquota", sbi->s_qf_names[GRPQUOTA]);
+	rcu_read_lock();
+	usr_qf_name = rcu_dereference(sbi->s_qf_names[USRQUOTA]);
+	grp_qf_name = rcu_dereference(sbi->s_qf_names[GRPQUOTA]);
+	if (usr_qf_name)
+		seq_show_option(seq, "usrjquota", usr_qf_name);
+	if (grp_qf_name)
+		seq_show_option(seq, "grpjquota", grp_qf_name);
+	rcu_read_unlock();
 #endif
 }
 
@@ -2126,6 +2163,8 @@ static int _ext4_show_options(struct seq_file *seq, struct super_block *sb,
 		SEQ_OPTS_PRINT("max_dir_size_kb=%u", sbi->s_max_dir_size_kb);
 	if (test_opt(sb, DATA_ERR_ABORT))
 		SEQ_OPTS_PUTS("data_err=abort");
+	if (DUMMY_ENCRYPTION_ENABLED(sbi))
+		SEQ_OPTS_PUTS("test_dummy_encryption");
 
 	ext4_show_quota_options(seq, sb);
 	return 0;
@@ -2174,8 +2213,8 @@ static int ext4_setup_super(struct super_block *sb, struct ext4_super_block *es,
 			 "warning: maximal mount count reached, "
 			 "running e2fsck is recommended");
 	else if (le32_to_cpu(es->s_checkinterval) &&
-		(le32_to_cpu(es->s_lastcheck) +
-			le32_to_cpu(es->s_checkinterval) <= get_seconds()))
+		 (ext4_get_tstamp(es, s_lastcheck) +
+		  le32_to_cpu(es->s_checkinterval) <= ktime_get_real_seconds()))
 		ext4_msg(sb, KERN_WARNING,
 			 "warning: checktime reached, "
 			 "running e2fsck is recommended");
@@ -2184,7 +2223,7 @@ static int ext4_setup_super(struct super_block *sb, struct ext4_super_block *es,
 	if (!(__s16) le16_to_cpu(es->s_max_mnt_count))
 		es->s_max_mnt_count = cpu_to_le16(EXT4_DFL_MAX_MNT_COUNT);
 	le16_add_cpu(&es->s_mnt_count, 1);
-	es->s_mtime = cpu_to_le32(get_seconds());
+	ext4_update_tstamp(es, s_mtime);
 	ext4_update_dynamic_rev(sb);
 	if (sbi->s_journal)
 		ext4_set_feature_journal_needs_recovery(sb);
@@ -2875,8 +2914,9 @@ static void print_daily_error_info(struct timer_list *t)
 		ext4_msg(sb, KERN_NOTICE, "error count since last fsck: %u",
 			 le32_to_cpu(es->s_error_count));
 	if (es->s_first_error_time) {
-		printk(KERN_NOTICE "EXT4-fs (%s): initial error at time %u: %.*s:%d",
-		       sb->s_id, le32_to_cpu(es->s_first_error_time),
+		printk(KERN_NOTICE "EXT4-fs (%s): initial error at time %llu: %.*s:%d",
+		       sb->s_id,
+		       ext4_get_tstamp(es, s_first_error_time),
 		       (int) sizeof(es->s_first_error_func),
 		       es->s_first_error_func,
 		       le32_to_cpu(es->s_first_error_line));
@@ -2889,8 +2929,9 @@ static void print_daily_error_info(struct timer_list *t)
 		printk(KERN_CONT "\n");
 	}
 	if (es->s_last_error_time) {
-		printk(KERN_NOTICE "EXT4-fs (%s): last error at time %u: %.*s:%d",
-		       sb->s_id, le32_to_cpu(es->s_last_error_time),
+		printk(KERN_NOTICE "EXT4-fs (%s): last error at time %llu: %.*s:%d",
+		       sb->s_id,
+		       ext4_get_tstamp(es, s_last_error_time),
 		       (int) sizeof(es->s_last_error_func),
 		       es->s_last_error_func,
 		       le32_to_cpu(es->s_last_error_line));
@@ -3508,7 +3549,7 @@ static int ext4_fill_super(struct super_block *sb, void *data, int silent)
 	sbi->s_sb_block = sb_block;
 	if (sb->s_bdev->bd_part)
 		sbi->s_sectors_written_start =
-			part_stat_read(sb->s_bdev->bd_part, sectors[1]);
+			part_stat_read(sb->s_bdev->bd_part, sectors[STAT_WRITE]);
 
 	/* Cleanup superblock name */
 	strreplace(sb->s_id, '/', '!');
@@ -4033,6 +4074,14 @@ static int ext4_fill_super(struct super_block *sb, void *data, int silent)
 	sbi->s_groups_count = blocks_count;
 	sbi->s_blockfile_groups = min_t(ext4_group_t, sbi->s_groups_count,
 			(EXT4_MAX_BLOCK_FILE_PHYS / EXT4_BLOCKS_PER_GROUP(sb)));
+	if (((u64)sbi->s_groups_count * sbi->s_inodes_per_group) !=
+	    le32_to_cpu(es->s_inodes_count)) {
+		ext4_msg(sb, KERN_ERR, "inodes count not valid: %u vs %llu",
+			 le32_to_cpu(es->s_inodes_count),
+			 ((u64)sbi->s_groups_count * sbi->s_inodes_per_group));
+		ret = -EINVAL;
+		goto failed_mount;
+	}
 	db_count = (sbi->s_groups_count + EXT4_DESC_PER_BLOCK(sb) - 1) /
 		   EXT4_DESC_PER_BLOCK(sb);
 	if (ext4_has_feature_meta_bg(sb)) {
@@ -4050,14 +4099,6 @@ static int ext4_fill_super(struct super_block *sb, void *data, int silent)
 	if (sbi->s_group_desc == NULL) {
 		ext4_msg(sb, KERN_ERR, "not enough memory");
 		ret = -ENOMEM;
-		goto failed_mount;
-	}
-	if (((u64)sbi->s_groups_count * sbi->s_inodes_per_group) !=
-	    le32_to_cpu(es->s_inodes_count)) {
-		ext4_msg(sb, KERN_ERR, "inodes count not valid: %u vs %llu",
-			 le32_to_cpu(es->s_inodes_count),
-			 ((u64)sbi->s_groups_count * sbi->s_inodes_per_group));
-		ret = -EINVAL;
 		goto failed_mount;
 	}
 
@@ -4357,11 +4398,13 @@ no_journal:
 	block = ext4_count_free_clusters(sb);
 	ext4_free_blocks_count_set(sbi->s_es, 
 				   EXT4_C2B(sbi, block));
+	ext4_superblock_csum_set(sb);
 	err = percpu_counter_init(&sbi->s_freeclusters_counter, block,
 				  GFP_KERNEL);
 	if (!err) {
 		unsigned long freei = ext4_count_free_inodes(sb);
 		sbi->s_es->s_free_inodes_count = cpu_to_le32(freei);
+		ext4_superblock_csum_set(sb);
 		err = percpu_counter_init(&sbi->s_freeinodes_counter, freei,
 					  GFP_KERNEL);
 	}
@@ -4466,6 +4509,7 @@ failed_mount6:
 	percpu_counter_destroy(&sbi->s_freeinodes_counter);
 	percpu_counter_destroy(&sbi->s_dirs_counter);
 	percpu_counter_destroy(&sbi->s_dirtyclusters_counter);
+	percpu_free_rwsem(&sbi->s_journal_flag_rwsem);
 failed_mount5:
 	ext4_ext_release(sb);
 	ext4_release_system_zone(sb);
@@ -4813,11 +4857,12 @@ static int ext4_commit_super(struct super_block *sb, int sync)
 	 * to complain and force a full file system check.
 	 */
 	if (!(sb->s_flags & SB_RDONLY))
-		es->s_wtime = cpu_to_le32(get_seconds());
+		ext4_update_tstamp(es, s_wtime);
 	if (sb->s_bdev->bd_part)
 		es->s_kbytes_written =
 			cpu_to_le64(EXT4_SB(sb)->s_kbytes_written +
-			    ((part_stat_read(sb->s_bdev->bd_part, sectors[1]) -
+			    ((part_stat_read(sb->s_bdev->bd_part,
+					     sectors[STAT_WRITE]) -
 			      EXT4_SB(sb)->s_sectors_written_start) >> 1));
 	else
 		es->s_kbytes_written =
@@ -5077,8 +5122,12 @@ static int ext4_remount(struct super_block *sb, int *flags, char *data)
 	int err = 0;
 #ifdef CONFIG_QUOTA
 	int i, j;
+	char *to_free[EXT4_MAXQUOTAS];
 #endif
 	char *orig_data = kstrdup(data, GFP_KERNEL);
+
+	if (data && !orig_data)
+		return -ENOMEM;
 
 	/* Store the original options */
 	old_sb_flags = sb->s_flags;
@@ -5093,8 +5142,9 @@ static int ext4_remount(struct super_block *sb, int *flags, char *data)
 	old_opts.s_jquota_fmt = sbi->s_jquota_fmt;
 	for (i = 0; i < EXT4_MAXQUOTAS; i++)
 		if (sbi->s_qf_names[i]) {
-			old_opts.s_qf_names[i] = kstrdup(sbi->s_qf_names[i],
-							 GFP_KERNEL);
+			char *qf_name = get_qf_name(sb, sbi, i);
+
+			old_opts.s_qf_names[i] = kstrdup(qf_name, GFP_KERNEL);
 			if (!old_opts.s_qf_names[i]) {
 				for (j = 0; j < i; j++)
 					kfree(old_opts.s_qf_names[j]);
@@ -5323,9 +5373,12 @@ restore_opts:
 #ifdef CONFIG_QUOTA
 	sbi->s_jquota_fmt = old_opts.s_jquota_fmt;
 	for (i = 0; i < EXT4_MAXQUOTAS; i++) {
-		kfree(sbi->s_qf_names[i]);
-		sbi->s_qf_names[i] = old_opts.s_qf_names[i];
+		to_free[i] = get_qf_name(sb, sbi, i);
+		rcu_assign_pointer(sbi->s_qf_names[i], old_opts.s_qf_names[i]);
 	}
+	synchronize_rcu();
+	for (i = 0; i < EXT4_MAXQUOTAS; i++)
+		kfree(to_free[i]);
 #endif
 	kfree(orig_data);
 	return err;
@@ -5516,7 +5569,7 @@ static int ext4_write_info(struct super_block *sb, int type)
  */
 static int ext4_quota_on_mount(struct super_block *sb, int type)
 {
-	return dquot_quota_on_mount(sb, EXT4_SB(sb)->s_qf_names[type],
+	return dquot_quota_on_mount(sb, get_qf_name(sb, EXT4_SB(sb), type),
 					EXT4_SB(sb)->s_jquota_fmt, type);
 }
 
@@ -5665,13 +5718,13 @@ static int ext4_enable_quotas(struct super_block *sb)
 				DQUOT_USAGE_ENABLED |
 				(quota_mopt[type] ? DQUOT_LIMITS_ENABLED : 0));
 			if (err) {
-				for (type--; type >= 0; type--)
-					dquot_quota_off(sb, type);
-
 				ext4_warning(sb,
 					"Failed to enable quota tracking "
 					"(type=%d, err=%d). Please run "
 					"e2fsck to fix.", type, err);
+				for (type--; type >= 0; type--)
+					dquot_quota_off(sb, type);
+
 				return err;
 			}
 		}

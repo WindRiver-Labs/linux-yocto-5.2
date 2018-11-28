@@ -53,6 +53,7 @@ static DEFINE_SPINLOCK(cpa_lock);
 #define CPA_FLUSHTLB 1
 #define CPA_ARRAY 2
 #define CPA_PAGES_ARRAY 4
+#define CPA_NO_CHECK_ALIAS 8 /* Do not search for aliases */
 
 #ifdef CONFIG_PROC_FS
 static unsigned long direct_pages_count[PG_LEVEL_NUM];
@@ -1419,6 +1420,29 @@ static int __change_page_attr_set_clr(struct cpa_data *cpa, int checkalias)
 	return 0;
 }
 
+/*
+ * Machine check recovery code needs to change cache mode of poisoned
+ * pages to UC to avoid speculative access logging another error. But
+ * passing the address of the 1:1 mapping to set_memory_uc() is a fine
+ * way to encourage a speculative access. So we cheat and flip the top
+ * bit of the address. This works fine for the code that updates the
+ * page tables. But at the end of the process we need to flush the cache
+ * and the non-canonical address causes a #GP fault when used by the
+ * CLFLUSH instruction.
+ *
+ * But in the common case we already have a canonical address. This code
+ * will fix the top bit if needed and is a no-op otherwise.
+ */
+static inline unsigned long make_addr_canonical_again(unsigned long addr)
+{
+#ifdef CONFIG_X86_64
+	return (long)(addr << 1) >> 1;
+#else
+	return addr;
+#endif
+}
+
+
 static int change_page_attr_set_clr(unsigned long *addr, int numpages,
 				    pgprot_t mask_set, pgprot_t mask_clr,
 				    int force_split, int in_flag,
@@ -1464,7 +1488,7 @@ static int change_page_attr_set_clr(unsigned long *addr, int numpages,
 		 * Save address for cache flush. *addr is modified in the call
 		 * to __change_page_attr_set_clr() below.
 		 */
-		baddr = *addr;
+		baddr = make_addr_canonical_again(*addr);
 	}
 
 	/* Must avoid aliasing mappings in the highmem code */
@@ -1486,6 +1510,9 @@ static int change_page_attr_set_clr(unsigned long *addr, int numpages,
 
 	/* No alias checking for _NX bit modifications */
 	checkalias = (pgprot_val(mask_set) | pgprot_val(mask_clr)) != _PAGE_NX;
+	/* Has caller explicitly disabled alias checking? */
+	if (in_flag & CPA_NO_CHECK_ALIAS)
+		checkalias = 0;
 
 	ret = __change_page_attr_set_clr(&cpa, checkalias);
 
@@ -1772,6 +1799,15 @@ int set_memory_np(unsigned long addr, int numpages)
 	return change_page_attr_clear(&addr, numpages, __pgprot(_PAGE_PRESENT), 0);
 }
 
+int set_memory_np_noalias(unsigned long addr, int numpages)
+{
+	int cpa_flags = CPA_NO_CHECK_ALIAS;
+
+	return change_page_attr_set_clr(&addr, numpages, __pgprot(0),
+					__pgprot(_PAGE_PRESENT), 0,
+					cpa_flags, NULL);
+}
+
 int set_memory_4k(unsigned long addr, int numpages)
 {
 	return change_page_attr_set_clr(&addr, numpages, __pgprot(0),
@@ -2050,9 +2086,13 @@ void __kernel_map_pages(struct page *page, int numpages, int enable)
 
 	/*
 	 * We should perform an IPI and flush all tlbs,
-	 * but that can deadlock->flush only current cpu:
+	 * but that can deadlock->flush only current cpu.
+	 * Preemption needs to be disabled around __flush_tlb_all() due to
+	 * CR3 reload in __native_flush_tlb().
 	 */
+	preempt_disable();
 	__flush_tlb_all();
+	preempt_enable();
 
 	arch_flush_lazy_mmu_mode();
 }

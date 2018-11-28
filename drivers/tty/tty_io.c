@@ -408,7 +408,7 @@ struct tty_driver *tty_find_polling_driver(char *name, int *line)
 	mutex_lock(&tty_mutex);
 	/* Search through the tty devices to look for a match */
 	list_for_each_entry(p, &tty_drivers, tty_drivers) {
-		if (strncmp(name, p->name, len) != 0)
+		if (!len || strncmp(name, p->name, len) != 0)
 			continue;
 		stp = str;
 		if (*stp == ',')
@@ -814,9 +814,9 @@ void start_tty(struct tty_struct *tty)
 }
 EXPORT_SYMBOL(start_tty);
 
-static void tty_update_time(struct timespec *time)
+static void tty_update_time(struct timespec64 *time)
 {
-	unsigned long sec = get_seconds();
+	time64_t sec = ktime_get_real_seconds();
 
 	/*
 	 * We only care if the two values differ in anything other than the
@@ -867,13 +867,8 @@ static ssize_t tty_read(struct file *file, char __user *buf, size_t count,
 		i = -EIO;
 	tty_ldisc_deref(ld);
 
-	if (i > 0) {
-		struct timespec ts;
-
-		ts = timespec64_to_timespec(inode->i_atime);
-		tty_update_time(&ts);
-		inode->i_atime = timespec_to_timespec64(ts);
-	}
+	if (i > 0)
+		tty_update_time(&inode->i_atime);
 
 	return i;
 }
@@ -974,11 +969,7 @@ static inline ssize_t do_tty_write(
 		cond_resched();
 	}
 	if (written) {
-		struct timespec ts;
-
-		ts = timespec64_to_timespec(file_inode(file)->i_mtime);
-		tty_update_time(&ts);
-		file_inode(file)->i_mtime = timespec_to_timespec64(ts);
+		tty_update_time(&file_inode(file)->i_mtime);
 		ret = written;
 	}
 out:
@@ -1264,6 +1255,7 @@ static void tty_driver_remove_tty(struct tty_driver *driver, struct tty_struct *
 static int tty_reopen(struct tty_struct *tty)
 {
 	struct tty_driver *driver = tty->driver;
+	int retval;
 
 	if (driver->type == TTY_DRIVER_TYPE_PTY &&
 	    driver->subtype == PTY_TYPE_MASTER)
@@ -1277,10 +1269,14 @@ static int tty_reopen(struct tty_struct *tty)
 
 	tty->count++;
 
-	if (!tty->ldisc)
-		return tty_ldisc_reinit(tty, tty->termios.c_line);
+	if (tty->ldisc)
+		return 0;
 
-	return 0;
+	retval = tty_ldisc_reinit(tty, tty->termios.c_line);
+	if (retval)
+		tty->count--;
+
+	return retval;
 }
 
 /**
@@ -2122,7 +2118,7 @@ static int __tty_fasync(int fd, struct file *filp, int on)
 			type = PIDTYPE_PGID;
 		} else {
 			pid = task_pid(current);
-			type = PIDTYPE_PID;
+			type = PIDTYPE_TGID;
 		}
 		get_pid(pid);
 		spin_unlock_irqrestore(&tty->ctrl_lock, flags);
