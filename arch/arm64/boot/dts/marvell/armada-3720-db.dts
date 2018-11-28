@@ -113,6 +113,12 @@
 		compatible = "dallas,ds1337";
 		reg = <0x68>;
 	};
+
+	eeprom@57 {
+		compatible = "atmel,24c64";
+		reg = <0x57>;
+		pagesize = <32>;
+	};
 };
 
 &mdio {
