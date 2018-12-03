@@ -154,6 +154,7 @@
 
 		gmac0: ethernet@ff800000 {
 			compatible = "altr,socfpga-stmmac", "snps,dwmac-3.74a", "snps,dwmac";
+			altr,sysmgr-syscon = <&sysmgr 0x44 0>;
 			reg = <0xff800000 0x2000>;
 			interrupts = <0 90 4>;
 			interrupt-names = "macirq";
@@ -170,6 +171,7 @@
 
 		gmac1: ethernet@ff802000 {
 			compatible = "altr,socfpga-stmmac", "snps,dwmac-3.74a", "snps,dwmac";
+			altr,sysmgr-syscon = <&sysmgr 0x48 0>;
 			reg = <0xff802000 0x2000>;
 			interrupts = <0 91 4>;
 			interrupt-names = "macirq";
@@ -186,6 +188,7 @@
 
 		gmac2: ethernet@ff804000 {
 			compatible = "altr,socfpga-stmmac", "snps,dwmac-3.74a", "snps,dwmac";
+			altr,sysmgr-syscon = <&sysmgr 0x4c 0>;
 			reg = <0xff804000 0x2000>;
 			interrupts = <0 92 4>;
 			interrupt-names = "macirq";
@@ -368,6 +371,8 @@
 		sysmgr: sysmgr@ffd12000 {
 			compatible = "altr,sys-mgr", "syscon";
 			reg = <0xffd12000 0x228>;
+			interrupts = <0x0 0x10 0x4>;
+			cpu1-start-addr = <0xffd06230>;
 		};
 
 		/* Local timer */
