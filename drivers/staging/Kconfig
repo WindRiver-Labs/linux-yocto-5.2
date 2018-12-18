@@ -124,4 +124,6 @@ source "drivers/staging/kpc2000/Kconfig"
 
 source "drivers/staging/xroeframer/Kconfig"
 
+source "drivers/staging/xroetrafficgen/Kconfig"
+
 endif # STAGING
