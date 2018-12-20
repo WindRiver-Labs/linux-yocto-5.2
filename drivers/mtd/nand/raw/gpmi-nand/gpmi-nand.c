@@ -600,9 +600,10 @@ int common_nfc_set_geometry(struct gpmi_nand_data *this)
 	}
 
 	if ((!(chip->base.eccreq.strength > 0 && chip->base.eccreq.step_size > 0) &&
-			(mtd->oobsize < 1024)) || this->legacy_bch_geometry)
+			(mtd->oobsize < 1024)) || this->legacy_bch_geometry) {
 		dev_warn(this->dev, "use legacy bch geometry\n");
 		return legacy_set_geometry(this);
+	}
 
 	if (mtd->oobsize > 1024 || chip->base.eccreq.step_size < mtd->oobsize)
 		return set_geometry_for_large_oob(this);
