@@ -1628,6 +1628,7 @@ static int gpmi_ecc_read_page_raw(struct nand_chip *chip, uint8_t *buf,
 	size_t oob_byte_off;
 	uint8_t *oob = chip->oob_poi;
 	int step;
+	int ecc_chunk_count;
 
 	nand_read_page_op(chip, page, 0, tmp_buf,
 			  mtd->writesize + mtd->oobsize);
@@ -1651,9 +1652,22 @@ static int gpmi_ecc_read_page_raw(struct nand_chip *chip, uint8_t *buf,
 
 	oob_bit_off = nfc_geo->metadata_size * 8;
 	src_bit_off = oob_bit_off;
+	ecc_chunk_count = nfc_geo->ecc_chunk_count;
+
+	/* if bch requires dedicate ecc for meta */
+	if (nfc_geo->ecc_for_meta) {
+		if (oob_required)
+			gpmi_copy_bits(oob, oob_bit_off,
+				       tmp_buf, src_bit_off,
+				       eccbits);
+
+		src_bit_off += eccbits;
+		oob_bit_off += eccbits;
+		ecc_chunk_count = nfc_geo->ecc_chunk_count - 1;
+	}
 
 	/* Extract interleaved payload data and ECC bits */
-	for (step = 0; step < nfc_geo->ecc_chunk_count; step++) {
+	for (step = 0; step < ecc_chunk_count; step++) {
 		if (buf)
 			gpmi_copy_bits(buf, step * eccsize * 8,
 				       tmp_buf, src_bit_off,
@@ -1661,7 +1675,7 @@ static int gpmi_ecc_read_page_raw(struct nand_chip *chip, uint8_t *buf,
 		src_bit_off += eccsize * 8;
 
 		/* Align last ECC block to align a byte boundary */
-		if (step == nfc_geo->ecc_chunk_count - 1 &&
+		if (step == ecc_chunk_count - 1 &&
 		    (oob_bit_off + eccbits) % 8)
 			eccbits += 8 - ((oob_bit_off + eccbits) % 8);
 
@@ -1712,6 +1726,7 @@ static int gpmi_ecc_write_page_raw(struct nand_chip *chip, const uint8_t *buf,
 	size_t oob_bit_off;
 	size_t oob_byte_off;
 	int step;
+	int ecc_chunk_count;
 
 	/*
 	 * Initialize all bits to 1 in case we don't have a buffer for the
@@ -1728,16 +1743,28 @@ static int gpmi_ecc_write_page_raw(struct nand_chip *chip, const uint8_t *buf,
 	memcpy(tmp_buf, oob, nfc_geo->metadata_size);
 	oob_bit_off = nfc_geo->metadata_size * 8;
 	dst_bit_off = oob_bit_off;
+	ecc_chunk_count = nfc_geo->ecc_chunk_count;
+
+	/* if bch requires dedicate ecc for meta */
+	if (nfc_geo->ecc_for_meta) {
+		if (oob_required)
+			gpmi_copy_bits(tmp_buf, dst_bit_off,
+				       oob, oob_bit_off, eccbits);
+
+		dst_bit_off += eccbits;
+		oob_bit_off += eccbits;
+		ecc_chunk_count = nfc_geo->ecc_chunk_count - 1;
+	}
 
 	/* Interleave payload data and ECC bits */
-	for (step = 0; step < nfc_geo->ecc_chunk_count; step++) {
+	for (step = 0; step < ecc_chunk_count; step++) {
 		if (buf)
 			gpmi_copy_bits(tmp_buf, dst_bit_off,
 				       buf, step * eccsize * 8, eccsize * 8);
 		dst_bit_off += eccsize * 8;
 
 		/* Align last ECC block to align a byte boundary */
-		if (step == nfc_geo->ecc_chunk_count - 1 &&
+		if (step == ecc_chunk_count - 1 &&
 		    (oob_bit_off + eccbits) % 8)
 			eccbits += 8 - ((oob_bit_off + eccbits) % 8);
 
