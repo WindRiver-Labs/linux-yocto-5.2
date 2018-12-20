@@ -540,7 +540,7 @@ static int ocelot_fdb_add(struct ndmsg *ndm, struct nlattr *tb[],
 	struct ocelot *ocelot = port->ocelot;
 
 	return ocelot_mact_learn(ocelot, port->chip_port, addr, vid,
-				 ENTRYTYPE_NORMAL);
+				 ENTRYTYPE_LOCKED);
 }
 
 static int ocelot_fdb_del(struct ndmsg *ndm, struct nlattr *tb[],
