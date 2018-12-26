@@ -780,7 +780,7 @@ static int skcipher_setkey(struct crypto_skcipher *skcipher, const u8 *key,
 	}
 
 	ctx->cdata.keylen = keylen;
-	ctx->cdata.key_virt = key;
+	ctx->cdata.key_virt = ctx->key;
 	ctx->cdata.key_inline = true;
 
 	/* skcipher_encrypt shared descriptor */
@@ -835,7 +835,7 @@ static int xts_skcipher_setkey(struct crypto_skcipher *skcipher, const u8 *key,
 	}
 
 	ctx->cdata.keylen = keylen;
-	ctx->cdata.key_virt = key;
+	ctx->cdata.key_virt = ctx->key;
 	ctx->cdata.key_inline = true;
 
 	/* xts_skcipher_encrypt shared descriptor */
