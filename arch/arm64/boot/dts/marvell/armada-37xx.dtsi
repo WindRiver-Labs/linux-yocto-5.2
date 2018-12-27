@@ -71,6 +71,7 @@
 		compatible = "simple-bus";
 		#address-cells = <2>;
 		#size-cells = <2>;
+		dma-coherent;
 		ranges;
 
 		internal-regs@d0000000 {
@@ -483,6 +484,7 @@
 			#interrupt-cells = <1>;
 			msi-parent = <&pcie0>;
 			msi-controller;
+			dma-coherent;
 			ranges = <0x82000000 0 0xe8000000   0 0xe8000000 0 0x1000000 /* Port 0 MEM */
 				  0x81000000 0 0xe9000000   0 0xe9000000 0 0x10000>; /* Port 0 IO*/
 			interrupt-map-mask = <0 0 0 7>;
