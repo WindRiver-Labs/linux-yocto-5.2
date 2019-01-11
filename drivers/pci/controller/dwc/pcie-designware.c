@@ -160,7 +160,8 @@ static void dw_pcie_prog_outbound_atu_unroll(struct dw_pcie *pci, int index,
 		if (val & PCIE_ATU_ENABLE)
 			return;
 
-		mdelay(LINK_WAIT_IATU);
+		if (!IS_ENABLED(CONFIG_PCI_IMX6))
+			mdelay(LINK_WAIT_IATU);
 	}
 	dev_err(pci->dev, "Outbound iATU is not being enabled\n");
 }
