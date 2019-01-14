@@ -126,7 +126,7 @@ static void dw_pci_setup_msi_msg(struct irq_data *d, struct msi_msg *msg)
 	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
 	u64 msi_target;
 
-	msi_target = (u64)pp->msi_data;
+	msi_target = (u64)pp->msi_target;
 
 	msg->address_lo = lower_32_bits(msi_target);
 	msg->address_hi = upper_32_bits(msi_target);
@@ -291,25 +291,16 @@ void dw_pcie_free_msi(struct pcie_port *pp)
 void dw_pcie_msi_init(struct pcie_port *pp)
 {
 	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
-	struct device *dev = pci->dev;
-	u64 msi_target;
+	dma_addr_t msi_addr;
 
-	pp->msi_page = alloc_page(GFP_KERNEL);
-	pp->msi_data = dma_map_page(dev, pp->msi_page, 0, PAGE_SIZE,
-				    DMA_FROM_DEVICE);
-	if (dma_mapping_error(dev, pp->msi_data)) {
-		dev_err(dev, "Failed to map MSI data\n");
-		__free_page(pp->msi_page);
-		pp->msi_page = NULL;
-		return;
-	}
-	msi_target = (u64)pp->msi_data;
+	dma_alloc_coherent(pci->dev, 64, &msi_addr, GFP_KERNEL);
+	pp->msi_target = (u64)msi_addr;
 
 	/* Program the msi_data */
 	dw_pcie_wr_own_conf(pp, PCIE_MSI_ADDR_LO, 4,
-			    lower_32_bits(msi_target));
+			    lower_32_bits(pp->msi_target));
 	dw_pcie_wr_own_conf(pp, PCIE_MSI_ADDR_HI, 4,
-			    upper_32_bits(msi_target));
+			    upper_32_bits(pp->msi_target));
 }
 
 void dw_pcie_msi_cfg_store(struct pcie_port *pp)
@@ -326,8 +317,7 @@ void dw_pcie_msi_cfg_restore(struct pcie_port *pp)
 	int i;
 
 	for (i = 0; i < MAX_MSI_CTRLS; i++) {
-		dw_pcie_wr_own_conf(pp, PCIE_MSI_ADDR_LO, 4,
-				    virt_to_phys((void *)pp->msi_data));
+		dw_pcie_wr_own_conf(pp, PCIE_MSI_ADDR_LO, 4, pp->msi_target);
 		dw_pcie_wr_own_conf(pp, PCIE_MSI_ADDR_HI, 4, 0);
 		dw_pcie_wr_own_conf(pp, PCIE_MSI_INTR0_ENABLE + i * 12, 4,
 				    pp->msi_enable[i]);
