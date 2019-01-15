@@ -3,6 +3,7 @@
  * CPU-agnostic ARM page table allocator.
  *
  * Copyright (C) 2014 ARM Limited
+ * Copyright 2017 NXP
  *
  * Author: Will Deacon <will.deacon@arm.com>
  */
@@ -234,7 +235,7 @@ static void *__arm_lpae_alloc_pages(size_t size, gfp_t gfp,
 
 	VM_BUG_ON((gfp & __GFP_HIGHMEM));
 	p = alloc_pages_node(dev ? dev_to_node(dev) : NUMA_NO_NODE,
-			     gfp | __GFP_ZERO, order);
+			     gfp | __GFP_ZERO | __GFP_DMA, order);
 	if (!p)
 		return NULL;
 
