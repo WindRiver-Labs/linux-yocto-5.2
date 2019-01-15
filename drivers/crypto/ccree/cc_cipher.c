@@ -808,7 +808,8 @@ static int cc_cipher_decrypt(struct skcipher_request *req)
 	gfp_t flags = cc_gfp_flags(&req->base);
 	unsigned int len;
 
-	if (ctx_p->cipher_mode == DRV_CIPHER_CBC) {
+	if ((ctx_p->cipher_mode == DRV_CIPHER_CBC) &&
+	    (req->cryptlen >= ivsize)) {
 
 		/* Allocate and save the last IV sized bytes of the source,
 		 * which will be lost in case of in-place decryption.
