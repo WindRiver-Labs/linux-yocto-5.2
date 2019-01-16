@@ -429,6 +429,7 @@
 			snps,dis_rxdet_inp3_quirk;
 			snps,incr-burst-type-adjustment = <1>, <4>, <8>, <16>;
 			status = "disabled";
+                        snps,host-vbus-glitches;
 		};
 
 		usb1: usb3@3110000 {
@@ -440,6 +441,7 @@
 			snps,dis_rxdet_inp3_quirk;
 			status = "disabled";
 			snps,incr-burst-type-adjustment = <1>, <4>, <8>, <16>;
+			snps,host-vbus-glitches;
 		};
 
 		sata: sata@3200000 {
