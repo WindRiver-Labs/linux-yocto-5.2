@@ -54,7 +54,7 @@ void blk_mq_sched_assign_ioc(struct request *rq, struct bio *bio)
  * Mark a hardware queue as needing a restart. For shared queues, maintain
  * a count of how many hardware queues are marked for restart.
  */
-static void blk_mq_sched_mark_restart_hctx(struct blk_mq_hw_ctx *hctx)
+void blk_mq_sched_mark_restart_hctx(struct blk_mq_hw_ctx *hctx)
 {
 	if (test_bit(BLK_MQ_S_SCHED_RESTART, &hctx->state))
 		return;
@@ -67,6 +67,7 @@ static void blk_mq_sched_mark_restart_hctx(struct blk_mq_hw_ctx *hctx)
 	} else
 		set_bit(BLK_MQ_S_SCHED_RESTART, &hctx->state);
 }
+EXPORT_SYMBOL_GPL(blk_mq_sched_mark_restart_hctx);
 
 static bool blk_mq_sched_restart_hctx(struct blk_mq_hw_ctx *hctx)
 {
