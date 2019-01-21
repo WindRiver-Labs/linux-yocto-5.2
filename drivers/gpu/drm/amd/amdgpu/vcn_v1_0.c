@@ -39,6 +39,7 @@ static int vcn_v1_0_stop(struct amdgpu_device *adev);
 static void vcn_v1_0_set_dec_ring_funcs(struct amdgpu_device *adev);
 static void vcn_v1_0_set_enc_ring_funcs(struct amdgpu_device *adev);
 static void vcn_v1_0_set_irq_funcs(struct amdgpu_device *adev);
+static int vcn_v1_0_set_powergating_state(void *handle, enum amd_powergating_state state);
 
 /**
  * vcn_v1_0_early_init - set function pointers
@@ -192,7 +193,7 @@ static int vcn_v1_0_hw_fini(void *handle)
 	struct amdgpu_ring *ring = &adev->vcn.ring_dec;
 
 	if (RREG32_SOC15(VCN, 0, mmUVD_STATUS))
-		vcn_v1_0_stop(adev);
+		vcn_v1_0_set_powergating_state(adev, AMD_PG_STATE_GATE);
 
 	ring->ready = false;
 
