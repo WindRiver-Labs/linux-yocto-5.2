@@ -4,6 +4,7 @@ obj-y		+= octeontx2-dpi/
 obj-y		+= octeontx2-sdp/
 obj-y		+= octeontx2-npa/
 obj-$(CONFIG_OCTEONTX_SERDES) += octeontx2-serdes/
+obj-y		+= octeontx2-ccu/
 obj-y 		+= hw-access/
 obj-$(CONFIG_MDIO_DEBUGFS) += mdio_debugfs.o
 obj-y		+= octeontx2-ghes/
