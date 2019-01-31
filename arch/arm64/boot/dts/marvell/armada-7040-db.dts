@@ -152,6 +152,20 @@
 		 * IO0_7:		IO1_7: SDIO_Vcntrl
 		 */
 	};
+
+	/* U38 */
+	eeprom0: eeprom@50 {
+		compatible = "atmel,24c64";
+		reg = <0x50>;
+		pagesize = <0x20>;
+	};
+
+	/* U37 */
+	eeprom1: eeprom@57 {
+		compatible = "atmel,24c64";
+		reg = <0x57>;
+		pagesize = <0x20>;
+	};
 };
 
 &cp0_nand_controller {
