@@ -558,6 +558,16 @@
 			       <&edma 5 0>;
 			dma-names = "tx", "rx";
 		};
+
+		sgx: sgx@56000000 {
+                        compatible = "ti,am3352-sgx530", "img,sgx530";
+                        ti,hwmods = "gfx";
+                        reg = <0x56000000 0x10000>;
+                        interrupts = <37>;
+                        clocks = <&gfx_fck_div_ck>;
+                        clock-names = "fclk";
+                        status = "disabled";
+                };
 	};
 };
 
