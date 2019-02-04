@@ -86,6 +86,9 @@
 #define IDR5_VAX			GENMASK(11, 10)
 #define IDR5_VAX_52_BIT			1
 
+#define ARM_SMMU_IIDR			0x18
+#define IIDR_CN96XX_A0			0x2b20034c
+
 #define ARM_SMMU_CR0			0x20
 #define CR0_ATSCHK			(1 << 4)
 #define CR0_CMDQEN			(1 << 3)
@@ -558,6 +561,7 @@ struct arm_smmu_device {
 
 #define ARM_SMMU_OPT_SKIP_PREFETCH	(1 << 0)
 #define ARM_SMMU_OPT_PAGE0_REGS_ONLY	(1 << 1)
+#define ARM_SMMU_OPT_FORCE_QDRAIN	(1 << 2)
 	u32				options;
 
 	struct arm_smmu_cmdq		cmdq;
@@ -944,6 +948,12 @@ static void arm_smmu_cmdq_insert_cmd(struct arm_smmu_device *smmu, u64 *cmd)
 	bool wfe = !!(smmu->features & ARM_SMMU_FEAT_SEV);
 
 	smmu->prev_cmd_opcode = FIELD_GET(CMDQ_0_OP, cmd[0]);
+
+	if (smmu->options & ARM_SMMU_OPT_FORCE_QDRAIN) {
+		/* Ensure command queue has atmost two entries */
+		if (!(q->prod & 0x1)  && queue_poll_cons(q, true, false))
+			dev_err(smmu->dev, "command drain timeout\n");
+	}
 
 	while (queue_insert_raw(q, cmd) == -ENOSPC) {
 		if (queue_poll_cons(q, false, wfe))
@@ -2968,6 +2978,22 @@ static int arm_smmu_device_hw_probe(struct arm_smmu_device *smmu)
 
 	dev_info(smmu->dev, "ias %lu-bit, oas %lu-bit (features 0x%08x)\n",
 		 smmu->ias, smmu->oas, smmu->features);
+
+	/* Options based on implementation */
+	reg = readl_relaxed(smmu->base + ARM_SMMU_IIDR);
+
+	switch (reg) {
+	case IIDR_CN96XX_A0:
+		/* Marvell Octeontx2 SMMU wrongly issues unsupported
+		 * 64 byte memory reads under certain conditions for
+		 * reading commands from the command queue.
+		 * Force command queue drain for every two writes,
+		 * so that SMMU issues only 32 byte reads.
+		 */
+		smmu->options |= ARM_SMMU_OPT_FORCE_QDRAIN;
+		break;
+	}
+
 	return 0;
 }
 
