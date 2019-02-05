@@ -52,3 +52,4 @@ obj-$(CONFIG_EROFS_FS)		+= erofs/
 obj-$(CONFIG_FIELDBUS_DEV)     += fieldbus/
 obj-$(CONFIG_KPC2000)		+= kpc2000/
 obj-$(CONFIG_XROE_FRAMER)	+= xroeframer/
+obj-$(CONFIG_XLNX_SYNC)		+= xlnxsync/
