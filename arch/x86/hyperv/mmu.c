@@ -184,8 +184,6 @@ static void hyperv_flush_tlb_others_ex(const struct cpumask *cpus,
 	if (!cpumask_equal(cpus, cpu_present_mask)) {
 		flush->hv_vp_set.format = HV_GENERIC_SET_SPARSE_4K;
 		nr_bank = cpumask_to_vpset(&(flush->hv_vp_set), cpus);
-		if (nr_bank < 0)
-			return U64_MAX;
 	}
 
 	if (!nr_bank) {
