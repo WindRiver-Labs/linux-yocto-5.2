@@ -7,6 +7,9 @@ CFLAGS_ptrace.o		+= -DUTS_MACHINE='"$(UTS_MACHINE)"' $(call cc-disable-warning, 
 CFLAGS_ptrace.o		+= $(call cc-disable-warning, array-bounds)
 CFLAGS_syscalls.o	+= $(call cc-disable-warning, attribute-alias)
 
+# Disable clang warning for using setjmp without setjmp.h header
+CFLAGS_crash.o		+= $(call cc-disable-warning, builtin-requires-header)
+
 subdir-ccflags-$(CONFIG_PPC_WERROR) := -Werror
 
 ifeq ($(CONFIG_PPC64),y)
