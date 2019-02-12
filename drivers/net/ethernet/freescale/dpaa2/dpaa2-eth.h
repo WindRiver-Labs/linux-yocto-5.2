@@ -281,6 +281,8 @@ struct dpaa2_eth_ch_stats {
 	__u64 xdp_drop;
 	__u64 xdp_tx;
 	__u64 xdp_tx_err;
+	/* Must be last, does not show up in ethtool stats */
+	__u64 frames;
 	__u64 xdp_redirect;
 };
 
