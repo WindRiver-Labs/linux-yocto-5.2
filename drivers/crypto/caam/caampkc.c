@@ -1048,8 +1048,7 @@ static int __init caam_pkc_init(void)
 	/* Determine public key hardware accelerator presence. */
 	if (priv->era < 10) {
 		if (priv->has_seco) {
-			int i = priv->first_jr_index;
-			pk_inst = (rd_reg32(&priv->>jr[i]->perfmon.cha_num_ls) &
+			pk_inst = (rd_reg32(&priv->jr[0]->perfmon.cha_num_ls) &
 				   CHA_ID_LS_PK_MASK) >> CHA_ID_LS_PK_SHIFT;
 		} else {
 			pk_inst = (rd_reg32(&priv->ctrl->perfmon.cha_num_ls) &
