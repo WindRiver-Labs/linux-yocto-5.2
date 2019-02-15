@@ -20,10 +20,12 @@
  * struct pruss_soc_bus - PRUSS SoC bus structure
  * @syscfg: kernel mapped address for SYSCFG register
  * @has_reset: cached variable for storing global module reset flag
+ * @skip_syscfg: flag to indicate if PRCM master standby/slave idle is needed
  */
 struct pruss_soc_bus {
 	void __iomem *syscfg;
 	bool has_reset;
+	bool skip_syscfg;
 };
 
 /**
@@ -32,6 +34,7 @@ struct pruss_soc_bus {
  */
 struct pruss_soc_bus_match_data {
 	bool has_reset;
+	bool uses_prcm;
 };
 
 static int pruss_soc_bus_probe(struct platform_device *pdev)
@@ -63,6 +66,7 @@ static int pruss_soc_bus_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 	psoc_bus->has_reset = data->has_reset;
+	psoc_bus->skip_syscfg = !data->uses_prcm;
 	platform_set_drvdata(pdev, psoc_bus);
 
 	if (psoc_bus->has_reset) {
