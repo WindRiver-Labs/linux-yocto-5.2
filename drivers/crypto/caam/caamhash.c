@@ -2028,10 +2028,9 @@ static int __init caam_algapi_hash_init(void)
 	 */
 	if (priv->era < 10) {
 		if (priv->has_seco) {
-			i = priv->first_jr_index;
-			md_vid = (rd_reg32(&priv->jr[i]->perfmon.cha_id_ls) &
+			md_vid = (rd_reg32(&priv->jr[0]->perfmon.cha_id_ls) &
 				  CHA_ID_LS_MD_MASK) >> CHA_ID_LS_MD_SHIFT;
-			md_inst = (rd_reg32(&priv->jr[i]->perfmon.cha_num_ls) &
+			md_inst = (rd_reg32(&priv->jr[0]->perfmon.cha_num_ls) &
 				   CHA_ID_LS_MD_MASK) >> CHA_ID_LS_MD_SHIFT;
 		} else {
 			md_vid = (rd_reg32(&priv->ctrl->perfmon.cha_id_ls) &

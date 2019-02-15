@@ -3539,13 +3539,11 @@ static int __init caam_algapi_init(void)
 		u32 cha_vid, cha_inst, aes_rn;
 
 		if (priv->has_seco) {
-			i = priv->first_jr_index;
-
-			cha_vid = rd_reg32(&priv->jr[i]->perfmon.cha_id_ls);
+			cha_vid = rd_reg32(&priv->jr[0]->perfmon.cha_id_ls);
 			aes_vid = cha_vid & CHA_ID_LS_AES_MASK;
 			md_vid = (cha_vid & CHA_ID_LS_MD_MASK) >> CHA_ID_LS_MD_SHIFT;
 
-			cha_inst = rd_reg32(&priv->jr[i]->perfmon.cha_num_ls);
+			cha_inst = rd_reg32(&priv->jr[0]->perfmon.cha_num_ls);
 		} else {
 			cha_vid = rd_reg32(&priv->ctrl->perfmon.cha_id_ls);
 			aes_vid = cha_vid & CHA_ID_LS_AES_MASK;
