@@ -614,6 +614,10 @@ static const struct of_device_id pruss_intc_of_match[] = {
 		.data = &am437x_pruss_intc_data,
 	},
 	{
+		.compatible = "ti,am5728-pruss-intc",
+		.data = NULL,
+	},
+	{
 		.compatible = "ti,k2g-pruss-intc",
 		.data = &k2g_pruss_intc_data,
 	},
