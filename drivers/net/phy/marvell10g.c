@@ -30,6 +30,20 @@
 #define MV_PHY_ALASKA_NBT_QUIRK_MASK	0xfffffffe
 #define MV_PHY_ALASKA_NBT_QUIRK_REV	(MARVELL_PHY_ID_88X3310 | 0xa)
 
+#define MII_88E2110_PHY_STATUS		0x8008
+#define MII_88E2110_PHY_STATUS_SPD_MASK	0xc00c
+#define MII_88E2110_PHY_STATUS_5000	0xc008
+#define MII_88E2110_PHY_STATUS_2500	0xc004
+#define MII_88E2110_PHY_STATUS_1000	0x8000
+#define MII_88E2110_PHY_STATUS_100	0x4000
+#define MII_88E2110_PHY_STATUS_DUPLEX	0x2000
+#define MII_88E2110_PHY_STATUS_SPDDONE	0x0800
+#define MII_88E2110_PHY_STATUS_LINK	0x0400
+
+#define MII_88E2110_ADVERTISE		0x10
+#define MII_88E2110_LPA			0x13
+#define MII_88E2110_STAT1000		0x8001
+
 enum {
 	MV_PMA_BOOT		= 0xc050,
 	MV_PMA_BOOT_FATAL	= BIT(0),
@@ -476,6 +490,74 @@ static int mv3310_read_status(struct phy_device *phydev)
 	return 0;
 }
 
+static int m88e2110_read_status(struct phy_device *phydev)
+{
+	int adv, lpa, lpagb, status;
+
+	status = phy_read_mmd(phydev, MDIO_MMD_PCS, MII_88E2110_PHY_STATUS);
+	if (status < 0)
+		return status;
+
+	if (!(status & MII_88E2110_PHY_STATUS_LINK)) {
+		phydev->link = 0;
+		return 0;
+	}
+
+	phydev->link = 1;
+	if (status & MII_88E2110_PHY_STATUS_DUPLEX)
+		phydev->duplex = DUPLEX_FULL;
+	else
+		phydev->duplex = DUPLEX_HALF;
+
+	phydev->pause = 0;
+	phydev->asym_pause = 0;
+
+	switch (status & MII_88E2110_PHY_STATUS_SPD_MASK) {
+	case MII_88E2110_PHY_STATUS_5000:
+		phydev->speed = SPEED_5000;
+		break;
+	case MII_88E2110_PHY_STATUS_2500:
+		phydev->speed = SPEED_2500;
+		break;
+	case MII_88E2110_PHY_STATUS_1000:
+		phydev->speed = SPEED_1000;
+		break;
+	case MII_88E2110_PHY_STATUS_100:
+		phydev->speed = SPEED_100;
+		break;
+	default:
+		phydev->speed = SPEED_10;
+		break;
+	}
+
+	if (phydev->autoneg == AUTONEG_ENABLE) {
+		lpa = genphy_c45_read_lpa(phydev);
+		if (lpa < 0)
+			return lpa;
+
+		lpagb = phy_read_mmd(phydev, MDIO_MMD_AN, MII_88E2110_STAT1000);
+		if (lpagb < 0)
+			return lpagb;
+
+		adv = phy_read_mmd(phydev, MDIO_MMD_AN, MII_88E2110_ADVERTISE);
+		if (adv < 0)
+			return adv;
+
+		mii_stat1000_mod_linkmode_lpa_t(phydev->lp_advertising, lpagb);
+
+		lpa &= adv;
+
+		if (phydev->duplex == DUPLEX_FULL) {
+			phydev->pause = lpa & LPA_PAUSE_CAP ? 1 : 0;
+			phydev->asym_pause = lpa & LPA_PAUSE_ASYM ? 1 : 0;
+		}
+	} else {
+		linkmode_zero(phydev->lp_advertising);
+	}
+
+	return 0;
+}
+
 static struct phy_driver mv3310_drivers[] = {
 	{
 		.phy_id		= MARVELL_PHY_ID_88X3310,
@@ -502,7 +584,7 @@ static struct phy_driver mv3310_drivers[] = {
 		.config_init	= mv3310_config_init,
 		.config_aneg	= mv3310_config_aneg,
 		.aneg_done	= mv3310_aneg_done,
-		.read_status	= mv3310_read_status,
+		.read_status	= m88e2110_read_status,
 	},
 };
 
