@@ -10,6 +10,7 @@ obj-y				  += backlight/
 obj-y				  += fbdev/
 obj-$(CONFIG_FB_MXC)              += mxc/
 
+obj-$(CONFIG_DEC200_FSL)	  += fsl_dec200_linux.o
 obj-$(CONFIG_VIDEOMODE_HELPERS) += display_timing.o videomode.o
 ifeq ($(CONFIG_OF),y)
 obj-$(CONFIG_VIDEOMODE_HELPERS) += of_display_timing.o of_videomode.o
