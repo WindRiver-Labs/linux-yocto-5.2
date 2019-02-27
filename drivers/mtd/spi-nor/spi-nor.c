@@ -143,6 +143,19 @@ struct sfdp_header {
 
 /* Basic Flash Parameter Table */
 
+bool update_stripe(const u8 opcode)
+{
+	if (opcode ==  SPINOR_OP_BE_4K ||
+	    opcode ==  SPINOR_OP_BE_32K ||
+	    opcode ==  SPINOR_OP_CHIP_ERASE ||
+	    opcode ==  SPINOR_OP_SE ||
+	    opcode ==  SPINOR_OP_BE_32K_4B ||
+	    opcode ==  SPINOR_OP_SE_4B ||
+	    opcode == SPINOR_OP_BE_4K_4B)
+		return false;
+
+	return true;
+}
 /*
  * JESD216 rev B defines a Basic Flash Parameter Table of 16 DWORDs.
  * They are indexed from 1 but C arrays are indexed from 0.
