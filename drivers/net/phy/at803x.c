@@ -37,6 +37,9 @@
 #define AT803X_LOC_MAC_ADDR_16_31_OFFSET	0x804B
 #define AT803X_LOC_MAC_ADDR_32_47_OFFSET	0x804A
 #define AT803X_SMARTEEE_CTL3_OFFSET		0x805D
+#define AT803X_MMD_ACCESS_CONTROL		0x0D
+#define AT803X_MMD_ACCESS_CONTROL_DATA		0x0E
+#define AT803X_FUNC_DATA			0x4003
 #define AT803X_REG_CHIP_CONFIG			0x1f
 #define AT803X_BT_BX_REG_SEL			0x8000
 #define AT803X_SMARTEEE_DISABLED_VAL		0x1000
@@ -78,7 +81,6 @@ MODULE_LICENSE("GPL");
 
 struct at803x_priv {
 	bool phy_reset:1;
-	struct gpio_desc *gpiod_reset;
 	u32 quirks;
 };
 
@@ -308,16 +310,6 @@ static int at803x_probe(struct phy_device *phydev)
 	if (of_property_read_bool(dev->of_node, "at803x,vddio-1p8v"))
 		priv->quirks |= AT803X_VDDIO_1P8V;
 
-	if (phydev->drv->phy_id != ATH8030_PHY_ID)
-		goto does_not_require_reset_workaround;
-
-	gpiod_reset = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_LOW);
-	if (IS_ERR(gpiod_reset))
-		return PTR_ERR(gpiod_reset);
-
-	priv->gpiod_reset = gpiod_reset;
-
-does_not_require_reset_workaround:
 	phydev->priv = priv;
 
 	return 0;
