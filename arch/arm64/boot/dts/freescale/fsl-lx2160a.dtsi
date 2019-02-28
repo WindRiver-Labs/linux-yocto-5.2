@@ -1050,6 +1050,15 @@
                         status = "disabled";
                 };
  
+                pcie_ep@3400000 {
+                        compatible = "fsl,lx2160a-pcie-ep";
+                        reg = <0x00 0x03400000 0x0 0x00100000
+                               0x80 0x00000000 0x8 0x00000000>;
+                        reg-names = "regs", "addr_space";
+                        num-ob-windows = <256>;
+                        status = "disabled";
+                };
+
                 pcie@3500000 {
                         compatible = "fsl,lx2160a-pcie";
                         reg = <0x00 0x03500000 0x0 0x00100000   /* controller registers */
@@ -1077,6 +1086,15 @@
                         status = "disabled";
                 };
  
+                pcie_ep@3500000 {
+                        compatible = "fsl,lx2160a-pcie-ep";
+                        reg = <0x00 0x03500000 0x0 0x00100000
+                               0x88 0x00000000 0x8 0x00000000>;
+                        reg-names = "regs", "addr_space";
+                        num-ob-windows = <256>;
+                        status = "disabled";
+                };
+
                 pcie@3600000 {
                         compatible = "fsl,lx2160a-pcie";
                         reg = <0x00 0x03600000 0x0 0x00100000   /* controller registers */
@@ -1104,6 +1122,16 @@
                         status = "disabled";
                 };
  
+                pcie_ep@3600000 {
+                        compatible = "fsl,lx2160a-pcie-ep";
+                        reg = <0x00 0x03600000 0x0 0x00100000
+                               0x90 0x00000000 0x8 0x00000000>;
+                        reg-names = "regs", "addr_space";
+                        num-ob-windows = <256>;
+                        max-functions = <2>;
+                         status = "disabled";
+                };
+
                 pcie@3700000 {
                         compatible = "fsl,lx2160a-pcie";
                         reg = <0x00 0x03700000 0x0 0x00100000   /* controller registers */
@@ -1131,6 +1159,15 @@
                         status = "disabled";
                 };
  
+                pcie_ep@3700000 {
+                        compatible = "fsl,lx2160a-pcie-ep";
+                        reg = <0x00 0x03700000 0x0 0x00100000
+                               0x98 0x00000000 0x8 0x00000000>;
+                        reg-names = "regs", "addr_space";
+                        num-ob-windows = <256>;
+                        status = "disabled";
+                };
+
                 pcie@3800000 {
                         compatible = "fsl,lx2160a-pcie";
                         reg = <0x00 0x03800000 0x0 0x00100000   /* controller registers */
@@ -1158,6 +1195,16 @@
                         status = "disabled";
                 };
  
+                pcie_ep@3800000 {
+                        compatible = "fsl,lx2160a-pcie-ep";
+                        reg = <0x00 0x03800000 0x0 0x00100000
+                               0xa0 0x00000000 0x8 0x00000000>;
+                        reg-names = "regs", "addr_space";
+                        num-ob-windows = <256>;
+                        max-functions = <2>;
+                        status = "disabled";
+                };
+
                 pcie@3900000 {
                         compatible = "fsl,lx2160a-pcie";
                         reg = <0x00 0x03900000 0x0 0x00100000   /* controller registers */
@@ -1185,6 +1232,15 @@
                         status = "disabled";
                 };
  
+                pcie_ep@3900000 {
+                        compatible = "fsl,lx2160a-pcie-ep";
+                        reg = <0x00 0x03900000 0x0 0x00100000
+                               0xa8 0x00000000 0x8 0x00000000>;
+                        reg-names = "regs", "addr_space";
+                        num-ob-windows = <256>;
+                        status = "disabled";
+                };
+
 		ptp-timer@8b95000 {
 			compatible = "fsl,dpaa2-ptp";
 			reg = <0x0 0x8b95000 0x0 0x100>;
