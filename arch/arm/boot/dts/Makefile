@@ -654,7 +654,7 @@ dtb-$(CONFIG_SOC_IMX6UL) += \
 	imx6ulz-14x14-evk-btwifi.dtb \
 	imx6ulz-14x14-evk-btwifi-oob.dtb \
 	imx6ulz-14x14-evk-emmc.dtb \
-	imx6ulz-14x14-evk-gpmi-weim.dtb
+	imx6ulz-14x14-evk-gpmi-weim.dtb \
 	imx6ul-14x14-ddr3-arm2.dtb \
 	imx6ul-14x14-ddr3-arm2-emmc.dtb	\
 	imx6ul-14x14-ddr3-arm2-flexcan2.dtb \
@@ -750,16 +750,16 @@ dtb-$(CONFIG_SOC_IMX7D) += \
 dtb-$(CONFIG_SOC_IMX7ULP) += \
 	imx7ulp-14x14-arm2.dtb \
 	imx7ulp-evk.dtb \
-	imx7ulp-evk-spi-slave.dtb \
-	imx7ulp-evk-emmc.dtb \
+	imx7ulp-evkb-spi-slave.dtb \
+	imx7ulp-evkb-emmc.dtb \
 	imx7ulp-evk-emmc-qspi.dtb \
 	imx7ulp-evk-ft5416.dtb \
-	imx7ulp-evk-sd1.dtb \
-	imx7ulp-evk-lpuart.dtb \
+	imx7ulp-evkb-sd1.dtb \
+	imx7ulp-evkb-lpuart.dtb \
 	imx7ulp-evk-qspi.dtb \
 	imx7ulp-evk-wm8960.dtb \
 	imx7ulp-evk-mipi.dtb \
-	imx7ulp-evk-sensors-to-i2c5.dtb \
+	imx7ulp-evkb-sensors-to-i2c5.dtb \
 	imx7ulp-evkb.dtb \
 	imx7ulp-evkb-mipi.dtb \
 	imx7ulp-evkb-rm68200-wxga.dtb \
