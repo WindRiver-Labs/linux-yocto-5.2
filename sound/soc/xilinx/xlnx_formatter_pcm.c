@@ -575,6 +575,94 @@ static const struct snd_soc_component_driver xlnx_asoc_component = {
 	.pcm_new = xlnx_formatter_pcm_new,
 };
 
+static int configure_mm2s(struct xlnx_pcm_drv_data *aud_drv_data,
+			  struct platform_device *pdev)
+{
+	int ret;
+	struct device *dev = &pdev->dev;
+
+	aud_drv_data->mm2s_irq = platform_get_irq_byname(pdev,
+							 "irq_mm2s");
+	if (aud_drv_data->mm2s_irq < 0) {
+		dev_err(dev, "xlnx audio mm2s irq resource failed\n");
+		return aud_drv_data->mm2s_irq;
+	}
+	ret = devm_request_irq(dev, aud_drv_data->mm2s_irq,
+			       xlnx_mm2s_irq_handler, 0,
+			       "xlnx_formatter_pcm_mm2s_irq",
+			       dev);
+	if (ret) {
+		dev_err(dev, "xlnx audio mm2s irq request failed\n");
+		return ret;
+	}
+	ret = xlnx_formatter_pcm_reset(aud_drv_data->mmio +
+				       XLNX_MM2S_OFFSET);
+	if (ret) {
+		dev_err(dev, "audio formatter reset failed\n");
+		return ret;
+	}
+	xlnx_formatter_disable_irqs(aud_drv_data->mmio +
+				    XLNX_MM2S_OFFSET,
+				    SNDRV_PCM_STREAM_PLAYBACK);
+
+	aud_drv_data->nodes[XLNX_PLAYBACK] =
+		of_parse_phandle(dev->of_node, "xlnx,tx", 0);
+	if (!aud_drv_data->nodes[XLNX_PLAYBACK])
+		dev_err(dev, "tx node not found\n");
+	else
+		dev_info(dev,
+			 "sound card device will use DAI link: %s\n",
+			 (aud_drv_data->nodes[XLNX_PLAYBACK])->name);
+	of_node_put(aud_drv_data->nodes[XLNX_PLAYBACK]);
+
+	aud_drv_data->mm2s_presence = true;
+	return 0;
+}
+
+static int configure_s2mm(struct xlnx_pcm_drv_data *aud_drv_data,
+			  struct platform_device *pdev)
+{
+	int ret;
+	struct device *dev = &pdev->dev;
+
+	aud_drv_data->s2mm_irq = platform_get_irq_byname(pdev,
+							 "irq_s2mm");
+	if (aud_drv_data->s2mm_irq < 0) {
+		dev_err(dev, "xlnx audio s2mm irq resource failed\n");
+		return aud_drv_data->s2mm_irq;
+	}
+	ret = devm_request_irq(dev, aud_drv_data->s2mm_irq,
+			       xlnx_s2mm_irq_handler, 0,
+			       "xlnx_formatter_pcm_s2mm_irq",
+			       dev);
+	if (ret) {
+		dev_err(dev, "xlnx audio s2mm irq request failed\n");
+		return ret;
+	}
+	ret = xlnx_formatter_pcm_reset(aud_drv_data->mmio +
+				       XLNX_S2MM_OFFSET);
+	if (ret) {
+		dev_err(dev, "audio formatter reset failed\n");
+		return ret;
+	}
+	xlnx_formatter_disable_irqs(aud_drv_data->mmio +
+				    XLNX_S2MM_OFFSET,
+				    SNDRV_PCM_STREAM_CAPTURE);
+
+	aud_drv_data->nodes[XLNX_CAPTURE] =
+		of_parse_phandle(dev->of_node, "xlnx,rx", 0);
+	if (!aud_drv_data->nodes[XLNX_CAPTURE])
+		dev_err(dev, "rx node not found\n");
+	else
+		dev_info(dev,
+			 "sound card device will use DAI link: %s\n",
+			 (aud_drv_data->nodes[XLNX_CAPTURE])->name);
+	of_node_put(aud_drv_data->nodes[XLNX_CAPTURE]);
+
+	aud_drv_data->s2mm_presence = true;
+	return 0;
+}
+
 static int xlnx_formatter_pcm_probe(struct platform_device *pdev)
 {
 	int ret;
@@ -616,79 +704,15 @@ static int xlnx_formatter_pcm_probe(struct platform_device *pdev)
 
 	val = readl(aud_drv_data->mmio + XLNX_AUD_CORE_CONFIG);
 	if (val & AUD_CFG_MM2S_MASK) {
-		aud_drv_data->mm2s_presence = true;
-		ret = xlnx_formatter_pcm_reset(aud_drv_data->mmio +
-					       XLNX_MM2S_OFFSET);
-		if (ret) {
-			dev_err(dev, "audio formatter reset failed\n");
+		ret = configure_mm2s(aud_drv_data, pdev);
+		if (ret)
 			goto clk_err;
-		}
-		xlnx_formatter_disable_irqs(aud_drv_data->mmio +
-					    XLNX_MM2S_OFFSET,
-					    SNDRV_PCM_STREAM_PLAYBACK);
-
-		aud_drv_data->mm2s_irq = platform_get_irq_byname(pdev,
-								 "irq_mm2s");
-		if (aud_drv_data->mm2s_irq < 0) {
-			dev_err(dev, "xlnx audio mm2s irq resource failed\n");
-			ret = aud_drv_data->mm2s_irq;
-			goto clk_err;
-		}
-		ret = devm_request_irq(dev, aud_drv_data->mm2s_irq,
-				       xlnx_mm2s_irq_handler, 0,
-				       "xlnx_formatter_pcm_mm2s_irq", dev);
-		if (ret) {
-			dev_err(dev, "xlnx audio mm2s irq request failed\n");
-			goto clk_err;
-		}
-
-		aud_drv_data->nodes[XLNX_PLAYBACK] =
-			of_parse_phandle(dev->of_node, "xlnx,tx", 0);
-		if (!aud_drv_data->nodes[XLNX_PLAYBACK])
-			dev_err(&pdev->dev, "tx node not found\n");
-		else
-			dev_info(&pdev->dev,
-				 "sound card device will use DAI link: %s\n",
-				 (aud_drv_data->nodes[XLNX_PLAYBACK])->name);
-		of_node_put(aud_drv_data->nodes[XLNX_PLAYBACK]);
 	}
+
 	if (val & AUD_CFG_S2MM_MASK) {
-		aud_drv_data->s2mm_presence = true;
-		ret = xlnx_formatter_pcm_reset(aud_drv_data->mmio +
-					       XLNX_S2MM_OFFSET);
-		if (ret) {
-			dev_err(dev, "audio formatter reset failed\n");
+		ret = configure_s2mm(aud_drv_data, pdev);
+		if (ret)
 			goto clk_err;
-		}
-		xlnx_formatter_disable_irqs(aud_drv_data->mmio +
-					    XLNX_S2MM_OFFSET,
-					    SNDRV_PCM_STREAM_CAPTURE);
-
-		aud_drv_data->s2mm_irq = platform_get_irq_byname(pdev,
-								 "irq_s2mm");
-		if (aud_drv_data->s2mm_irq < 0) {
-			dev_err(dev, "xlnx audio s2mm irq resource failed\n");
-			ret = aud_drv_data->s2mm_irq;
-			goto clk_err;
-		}
-		ret = devm_request_irq(dev, aud_drv_data->s2mm_irq,
-				       xlnx_s2mm_irq_handler, 0,
-				       "xlnx_formatter_pcm_s2mm_irq",
-				       dev);
-		if (ret) {
-			dev_err(dev, "xlnx audio s2mm irq request failed\n");
-			goto clk_err;
-		}
-
-		aud_drv_data->nodes[XLNX_CAPTURE] =
-			of_parse_phandle(dev->of_node, "xlnx,rx", 0);
-		if (!aud_drv_data->nodes[XLNX_CAPTURE])
-			dev_err(&pdev->dev, "rx node not found\n");
-		else
-			dev_info(&pdev->dev,
-				 "sound card device will use DAI link: %s\n",
-				 (aud_drv_data->nodes[XLNX_CAPTURE])->name);
-		of_node_put(aud_drv_data->nodes[XLNX_CAPTURE]);
 	}
 
 	dev_set_drvdata(dev, aud_drv_data);
@@ -704,17 +728,17 @@ static int xlnx_formatter_pcm_probe(struct platform_device *pdev)
 	if (aud_drv_data->nodes[XLNX_PLAYBACK] ||
 	    aud_drv_data->nodes[XLNX_CAPTURE])
 		aud_drv_data->pdev =
-			platform_device_register_resndata(&pdev->dev,
+			platform_device_register_resndata(dev,
 							  "xlnx_snd_card",
 							  PLATFORM_DEVID_AUTO,
 							  NULL, 0,
 							  &aud_drv_data->nodes,
 							  pdata_size);
 	if (!aud_drv_data->pdev) {
-		dev_err(&pdev->dev, "sound card device creation failed\n");
+		dev_err(dev, "sound card device creation failed\n");
 		goto clk_err;
 	}
-	dev_info(&pdev->dev, "pcm platform device registered\n");
+	dev_info(dev, "pcm platform device registered\n");
 	return 0;
 
 clk_err:
