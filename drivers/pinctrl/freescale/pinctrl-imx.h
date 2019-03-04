@@ -126,6 +126,8 @@ struct imx_pinctrl {
 #define SHARE_MUX_CONF_REG	BIT(0)
 #define ZERO_OFFSET_VALID	BIT(1)
 #define IMX_USE_SCU		BIT(2)
+#define IMX8_ENABLE_MUX_CONFIG	(1 << 29)
+#define IMX8_ENABLE_PAD_CONFIG	(1 << 30)
 
 #define NO_MUX		0x0
 #define NO_PAD		0x0
