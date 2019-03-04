@@ -7,6 +7,9 @@
 #include <linux/errno.h>
 #include <linux/io.h>
 #include <linux/slab.h>
+#include <linux/clk.h>
+
+#define clk_div_mask(width) ((1 << (width)) - 1)
 
 #include "clk.h"
 
@@ -53,6 +56,7 @@ static int imx8m_clk_composite_compute_dividers(unsigned long rate,
 	int error = INT_MAX;
 	int ret = -EINVAL;
 
+	/* default values */
 	*prediv = 1;
 	*postdiv = 1;
 
@@ -80,10 +84,11 @@ static long imx8m_clk_composite_divider_round_rate(struct clk_hw *hw,
 
 	imx8m_clk_composite_compute_dividers(rate, *prate,
 						&prediv_value, &div_value);
+
 	rate = DIV_ROUND_UP(*prate, prediv_value);
+	rate = DIV_ROUND_UP(rate, div_value);
 
-	return DIV_ROUND_UP(rate, div_value);
-
+	return rate;
 }
 
 static int imx8m_clk_composite_divider_set_rate(struct clk_hw *hw,
@@ -128,11 +133,11 @@ struct clk *imx8m_clk_composite_flags(const char *name,
 					int num_parents, void __iomem *reg,
 					unsigned long flags)
 {
-	struct clk_hw *hw = ERR_PTR(-ENOMEM), *mux_hw;
-	struct clk_hw *div_hw, *gate_hw;
+	struct clk_hw *mux_hw = NULL, *div_hw = NULL, *gate_hw = NULL;
 	struct clk_divider *div = NULL;
 	struct clk_gate *gate = NULL;
 	struct clk_mux *mux = NULL;
+	struct clk *clk = ERR_PTR(-ENOMEM);
 
 	mux = kzalloc(sizeof(*mux), GFP_KERNEL);
 	if (!mux)
@@ -164,18 +169,21 @@ struct clk *imx8m_clk_composite_flags(const char *name,
 	gate->bit_idx = PCG_CGC_SHIFT;
 	gate->lock = &imx_ccm_lock;
 
-	hw = clk_hw_register_composite(NULL, name, parent_names, num_parents,
-			mux_hw, &clk_mux_ops, div_hw,
-			&imx8m_clk_composite_divider_ops,
-			gate_hw, &clk_gate_ops, flags);
-	if (IS_ERR(hw))
+	if (imx_src_is_m4_enabled())
+		flags |= CLK_IGNORE_UNUSED;
+
+	clk = clk_register_composite(NULL, name, parent_names, num_parents,
+					mux_hw, &clk_mux_ops, div_hw,
+					&imx8m_clk_composite_divider_ops,
+					gate_hw, &clk_gate_ops, flags);
+	if (IS_ERR(clk))
 		goto fail;
 
-	return hw->clk;
+	return clk;
 
 fail:
 	kfree(gate);
 	kfree(div);
 	kfree(mux);
-	return ERR_CAST(hw);
+	return clk;
 }

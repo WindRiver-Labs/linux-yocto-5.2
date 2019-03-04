@@ -18,38 +18,38 @@
 #include "clk.h"
 
 /* PLL CFGs */
-#define PLL_CFG0		0x0
-#define PLL_CFG1		0x4
-#define PLL_CFG2		0x8
+#define PLL_CFG0			0x0
+#define PLL_CFG1			0x4
+#define PLL_CFG2			0x8
 
-#define PLL_DIVF1_MASK		GENMASK(18, 13)
-#define PLL_DIVF2_MASK		GENMASK(12, 7)
-#define PLL_DIVR1_MASK		GENMASK(27, 25)
-#define PLL_DIVR2_MASK		GENMASK(24, 19)
-#define PLL_DIVQ_MASK           GENMASK(6, 1)
-#define PLL_REF_MASK		GENMASK(2, 0)
+#define PLL_DIVF1_MASK			GENMASK(18, 13)
+#define PLL_DIVF2_MASK			GENMASK(12, 7)
 
-#define PLL_LOCK_MASK		BIT(31)
-#define PLL_PD_MASK		BIT(7)
+#define PLL_DIVR1_MASK			GENMASK(27, 25)
+#define PLL_DIVR2_MASK			GENMASK(24, 19)
+#define PLL_DIVQ_MASK			GENMASK(6, 1)
+
+#define PLL_LOCK_MASK			BIT(31)
+#define PLL_PD_MASK			BIT(7)
 
 /* These are the specification limits for the SSCG PLL */
-#define PLL_REF_MIN_FREQ		25000000UL
-#define PLL_REF_MAX_FREQ		235000000UL
+#define PLL_REF_MIN_FREQ		25000000
+#define PLL_REF_MAX_FREQ		235000000
 
 #define PLL_STAGE1_MIN_FREQ		1600000000UL
 #define PLL_STAGE1_MAX_FREQ		2400000000UL
 
-#define PLL_STAGE1_REF_MIN_FREQ		25000000UL
-#define PLL_STAGE1_REF_MAX_FREQ		54000000UL
+#define PLL_STAGE1_REF_MIN_FREQ		25000000
+#define PLL_STAGE1_REF_MAX_FREQ		54000000
 
 #define PLL_STAGE2_MIN_FREQ		1200000000UL
 #define PLL_STAGE2_MAX_FREQ		2400000000UL
 
-#define PLL_STAGE2_REF_MIN_FREQ		54000000UL
-#define PLL_STAGE2_REF_MAX_FREQ		75000000UL
+#define PLL_STAGE2_REF_MIN_FREQ		54000000
+#define PLL_STAGE2_REF_MAX_FREQ		75000000
 
-#define PLL_OUT_MIN_FREQ		20000000UL
-#define PLL_OUT_MAX_FREQ		1200000000UL
+#define PLL_OUT_MIN_FREQ		20000000
+#define PLL_OUT_MAX_FREQ		1200000000
 
 #define PLL_DIVR1_MAX			7
 #define PLL_DIVR2_MAX			63
@@ -73,13 +73,13 @@ struct clk_sccg_pll_setup {
 	int divq;
 	int bypass;
 
-	uint64_t vco1;
-	uint64_t vco2;
-	uint64_t fout;
-	uint64_t ref;
-	uint64_t ref_div1;
-	uint64_t ref_div2;
-	uint64_t fout_request;
+	unsigned long vco1;
+	u64 vco2;
+	u64 fout;
+	unsigned long ref;
+	u64 ref_div1;
+	u64 ref_div2;
+	unsigned long fout_request;
 	int fout_error;
 };
 
@@ -192,7 +192,7 @@ static int clk_sccg_divr2_lookup(struct clk_sccg_pll_setup *setup,
 
 static int clk_sccg_pll2_find_setup(struct clk_sccg_pll_setup *setup,
 					struct clk_sccg_pll_setup *temp_setup,
-					uint64_t ref)
+					long ref)
 {
 
 	int ret = -EINVAL;
@@ -213,7 +213,7 @@ static int clk_sccg_divf1_lookup(struct clk_sccg_pll_setup *setup,
 
 	for (temp_setup->divf1 = 0; temp_setup->divf1 <= PLL_DIVF1_MAX;
 	     temp_setup->divf1++) {
-		uint64_t vco1 = temp_setup->ref;
+		u64 vco1 = temp_setup->ref;
 
 		do_div(vco1, temp_setup->divr1 + 1);
 		vco1 *= 2;
@@ -225,7 +225,6 @@ static int clk_sccg_divf1_lookup(struct clk_sccg_pll_setup *setup,
 			return ret;
 		}
 	}
-
 	return ret;
 }
 
@@ -245,13 +244,12 @@ static int clk_sccg_divr1_lookup(struct clk_sccg_pll_setup *setup,
 				return ret;
 		}
 	}
-
 	return ret;
 }
 
 static int clk_sccg_pll1_find_setup(struct clk_sccg_pll_setup *setup,
 					struct clk_sccg_pll_setup *temp_setup,
-					uint64_t ref)
+					long ref)
 {
 
 	int ret = -EINVAL;
@@ -267,8 +265,8 @@ static int clk_sccg_pll1_find_setup(struct clk_sccg_pll_setup *setup,
 }
 
 static int clk_sccg_pll_find_setup(struct clk_sccg_pll_setup *setup,
-					uint64_t prate,
-					uint64_t rate, int try_bypass)
+					unsigned long prate,
+					unsigned long rate, int try_bypass)
 {
 	struct clk_sccg_pll_setup temp_setup;
 	int ret = -EINVAL;
@@ -361,7 +359,7 @@ static unsigned long clk_sccg_pll_recalc_rate(struct clk_hw *hw,
 		do_div(temp64, (divr1 + 1) * (divr2 + 1) * (divq + 1));
 	}
 
-	return temp64;
+	return (unsigned long)temp64;
 }
 
 static int clk_sccg_pll_set_rate(struct clk_hw *hw, unsigned long rate,
@@ -414,14 +412,14 @@ static int clk_sccg_pll_set_parent(struct clk_hw *hw, u8 index)
 	val |= FIELD_PREP(SSCG_PLL_BYPASS_MASK, pll->setup.bypass);
 	writel(val, pll->base + PLL_CFG0);
 
-	return clk_sccg_pll_wait_lock(pll);
+	return 0;
 }
 
 static int __clk_sccg_pll_determine_rate(struct clk_hw *hw,
 					struct clk_rate_request *req,
-					uint64_t min,
-					uint64_t max,
-					uint64_t rate,
+					unsigned long min,
+					unsigned long max,
+					unsigned long rate,
 					int bypass)
 {
 	struct clk_sccg_pll *pll = to_clk_sccg_pll(hw);
@@ -464,9 +462,9 @@ static int clk_sccg_pll_determine_rate(struct clk_hw *hw,
 {
 	struct clk_sccg_pll *pll = to_clk_sccg_pll(hw);
 	struct clk_sccg_pll_setup *setup = &pll->setup;
-	uint64_t rate = req->rate;
-	uint64_t min = req->min_rate;
-	uint64_t max = req->max_rate;
+	unsigned long rate = req->rate;
+	unsigned long min = req->min_rate;
+	unsigned long max = req->max_rate;
 	int ret = -EINVAL;
 
 	if (rate < PLL_OUT_MIN_FREQ || rate > PLL_OUT_MAX_FREQ)
@@ -514,9 +512,8 @@ struct clk *imx_clk_sccg_pll(const char *name,
 				unsigned long flags)
 {
 	struct clk_sccg_pll *pll;
+	struct clk *clk;
 	struct clk_init_data init;
-	struct clk_hw *hw;
-	int ret;
 
 	pll = kzalloc(sizeof(*pll), GFP_KERNEL);
 	if (!pll)
@@ -534,16 +531,11 @@ struct clk *imx_clk_sccg_pll(const char *name,
 	init.parent_names = parent_names;
 	init.num_parents = num_parents;
 
-	pll->base = base;
 	pll->hw.init = &init;
 
-	hw = &pll->hw;
-
-	ret = clk_hw_register(NULL, hw);
-	if (ret) {
+	clk = clk_register(NULL, &pll->hw);
+	if (IS_ERR(clk))
 		kfree(pll);
-		return ERR_PTR(ret);
-	}
 
-	return hw->clk;
+	return clk;
 }
