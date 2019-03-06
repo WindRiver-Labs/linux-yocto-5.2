@@ -1,0 +1,298 @@
+--- /home/bruce/poky/build/tmp/work-shared/qemux86-64/kernel-source/fs/aufs/i_op.c	2017-12-23 23:06:53.241340968 -0500
++++ i_op.c	2017-12-23 23:14:58.070185032 -0500
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (C) 2005-2016 Junjiro R. Okajima
++ * Copyright (C) 2005-2017 Junjiro R. Okajima
+  *
+  * This program, aufs is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License as published by
+@@ -31,12 +31,15 @@
+ 	int err;
+ 	const unsigned char write_mask = !!(mask & (MAY_WRITE | MAY_APPEND));
+ 
++	err = -EPERM;
++	if (write_mask && IS_IMMUTABLE(h_inode))
++		goto out;
++
+ 	err = -EACCES;
+-	if ((write_mask && IS_IMMUTABLE(h_inode))
+-	    || ((mask & MAY_EXEC)
+-		&& S_ISREG(h_inode->i_mode)
+-		&& (path_noexec(h_path)
+-		    || !(h_inode->i_mode & S_IXUGO))))
++	if (((mask & MAY_EXEC)
++	     && S_ISREG(h_inode->i_mode)
++	     && (path_noexec(h_path)
++		 || !(h_inode->i_mode & S_IXUGO))))
+ 		goto out;
+ 
+ 	/*
+@@ -249,27 +252,28 @@
+ /* ---------------------------------------------------------------------- */
+ 
+ struct aopen_node {
+-	struct hlist_node hlist;
++	struct hlist_bl_node hblist;
+ 	struct file *file, *h_file;
+ };
+ 
+ static int au_do_aopen(struct inode *inode, struct file *file)
+ {
+-	struct au_sphlhead *aopen;
++	struct hlist_bl_head *aopen;
++	struct hlist_bl_node *pos;
+ 	struct aopen_node *node;
+ 	struct au_do_open_args args = {
+-		.no_lock	= 1,
+-		.open		= au_do_open_nondir
++		.aopen	= 1,
++		.open	= au_do_open_nondir
+ 	};
+ 
+ 	aopen = &au_sbi(inode->i_sb)->si_aopen;
+-	spin_lock(&aopen->spin);
+-	hlist_for_each_entry(node, &aopen->head, hlist)
++	hlist_bl_lock(aopen);
++	hlist_bl_for_each_entry(node, pos, aopen, hblist)
+ 		if (node->file == file) {
+ 			args.h_file = node->h_file;
+ 			break;
+ 		}
+-	spin_unlock(&aopen->spin);
++	hlist_bl_unlock(aopen);
+ 	/* AuDebugOn(!args.h_file); */
+ 
+ 	return au_do_open(file, &args);
+@@ -279,10 +283,10 @@
+ 			    struct file *file, unsigned int open_flag,
+ 			    umode_t create_mode, int *opened)
+ {
+-	int err, h_opened = *opened;
++	int err, unlocked, h_opened = *opened;
+ 	unsigned int lkup_flags;
+ 	struct dentry *parent, *d;
+-	struct au_sphlhead *aopen;
++	struct hlist_bl_head *aopen;
+ 	struct vfsub_aopen_args args = {
+ 		.open_flag	= open_flag,
+ 		.create_mode	= create_mode,
+@@ -324,6 +328,7 @@
+ 	    || !(open_flag & O_CREAT))
+ 		goto out_no_open;
+ 
++	unlocked = 0;
+ 	err = aufs_read_lock(dentry, AuLock_DW | AuLock_FLUSH | AuLock_GEN);
+ 	if (unlikely(err))
+ 		goto out;
+@@ -354,6 +359,9 @@
+ 			put_filp(args.file);
+ 		goto out_unlock;
+ 	}
++	di_write_unlock(parent);
++	di_write_unlock(dentry);
++	unlocked = 1;
+ 
+ 	/* some filesystems don't set FILE_CREATED while succeeded? */
+ 	*opened |= FILE_CREATED;
+@@ -364,17 +372,21 @@
+ 		args.file = NULL;
+ 	}
+ 	aopen = &au_sbi(dir->i_sb)->si_aopen;
+-	au_sphl_add(&aopen_node.hlist, aopen);
++	au_hbl_add(&aopen_node.hblist, aopen);
+ 	err = finish_open(file, dentry, au_do_aopen, opened);
+-	au_sphl_del(&aopen_node.hlist, aopen);
++	au_hbl_del(&aopen_node.hblist, aopen);
+ 	AuTraceErr(err);
+ 	AuDbgFile(file);
+ 	if (aopen_node.h_file)
+ 		fput(aopen_node.h_file);
+ 
+ out_unlock:
+-	di_write_unlock(parent);
+-	aufs_read_unlock(dentry, AuLock_DW);
++	if (unlocked)
++		si_read_unlock(dentry->d_sb);
++	else {
++		di_write_unlock(parent);
++		aufs_read_unlock(dentry, AuLock_DW);
++	}
+ 	AuDbgDentry(dentry);
+ 	if (unlikely(err < 0))
+ 		goto out;
+@@ -420,10 +432,10 @@
+ 	if (!err && add_entry && !au_ftest_wrdir(add_entry, TMPFILE)) {
+ 		h_parent = au_h_dptr(parent, bcpup);
+ 		h_dir = d_inode(h_parent);
+-		inode_lock_nested(h_dir, AuLsc_I_PARENT);
++		vfsub_inode_lock_shared_nested(h_dir, AuLsc_I_PARENT);
+ 		err = au_lkup_neg(dentry, bcpup, /*wh*/0);
+ 		/* todo: no unlock here */
+-		inode_unlock(h_dir);
++		inode_unlock_shared(h_dir);
+ 
+ 		AuDbg("bcpup %d\n", bcpup);
+ 		if (!err) {
+@@ -807,10 +819,10 @@
+ 	a->h_path.dentry = au_h_dptr(dentry, btop);
+ 	a->h_inode = d_inode(a->h_path.dentry);
+ 	if (ia && (ia->ia_valid & ATTR_SIZE)) {
+-		inode_lock_nested(a->h_inode, AuLsc_I_CHILD);
++		vfsub_inode_lock_shared_nested(a->h_inode, AuLsc_I_CHILD);
+ 		if (ia->ia_size < i_size_read(a->h_inode))
+ 			sz = ia->ia_size;
+-		inode_unlock(a->h_inode);
++		inode_unlock_shared(a->h_inode);
+ 	}
+ 
+ 	hi_wh = NULL;
+@@ -885,6 +897,10 @@
+ 	inode = d_inode(dentry);
+ 	IMustLock(inode);
+ 
++	err = setattr_prepare(dentry, ia);
++	if (unlikely(err))
++		goto out;
++
+ 	err = -ENOMEM;
+ 	a = kzalloc(sizeof(*a), GFP_NOFS);
+ 	if (unlikely(!a))
+@@ -903,7 +919,8 @@
+ 		/* currently ftruncate(2) only */
+ 		AuDebugOn(!d_is_reg(dentry));
+ 		file = ia->ia_file;
+-		err = au_reval_and_lock_fdi(file, au_reopen_nondir, /*wlock*/1);
++		err = au_reval_and_lock_fdi(file, au_reopen_nondir, /*wlock*/1,
++					    /*fi_lsc*/0);
+ 		if (unlikely(err))
+ 			goto out_si;
+ 		ia->ia_file = au_hf_top(file);
+@@ -993,7 +1010,7 @@
+ out_si:
+ 	si_read_unlock(sb);
+ out_kfree:
+-	au_delayed_kfree(a);
++	kfree(a);
+ out:
+ 	AuTraceErr(err);
+ 	return err;
+@@ -1028,8 +1045,8 @@
+ 	return err;
+ }
+ 
+-ssize_t au_srxattr(struct dentry *dentry, struct inode *inode,
+-		   struct au_srxattr *arg)
++ssize_t au_sxattr(struct dentry *dentry, struct inode *inode,
++		  struct au_sxattr *arg)
+ {
+ 	int err;
+ 	struct path h_path;
+@@ -1063,13 +1080,11 @@
+ 				     arg->u.set.name, arg->u.set.value,
+ 				     arg->u.set.size, arg->u.set.flags);
+ 		break;
+-	case AU_XATTR_REMOVE:
+-		err = vfsub_removexattr(h_path.dentry, arg->u.remove.name);
+-		break;
+ 	case AU_ACL_SET:
+ 		err = -EOPNOTSUPP;
+ 		h_inode = d_inode(h_path.dentry);
+ 		if (h_inode->i_op->set_acl)
++			/* this will call posix_acl_update_mode */
+ 			err = h_inode->i_op->set_acl(h_inode,
+ 						     arg->u.acl_set.acl,
+ 						     arg->u.acl_set.type);
+@@ -1086,7 +1101,7 @@
+ 	di_write_unlock(dentry);
+ 	si_read_unlock(sb);
+ out_kfree:
+-	au_delayed_kfree(a);
++	kfree(a);
+ out:
+ 	AuTraceErr(err);
+ 	return err;
+@@ -1123,11 +1138,12 @@
+ }
+ 
+ /*
+- * common routine for aufs_getattr() and aufs_getxattr().
++ * common routine for aufs_getattr() and au_getxattr().
+  * returns zero or negative (an error).
+  * @dentry will be read-locked in success.
+  */
+-int au_h_path_getattr(struct dentry *dentry, int force, struct path *h_path)
++int au_h_path_getattr(struct dentry *dentry, int force, struct path *h_path,
++		      int locked)
+ {
+ 	int err;
+ 	unsigned int mnt_flags, sigen;
+@@ -1144,6 +1160,9 @@
+ 	mnt_flags = au_mntflags(sb);
+ 	udba_none = !!au_opt_test(mnt_flags, UDBA_NONE);
+ 
++	if (unlikely(locked))
++		goto body; /* skip locking dinfo */
++
+ 	/* support fstat(2) */
+ 	if (!d_unlinked(dentry) && !udba_none) {
+ 		sigen = au_sigen(sb);
+@@ -1171,6 +1190,7 @@
+ 	} else
+ 		di_read_lock_child(dentry, AuLock_IR);
+ 
++body:
+ 	inode = d_inode(dentry);
+ 	bindex = au_ibtop(inode);
+ 	h_path->mnt = au_sbr_mnt(sb, bindex);
+@@ -1209,7 +1229,7 @@
+ 	err = si_read_lock(sb, AuLock_FLUSH | AuLock_NOPLM);
+ 	if (unlikely(err))
+ 		goto out;
+-	err = au_h_path_getattr(dentry, /*force*/0, &h_path);
++	err = au_h_path_getattr(dentry, /*force*/0, &h_path, /*locked*/0);
+ 	if (unlikely(err))
+ 		goto out_si;
+ 	if (unlikely(!h_path.dentry))
+@@ -1290,7 +1310,7 @@
+ 	err = 0;
+ 	AuDbg("%pf\n", h_inode->i_op->get_link);
+ 	AuDbgDentry(h_dentry);
+-	ret = h_inode->i_op->get_link(h_dentry, h_inode, done);
++	ret = vfs_get_link(h_dentry, done);
+ 	dput(h_dentry);
+ 	if (IS_ERR(ret))
+ 		err = PTR_ERR(ret);
+@@ -1384,10 +1404,7 @@
+ 		.getattr	= aufs_getattr,
+ 
+ #ifdef CONFIG_AUFS_XATTR
+-		.setxattr	= aufs_setxattr,
+-		.getxattr	= aufs_getxattr,
+ 		.listxattr	= aufs_listxattr,
+-		.removexattr	= aufs_removexattr,
+ #endif
+ 
+ 		.readlink	= generic_readlink,
+@@ -1416,10 +1433,7 @@
+ 		.getattr	= aufs_getattr,
+ 
+ #ifdef CONFIG_AUFS_XATTR
+-		.setxattr	= aufs_setxattr,
+-		.getxattr	= aufs_getxattr,
+ 		.listxattr	= aufs_listxattr,
+-		.removexattr	= aufs_removexattr,
+ #endif
+ 
+ 		.update_time	= aufs_update_time,
+@@ -1437,10 +1451,7 @@
+ 		.getattr	= aufs_getattr,
+ 
+ #ifdef CONFIG_AUFS_XATTR
+-		.setxattr	= aufs_setxattr,
+-		.getxattr	= aufs_getxattr,
+ 		.listxattr	= aufs_listxattr,
+-		.removexattr	= aufs_removexattr,
+ #endif
+ 
+ 		.update_time	= aufs_update_time
