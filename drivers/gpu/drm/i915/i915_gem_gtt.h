@@ -169,20 +169,10 @@ struct intel_rotation_info {
 	} plane[2];
 } __packed;
 
-static inline void assert_intel_rotation_info_is_packed(void)
-{
-	BUILD_BUG_ON(sizeof(struct intel_rotation_info) != 8*sizeof(unsigned int));
-}
-
 struct intel_partial_info {
 	u64 offset;
 	unsigned int size;
 } __packed;
-
-static inline void assert_intel_partial_info_is_packed(void)
-{
-	BUILD_BUG_ON(sizeof(struct intel_partial_info) != sizeof(u64) + sizeof(unsigned int));
-}
 
 enum i915_ggtt_view_type {
 	I915_GGTT_VIEW_NORMAL = 0,
@@ -190,8 +180,11 @@ enum i915_ggtt_view_type {
 	I915_GGTT_VIEW_PARTIAL = sizeof(struct intel_partial_info),
 };
 
-static inline void assert_i915_ggtt_view_type_is_unique(void)
+static inline void assert_i915_gem_gtt_types(void)
 {
+	BUILD_BUG_ON(sizeof(struct intel_rotation_info) != 8*sizeof(unsigned int));
+	BUILD_BUG_ON(sizeof(struct intel_partial_info) != sizeof(u64) + sizeof(unsigned int));
+
 	/* As we encode the size of each branch inside the union into its type,
 	 * we have to be careful that each branch has a unique size.
 	 */
@@ -231,7 +224,6 @@ struct i915_page_dma {
 };
 
 #define px_base(px) (&(px)->base)
-#define px_page(px) (px_base(px)->page)
 #define px_dma(px) (px_base(px)->daddr)
 
 struct i915_page_table {
@@ -297,6 +289,7 @@ struct i915_address_space {
 
 	struct mutex mutex; /* protects vma and our lists */
 
+	u64 scratch_pte;
 	struct i915_page_dma scratch_page;
 	struct i915_page_table *scratch_pt;
 	struct i915_page_directory *scratch_pd;
@@ -334,18 +327,20 @@ struct i915_address_space {
 
 	struct pagestash free_pages;
 
+	/* Global GTT */
+	bool is_ggtt:1;
+
 	/* Some systems require uncached updates of the page directories */
 	bool pt_kmap_wc:1;
 
 	/* Some systems support read-only mappings for GGTT and/or PPGTT */
 	bool has_read_only:1;
 
-	/* FIXME: Need a more generic return type */
-	gen6_pte_t (*pte_encode)(dma_addr_t addr,
-				 enum i915_cache_level level,
-				 u32 flags); /* Create a valid PTE */
-	/* flags for pte_encode */
+	u64 (*pte_encode)(dma_addr_t addr,
+			  enum i915_cache_level level,
+			  u32 flags); /* Create a valid PTE */
 #define PTE_READ_ONLY	(1<<0)
+
 	int (*allocate_va_range)(struct i915_address_space *vm,
 				 u64 start, u64 length);
 	void (*clear_range)(struct i915_address_space *vm,
@@ -367,7 +362,7 @@ struct i915_address_space {
 	I915_SELFTEST_DECLARE(bool scrub_64K);
 };
 
-#define i915_is_ggtt(V) (!(V)->file)
+#define i915_is_ggtt(vm) ((vm)->is_ggtt)
 
 static inline bool
 i915_vm_is_48bit(const struct i915_address_space *vm)
@@ -403,6 +398,8 @@ struct i915_ggtt {
 
 	int mtrr;
 
+	u32 pin_bias;
+
 	struct drm_mm_node error_capture;
 };
 
@@ -425,7 +422,6 @@ struct gen6_hw_ppgtt {
 
 	struct i915_vma *vma;
 	gen6_pte_t __iomem *pd_addr;
-	gen6_pte_t scratch_pte;
 
 	unsigned int pin_count;
 	bool scan_for_unused_pt;

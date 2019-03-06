@@ -70,7 +70,7 @@ struct btrfs_qgroup_extent_record {
  *	be converted into META_PERTRANS.
  */
 enum btrfs_qgroup_rsv_type {
-	BTRFS_QGROUP_RSV_DATA = 0,
+	BTRFS_QGROUP_RSV_DATA,
 	BTRFS_QGROUP_RSV_META_PERTRANS,
 	BTRFS_QGROUP_RSV_META_PREALLOC,
 	BTRFS_QGROUP_RSV_LAST,
@@ -81,10 +81,10 @@ enum btrfs_qgroup_rsv_type {
  *
  * Each type should have different reservation behavior.
  * E.g, data follows its io_tree flag modification, while
- * *currently* meta is just reserve-and-clear during transcation.
+ * *currently* meta is just reserve-and-clear during transaction.
  *
  * TODO: Add new type for reservation which can survive transaction commit.
- * Currect metadata reservation behavior is not suitable for such case.
+ * Current metadata reservation behavior is not suitable for such case.
  */
 struct btrfs_qgroup_rsv {
 	u64 values[BTRFS_QGROUP_RSV_LAST];
@@ -236,6 +236,12 @@ int btrfs_qgroup_trace_leaf_items(struct btrfs_trans_handle *trans,
 int btrfs_qgroup_trace_subtree(struct btrfs_trans_handle *trans,
 			       struct extent_buffer *root_eb,
 			       u64 root_gen, int root_level);
+
+int btrfs_qgroup_trace_subtree_swap(struct btrfs_trans_handle *trans,
+				struct btrfs_block_group_cache *bg_cache,
+				struct extent_buffer *src_parent, int src_slot,
+				struct extent_buffer *dst_parent, int dst_slot,
+				u64 last_snapshot);
 int btrfs_qgroup_account_extent(struct btrfs_trans_handle *trans, u64 bytenr,
 				u64 num_bytes, struct ulist *old_roots,
 				struct ulist *new_roots);

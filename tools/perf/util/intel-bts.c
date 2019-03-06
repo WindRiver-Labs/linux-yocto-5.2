@@ -451,7 +451,7 @@ static int intel_bts_process_buffer(struct intel_bts_queue *btsq,
 			continue;
 		intel_bts_get_branch_type(btsq, branch);
 		if (btsq->bts->synth_opts.thread_stack)
-			thread_stack__event(thread, btsq->sample_flags,
+			thread_stack__event(thread, btsq->cpu, btsq->sample_flags,
 					    le64_to_cpu(branch->from),
 					    le64_to_cpu(branch->to),
 					    btsq->intel_pt_insn.length,
@@ -523,7 +523,7 @@ static int intel_bts_process_queue(struct intel_bts_queue *btsq, u64 *timestamp)
 	    !btsq->bts->synth_opts.thread_stack && thread &&
 	    (!old_buffer || btsq->bts->sampling_mode ||
 	     (btsq->bts->snapshot_mode && !buffer->consecutive)))
-		thread_stack__set_trace_nr(thread, buffer->buffer_nr + 1);
+		thread_stack__set_trace_nr(thread, btsq->cpu, buffer->buffer_nr + 1);
 
 	err = intel_bts_process_buffer(btsq, buffer, thread);
 
@@ -917,7 +917,8 @@ int intel_bts_process_auxtrace_info(union perf_event *event,
 	if (session->itrace_synth_opts && session->itrace_synth_opts->set) {
 		bts->synth_opts = *session->itrace_synth_opts;
 	} else {
-		itrace_synth_opts__set_default(&bts->synth_opts);
+		itrace_synth_opts__set_default(&bts->synth_opts,
+				session->itrace_synth_opts->default_no_sample);
 		if (session->itrace_synth_opts)
 			bts->synth_opts.thread_stack =
 				session->itrace_synth_opts->thread_stack;
