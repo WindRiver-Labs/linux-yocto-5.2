@@ -34,6 +34,8 @@
 #define END_OF_PARENTS			1
 #define RESERVED_CLK_NAME		""
 
+#define CLK_TYPE_FLAG2_FIELD_MASK	GENMASK(7, 4)
+#define CLK_TYPE_FLAG_BITS		8
 #define CLK_GET_NAME_RESP_LEN		16
 #define CLK_GET_TOPOLOGY_RESP_WORDS	3
 #define CLK_GET_PARENTS_RESP_WORDS	3
@@ -396,6 +398,9 @@ static int __zynqmp_clock_get_topology(struct clock_topology *topology,
 		topology[*nnodes].type_flag =
 				FIELD_GET(CLK_TOPOLOGY_TYPE_FLAGS,
 					  response->topology[i]);
+		topology[*nnodes].type_flag |=
+			FIELD_GET(CLK_TYPE_FLAG2_FIELD_MASK, response->topology[i]) <<
+			CLK_TYPE_FLAG_BITS;
 		(*nnodes)++;
 	}
 
