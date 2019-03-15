@@ -147,7 +147,7 @@
 		};
 
 		rtc: rtc {
-			compatible = "fsl,imx8qxp-sc-rtc";
+			compatible = "fsl,imx-sc-rtc";
 		};
 	};
 
