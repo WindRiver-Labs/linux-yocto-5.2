@@ -192,10 +192,13 @@ static int imx_drm_bind(struct device *dev)
 	imxdrm->drm = drm;
 	drm->dev_private = imxdrm;
 
-	imxdrm->wq = alloc_ordered_workqueue("imxdrm", 0);
-	if (!imxdrm->wq) {
-		ret = -ENOMEM;
-		goto err_unref;
+	if (has_dcss(dev)) {
+		imxdrm->dcss_nonblock_commit_wq =
+			alloc_ordered_workqueue("dcss_nonblock_commit_wq", 0);
+		if (!imxdrm->dcss_nonblock_commit_wq) {
+			ret = -ENOMEM;
+			goto err_unref;
+		}
 	}
 
 	init_waitqueue_head(&imxdrm->commit.wait);
@@ -271,7 +274,8 @@ err_poll_fini:
 err_kms:
 	drm_mode_config_cleanup(drm);
 
-	destroy_workqueue(imxdrm->wq);
+	if (imxdrm->dcss_nonblock_commit_wq)
+		destroy_workqueue(imxdrm->dcss_nonblock_commit_wq);
 
 err_unref:
 	drm_dev_put(drm);
@@ -284,7 +288,8 @@ static void imx_drm_unbind(struct device *dev)
 	struct drm_device *drm = dev_get_drvdata(dev);
 	struct imx_drm_device *imxdrm = drm->dev_private;
 
-	flush_workqueue(imxdrm->wq);
+	if (has_dcss(dev))
+		flush_workqueue(imxdrm->dcss_nonblock_commit_wq);
 
 	drm_dev_unregister(drm);
 
@@ -295,7 +300,8 @@ static void imx_drm_unbind(struct device *dev)
 	component_unbind_all(drm->dev, drm);
 	dev_set_drvdata(dev, NULL);
 
-	destroy_workqueue(imxdrm->wq);
+	if (has_dcss(dev))
+		destroy_workqueue(imxdrm->dcss_nonblock_commit_wq);
 
 	drm_dev_put(drm);
 }
