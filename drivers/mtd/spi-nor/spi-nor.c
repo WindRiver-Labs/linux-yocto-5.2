@@ -151,7 +151,11 @@ bool update_stripe(const u8 opcode)
 	    opcode ==  SPINOR_OP_SE ||
 	    opcode ==  SPINOR_OP_BE_32K_4B ||
 	    opcode ==  SPINOR_OP_SE_4B ||
-	    opcode == SPINOR_OP_BE_4K_4B)
+	    opcode == SPINOR_OP_BE_4K_4B ||
+	    opcode ==  SPINOR_OP_WRSR ||
+	    opcode ==  SPINOR_OP_WREAR ||
+	    opcode ==  SPINOR_OP_BRWR ||
+	    opcode ==  SPINOR_OP_WRSR2)
 		return false;
 
 	return true;
@@ -2243,13 +2247,17 @@ static const struct flash_info spi_nor_ids[] = {
 	{ "is25lp128f", INFO(0x9d6018, 0, 64 * 1024, 256, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ | SPI_NOR_HAS_LOCK) },
 	{ "is25wp128f", INFO(0x9d7018, 0, 64 * 1024, 256, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ | SPI_NOR_HAS_LOCK) },
 	{ "is25lp256d", INFO(0x9d6019, 0, 64 * 1024, 512, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ | SPI_NOR_HAS_LOCK) },
-	{ "is25wp256d", INFO(0x9d7019, 0, 64 * 1024, 512, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ | SPI_NOR_HAS_LOCK) },
+	{ "is25wp256d", INFO(0x9d7019, 0, 64 * 1024, 512,
+			SECT_4K | SPI_NOR_DUAL_READ |
+			SPI_NOR_QUAD_READ | SPI_NOR_HAS_LOCK |
+			SPI_NOR_4B_OPCODES) },
 	{ "is25lp512m", INFO(0x9d601a, 0, 64 * 1024, 1024,
 			SECT_4K | SPI_NOR_DUAL_READ |
 			SPI_NOR_QUAD_READ | SPI_NOR_HAS_LOCK) },
 	{ "is25wp512m", INFO(0x9d701a, 0, 64 * 1024, 1024,
 			SECT_4K | SPI_NOR_DUAL_READ |
-			SPI_NOR_QUAD_READ | SPI_NOR_HAS_LOCK) },
+			SPI_NOR_QUAD_READ | SPI_NOR_HAS_LOCK |
+			SPI_NOR_4B_OPCODES) },
 	{ "is25cd512",  INFO(0x7f9d20, 0, 32 * 1024,   2, SECT_4K) },
 	{ "is25lq040b", INFO(0x9d4013, 0, 64 * 1024,   8,
 			SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
@@ -3383,6 +3391,9 @@ static int spi_nor_parse_bfpt(struct spi_nor *nor,
 	}
 	params->size >>= 3; /* Convert to bytes. */
 
+	if (params->size > 0x1000000 && nor->addr_width == 3)
+		return -EINVAL;
+
 	/* Fast Read settings. */
 	for (i = 0; i < ARRAY_SIZE(sfdp_bfpt_reads); i++) {
 		const struct sfdp_bfpt_read *rd = &sfdp_bfpt_reads[i];
@@ -4249,11 +4260,6 @@ static int spi_nor_init_params(struct spi_nor *nor,
 			memcpy(&nor->erase_map, &prev_map,
 			       sizeof(nor->erase_map));
 		} else {
-			if ((JEDEC_MFR(info) == SNOR_MFR_ISSI) &&
-			    params->size >  OFFSET_16_MB) {
-				nor->addr_width = 4;
-				set_4byte(nor, true);
-			}
 			memcpy(params, &sfdp_params, sizeof(*params));
 		}
 	}
