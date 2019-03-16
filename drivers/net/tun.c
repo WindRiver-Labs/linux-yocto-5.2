@@ -1956,6 +1956,7 @@ drop:
 	rcu_read_lock();
 	if (unlikely(!(tun->dev->flags & IFF_UP))) {
 		err = -EIO;
+		rcu_read_unlock();
 		goto drop;
 	}
 
