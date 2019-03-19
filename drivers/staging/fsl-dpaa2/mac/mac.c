@@ -418,6 +418,11 @@ static void configure_link(struct dpaa2_mac_priv *priv,
 	phydev->speed = cfg->rate;
 	phydev->duplex  = !!(cfg->options & DPMAC_LINK_OPT_HALF_DUPLEX);
 
+	if (cfg->advertising != 0) {
+		linkmode_zero(phydev->advertising);
+		link_mode_dpmac2phydev(cfg->advertising, phydev->advertising);
+	}
+
 	if (linkmode_test_bit(ETHTOOL_LINK_MODE_Pause_BIT, phydev->supported)) {
 		if (cfg->options & DPMAC_LINK_OPT_PAUSE)
 			linkmode_set_bit(ETHTOOL_LINK_MODE_Pause_BIT, phydev->advertising);
@@ -430,11 +435,6 @@ static void configure_link(struct dpaa2_mac_priv *priv,
 			linkmode_set_bit(ETHTOOL_LINK_MODE_Asym_Pause_BIT, phydev->advertising);
 		else
 			linkmode_clear_bit(ETHTOOL_LINK_MODE_Asym_Pause_BIT, phydev->advertising);
-	}
-
-	if (cfg->advertising != 0) {
-		linkmode_zero(phydev->advertising);
-		link_mode_dpmac2phydev(cfg->advertising, phydev->advertising);
 	}
 
 	if (cfg->options & DPMAC_LINK_OPT_AUTONEG) {
