@@ -67,7 +67,14 @@ enum pm_api_id {
 	PM_FPGA_LOAD,
 	PM_FPGA_GET_STATUS,
 	PM_GET_CHIPID = 24,
-	PM_IOCTL = 34,
+	/* Pin control API functions */
+	PM_PINCTRL_REQUEST = 28,
+	PM_PINCTRL_RELEASE,
+	PM_PINCTRL_GET_FUNCTION,
+	PM_PINCTRL_SET_FUNCTION,
+	PM_PINCTRL_CONFIG_PARAM_GET,
+	PM_PINCTRL_CONFIG_PARAM_SET,
+	PM_IOCTL,
 	PM_QUERY_DATA,
 	PM_CLOCK_ENABLE,
 	PM_CLOCK_DISABLE,
@@ -108,7 +115,13 @@ enum pm_query_id {
 	PM_QID_CLOCK_GET_FIXEDFACTOR_PARAMS,
 	PM_QID_CLOCK_GET_PARENTS,
 	PM_QID_CLOCK_GET_ATTRIBUTES,
-	PM_QID_CLOCK_GET_NUM_CLOCKS = 12,
+	PM_QID_PINCTRL_GET_NUM_PINS,
+	PM_QID_PINCTRL_GET_NUM_FUNCTIONS,
+	PM_QID_PINCTRL_GET_NUM_FUNCTION_GROUPS,
+	PM_QID_PINCTRL_GET_FUNCTION_NAME,
+	PM_QID_PINCTRL_GET_FUNCTION_GROUPS,
+	PM_QID_PINCTRL_GET_PIN_GROUPS,
+	PM_QID_CLOCK_GET_NUM_CLOCKS,
 };
 
 enum zynqmp_pm_reset_action {
@@ -391,6 +404,12 @@ struct zynqmp_eemi_ops {
 			       const u32 capabilities,
 			       const u32 qos,
 			       const enum zynqmp_pm_request_ack ack);
+	int (*pinctrl_request)(const u32 pin);
+	int (*pinctrl_release)(const u32 pin);
+	int (*pinctrl_get_function)(const u32 pin, u32 *id);
+	int (*pinctrl_set_function)(const u32 pin, const u32 id);
+	int (*pinctrl_get_config)(const u32 pin, const u32 param, u32 *value);
+	int (*pinctrl_set_config)(const u32 pin, const u32 param, u32 value);
 	int (*efuse_access)(const u64 address, u32 *out);
 };
 
