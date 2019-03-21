@@ -3,6 +3,7 @@
  * Support Power Management
  *
  * Copyright 2014-2015 Freescale Semiconductor Inc.
+ * Copyright 2018 NXP
  */
 #ifndef __PPC_FSL_PM_H
 #define __PPC_FSL_PM_H

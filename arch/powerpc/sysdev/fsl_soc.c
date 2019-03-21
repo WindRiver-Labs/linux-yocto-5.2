@@ -6,6 +6,8 @@
  *
  * 2006 (c) MontaVista Software, Inc.
  * Vitaly Bordug <vbordug@ru.mvista.com>
+ *
+ * Copyright 2018 NXP
  */
 
 #include <linux/stddef.h>

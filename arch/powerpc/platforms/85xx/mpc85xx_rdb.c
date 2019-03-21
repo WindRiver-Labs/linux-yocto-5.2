@@ -3,6 +3,7 @@
  * MPC85xx RDB Board Setup
  *
  * Copyright 2009,2012-2013 Freescale Semiconductor Inc.
+ * Copyright 2017 NXP
  */
 
 #include <linux/stddef.h>

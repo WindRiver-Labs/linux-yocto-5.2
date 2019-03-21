@@ -3,6 +3,7 @@
  * Freescale QorIQ Platforms GUTS Driver
  *
  * Copyright (C) 2016 Freescale Semiconductor, Inc.
+ * Copyright 2018 NXP
  */
 
 #include <linux/io.h>
