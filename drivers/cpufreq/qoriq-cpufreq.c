@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright 2013 Freescale Semiconductor, Inc.
+ * Copyright 2017-2018 NXP
  *
  * CPU Frequency Scaling driver for Freescale QorIQ SoCs.
  */

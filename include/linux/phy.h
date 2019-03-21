@@ -6,6 +6,7 @@
  * Author: Andy Fleming
  *
  * Copyright (c) 2004 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP
  */
 
 #ifndef __PHY_H

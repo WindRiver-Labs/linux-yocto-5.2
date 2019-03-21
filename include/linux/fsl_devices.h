@@ -8,6 +8,7 @@
  * Maintainer: Kumar Gala <galak@kernel.crashing.org>
  *
  * Copyright 2004,2012 Freescale Semiconductor, Inc
+ * Copyright 2018 NXP
  */
 
 #ifndef _FSL_DEVICE_H_

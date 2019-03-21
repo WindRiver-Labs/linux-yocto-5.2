@@ -3,6 +3,7 @@
  * Suspend/resume support
  *
  * Copyright 2009  MontaVista Software, Inc.
+ * Copyright 2018 NXP
  *
  * Author: Anton Vorontsov <avorontsov@ru.mvista.com>
  */

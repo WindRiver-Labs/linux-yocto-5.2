@@ -5,6 +5,7 @@
  * Maintained by Kumar Gala (see MAINTAINERS for contact information)
  *
  * Copyright 2009-2011 Freescale Semiconductor Inc.
+ * Copyright 2017 NXP
  */
 
 #include <linux/kernel.h>
