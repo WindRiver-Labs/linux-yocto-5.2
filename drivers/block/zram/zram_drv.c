@@ -64,12 +64,12 @@ static void zram_meta_init_table_locks(struct zram *zram, size_t num_pages)
 
 static int zram_slot_trylock(struct zram *zram, u32 index)
 {
-        int ret;
+	int ret;
 
-        ret = spin_trylock(&zram->table[index].lock);
-        if (ret)
-                __set_bit(ZRAM_LOCK, &zram->table[index].value);
-        return ret;
+	ret = spin_trylock(&zram->table[index].lock);
+	if (ret)
+		__set_bit(ZRAM_LOCK, &zram->table[index].value);
+	return ret;
 }
 
 static void zram_slot_lock(struct zram *zram, u32 index)
