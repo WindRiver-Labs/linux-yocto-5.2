@@ -81,6 +81,7 @@ static int validate_keys_sizes(struct cc_cipher_ctx *ctx_p, u32 size)
 		default:
 			break;
 		}
+		break;
 	case S_DIN_to_DES:
 		if (size == DES3_EDE_KEY_SIZE || size == DES_KEY_SIZE)
 			return 0;
@@ -807,7 +808,8 @@ static int cc_cipher_decrypt(struct skcipher_request *req)
 	gfp_t flags = cc_gfp_flags(&req->base);
 	unsigned int len;
 
-	if (ctx_p->cipher_mode == DRV_CIPHER_CBC) {
+	if ((ctx_p->cipher_mode == DRV_CIPHER_CBC) &&
+	    (req->cryptlen >= ivsize)) {
 
 		/* Allocate and save the last IV sized bytes of the source,
 		 * which will be lost in case of in-place decryption.
