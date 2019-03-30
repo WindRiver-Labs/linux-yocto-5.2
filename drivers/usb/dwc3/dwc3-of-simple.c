@@ -334,7 +334,7 @@ static int dwc3_of_simple_remove(struct platform_device *pdev)
 
 	return 0;
 }
-
+#ifdef CONFIG_PM
 static void dwc3_simple_vbus(struct dwc3 *dwc, bool vbus_off)
 {
 	u32 reg, addr;
@@ -471,6 +471,7 @@ int dwc3_set_usb_core_power(struct dwc3 *dwc, bool on)
 	return 0;
 }
 EXPORT_SYMBOL(dwc3_set_usb_core_power);
+#endif
 
 static int __maybe_unused dwc3_of_simple_runtime_suspend(struct device *dev)
 {
