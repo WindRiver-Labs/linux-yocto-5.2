@@ -176,8 +176,9 @@ static int usb_otg_set_host(struct device *dev, struct usb_hcd *hcd, bool yes)
 			goto disable_phy;
 		}
 
-	} else
+	} else {
 		goto disable_phy;
+	}
 
 	return 0;
 
@@ -362,7 +363,7 @@ static int xhci_plat_probe(struct platform_device *pdev)
 	if (ret)
 		goto dealloc_usb2_hcd;
 
-	ret = usb_otg_set_host(&pdev->dev, hcd, 1);
+	ret = usb_otg_set_host(&pdev->dev, hcd, true);
 	if (ret)
 		goto dealloc_usb2_hcd;
 
@@ -413,11 +414,11 @@ static int xhci_plat_remove(struct platform_device *dev)
 
 	xhci->xhc_state |= XHCI_STATE_REMOVING;
 
-	usb_otg_set_host(&dev->dev, hcd, 0);
-
 	usb_remove_hcd(shared_hcd);
 	xhci->shared_hcd = NULL;
 	usb_phy_shutdown(hcd->usb_phy);
+
+	usb_otg_set_host(&dev->dev, hcd, false);
 
 	usb_remove_hcd(hcd);
 	usb_put_hcd(shared_hcd);
