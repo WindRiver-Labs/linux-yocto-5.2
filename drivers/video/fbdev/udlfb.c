@@ -572,10 +572,9 @@ static int dlfb_render_hline(struct dlfb_data *dlfb, struct urb **urb_ptr,
 	return 0;
 }
 
-static int dlfb_handle_damage(struct dlfb_data *dlfb, int x, int y,
-	       int width, int height, char *data)
+static int dlfb_handle_damage(struct dlfb_data *dlfb, int x, int y, int width, int height)
 {
-	int i, ret;
+	int i;
 	char *cmd;
 	cycles_t start_cycles, end_cycles;
 	int bytes_sent = 0;
@@ -619,7 +618,7 @@ static int dlfb_handle_damage(struct dlfb_data *dlfb, int x, int y,
 			*cmd++ = 0xAF;
 		/* Send partial buffer remaining before exiting */
 		len = cmd - (char *) urb->transfer_buffer;
-		ret = dlfb_submit_urb(dlfb, urb, len);
+		dlfb_submit_urb(dlfb, urb, len);
 		bytes_sent += len;
 	} else
 		dlfb_urb_completion(urb);
@@ -657,7 +656,7 @@ static ssize_t dlfb_ops_write(struct fb_info *info, const char __user *buf,
 				(u32)info->var.yres);
 
 		dlfb_handle_damage(dlfb, 0, start, info->var.xres,
-			lines, info->screen_base);
+			lines);
 	}
 
 	return result;
@@ -673,7 +672,7 @@ static void dlfb_ops_copyarea(struct fb_info *info,
 	sys_copyarea(info, area);
 
 	dlfb_handle_damage(dlfb, area->dx, area->dy,
-			area->width, area->height, info->screen_base);
+			area->width, area->height);
 }
 
 static void dlfb_ops_imageblit(struct fb_info *info,
@@ -684,7 +683,7 @@ static void dlfb_ops_imageblit(struct fb_info *info,
 	sys_imageblit(info, image);
 
 	dlfb_handle_damage(dlfb, image->dx, image->dy,
-			image->width, image->height, info->screen_base);
+			image->width, image->height);
 }
 
 static void dlfb_ops_fillrect(struct fb_info *info,
@@ -695,7 +694,7 @@ static void dlfb_ops_fillrect(struct fb_info *info,
 	sys_fillrect(info, rect);
 
 	dlfb_handle_damage(dlfb, rect->dx, rect->dy, rect->width,
-			      rect->height, info->screen_base);
+			      rect->height);
 }
 
 /*
@@ -837,8 +836,7 @@ static int dlfb_ops_ioctl(struct fb_info *info, unsigned int cmd,
 		if (area.y > info->var.yres)
 			area.y = info->var.yres;
 
-		dlfb_handle_damage(dlfb, area.x, area.y, area.w, area.h,
-			   info->screen_base);
+		dlfb_handle_damage(dlfb, area.x, area.y, area.w, area.h);
 	}
 
 	return 0;
@@ -1035,8 +1033,7 @@ static int dlfb_ops_set_par(struct fb_info *info)
 		for (i = 0; i < info->fix.smem_len / 2; i++)
 			pix_framebuffer[i] = 0x37e6;
 
-		dlfb_handle_damage(dlfb, 0, 0, info->var.xres, info->var.yres,
-				   info->screen_base);
+		dlfb_handle_damage(dlfb, 0, 0, info->var.xres, info->var.yres);
 	}
 
 	return 0;
