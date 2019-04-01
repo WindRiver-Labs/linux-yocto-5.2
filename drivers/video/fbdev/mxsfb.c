@@ -54,6 +54,8 @@
 #include <video/of_display_timing.h>
 #include <video/videomode.h>
 #include <linux/uaccess.h>
+#include <linux/delay.h>
+#include <linux/iopoll.h>
 
 #include "mxc/mxc_dispdrv.h"
 
@@ -180,6 +182,9 @@
 
 #define FB_SYNC_OE_LOW_ACT		0x80000000
 #define FB_SYNC_CLK_LAT_FALL	0x40000000
+
+#define	RESET_TIMEOUT	1000000
+#define	RESET_SLEEP		1000
 
 enum mxsfb_devtype {
 	MXSFB_V3,
@@ -2187,6 +2192,52 @@ static void mxsfb_overlay_init(struct mxsfb_info *fbi) {}
 static void mxsfb_overlay_exit(struct mxsfb_info *fbi) {}
 #endif
 
+static void mxsfb_reset_block(struct fb_info *fb_info)
+{
+	struct mxsfb_info *host = fb_info->par;
+	int ret;
+	u32 val;
+
+	/* Clear SFTRST */
+	writel(CTRL_SFTRST, host->base + LCDC_CTRL + REG_CLR);
+
+	/* Wait for SFTRST being cleared */
+	ret = readl_poll_timeout(host->base + LCDC_CTRL, val,
+				(val & CTRL_SFTRST) == 0, RESET_SLEEP, RESET_TIMEOUT);
+	if(ret)
+		return;
+
+	/* Clear CLKGATE */
+	writel(CTRL_CLKGATE, host->base + LCDC_CTRL + REG_CLR);
+
+	/* Set SFTRST */
+	writel(CTRL_SFTRST, host->base + LCDC_CTRL + REG_SET);
+
+	/* Wait for CLKGATE being set */
+	ret = readl_poll_timeout(host->base + LCDC_CTRL, val,
+				val & CTRL_CLKGATE, RESET_SLEEP, RESET_TIMEOUT);
+	if(ret)
+		return;
+
+	/* Clear SFTRST */
+	writel(CTRL_SFTRST, host->base + LCDC_CTRL + REG_CLR);
+
+	/* Wait for SFTRST being cleared */
+	ret = readl_poll_timeout(host->base + LCDC_CTRL, val,
+				(val & CTRL_SFTRST) == 0, RESET_SLEEP, RESET_TIMEOUT);
+	if(ret)
+		return;
+
+	/* Clear CLKGATE */
+	writel(CTRL_CLKGATE, host->base + LCDC_CTRL + REG_CLR);
+
+	/* Wait for CLKGATE being cleared */
+	ret = readl_poll_timeout(host->base + LCDC_CTRL, val,
+				(val & CTRL_CLKGATE) == 0, RESET_SLEEP, RESET_TIMEOUT);
+	if(ret)
+		return;
+}
+
 static int mxsfb_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *of_id =
@@ -2324,6 +2375,7 @@ static int mxsfb_probe(struct platform_device *pdev)
 
 	if (!host->enabled) {
 		writel(0, host->base + LCDC_CTRL);
+		mxsfb_reset_block(fb_info);
 		mxsfb_set_par(fb_info);
 		mxsfb_enable_controller(fb_info);
 		pm_runtime_get_sync(&host->pdev->dev);
