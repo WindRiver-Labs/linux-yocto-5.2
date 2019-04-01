@@ -21,6 +21,11 @@
 
 	};
 
+	psci {
+		compatible = "arm,psci-1.0";
+		method = "smc";
+	};
+
 	sysclk: clk10000000 {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
