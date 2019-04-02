@@ -386,14 +386,14 @@
 		status = "disabled";
 	};
 
-	hse: hse@40210000 {
+	hse: hse@40334000 {
 		compatible = "fsl,s32gen1-hse";
 		#address-cells = <2>;
 		#size-cells = <2>;
 		#interrupt-cells = <3>;
-		ranges = <0x0 0x0 0x0 0x40210000 0x0 0x4000>;
+		ranges = <0x0 0x0 0x0 0x40334000 0x0 0x4000>;
 
-		mu0b@40210000 {
+		mu0b@40334000 {
 			reg = <0x0 0x0 0x0 0x1000>;
 			interrupts = <0 103 4>, /* GIC 135 */
 			             <0 104 4>, /* GIC 136 */
@@ -402,7 +402,7 @@
 			                  "hse-mu0b-rx",
 			                  "hse-mu0b-err";
 		};
-		mu1b@40211000 {
+		mu1b@40335000 {
 			reg = <0x0 0x1000 0x0 0x1000>;
 			interrupts = <0 106 4>, /* GIC 138 */
 			             <0 107 4>, /* GIC 139 */
@@ -411,7 +411,7 @@
 			                  "hse-mu1b-rx",
 			                  "hse-mu1b-err";
 		};
-		mu2b@40212000 {
+		mu2b@40336000 {
 			reg = <0x0 0x2000 0x0 0x1000>;
 			interrupts = <0 109 4>, /* GIC 141 */
 			             <0 110 4>, /* GIC 142 */
@@ -420,7 +420,7 @@
 			                  "hse-mu2b-rx",
 			                  "hse-mu2b-err";
 		};
-		mu3b@40213000 {
+		mu3b@40337000 {
 			reg = <0x0 0x3000 0x0 0x1000>;
 			interrupts = <0 112 4>, /* GIC 144 */
 			             <0 113 4>, /* GIC 145 */
