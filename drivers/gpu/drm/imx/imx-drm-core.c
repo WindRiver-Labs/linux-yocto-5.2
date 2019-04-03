@@ -16,6 +16,7 @@
 #include <drm/drm_gem_cma_helper.h>
 #include <drm/drm_gem_framebuffer_helper.h>
 #include <drm/drm_of.h>
+#include <video/dpu.h>
 #include <drm/drm_plane_helper.h>
 #include <drm/drm_probe_helper.h>
 #include <video/imx-ipu-v3.h>
@@ -124,6 +125,10 @@ static int compare_of(struct device *dev, void *data)
 		struct dcss_client_platformdata *pdata = dev->platform_data;
 
 		return pdata->of_node == np;
+	} else if (strcmp(dev->driver->name, "imx-dpu-crtc") == 0) {
+		struct dpu_client_platformdata *pdata = dev->platform_data;
+
+		return pdata->of_node == np;
 	}
 
 	/* Special case for LDB, one device for two channels */
@@ -134,6 +139,11 @@ static int compare_of(struct device *dev, void *data)
 
 	return dev->of_node == np;
 }
+
+static const char *const imx_drm_dpu_comp_parents[] = {
+	"fsl,imx8qm-dpu",
+	"fsl,imx8qxp-dpu",
+};
 
 static const char *const imx_drm_dcss_comp_parents[] = {
 	"nxp,imx8mq-dcss",
@@ -167,6 +177,12 @@ static bool imx_drm_parent_is_compatible(struct device *dev,
 	return ret;
 }
 
+static inline bool has_dpu(struct device *dev)
+{
+	return imx_drm_parent_is_compatible(dev, imx_drm_dpu_comp_parents,
+					ARRAY_SIZE(imx_drm_dpu_comp_parents));
+}
+
 static inline bool has_dcss(struct device *dev)
 {
 	return imx_drm_parent_is_compatible(dev, imx_drm_dcss_comp_parents,
@@ -192,12 +208,22 @@ static int imx_drm_bind(struct device *dev)
 	imxdrm->drm = drm;
 	drm->dev_private = imxdrm;
 
+	if (has_dpu(dev)) {
+		imxdrm->dpu_nonblock_commit_wq =
+				alloc_workqueue("dpu_nonblock_commit_wq",
+						WQ_UNBOUND | WQ_FREEZABLE, 0);
+		if (!imxdrm->dpu_nonblock_commit_wq) {
+			ret = -ENOMEM;
+			goto err_wq;
+		}
+	}
+
 	if (has_dcss(dev)) {
 		imxdrm->dcss_nonblock_commit_wq =
 			alloc_ordered_workqueue("dcss_nonblock_commit_wq", 0);
 		if (!imxdrm->dcss_nonblock_commit_wq) {
 			ret = -ENOMEM;
-			goto err_unref;
+			goto err_wq;
 		}
 	}
 
@@ -225,7 +251,7 @@ static int imx_drm_bind(struct device *dev)
 	drm->mode_config.max_height = 4096;
 	drm->mode_config.normalize_zpos = true;
 
-	if (has_dcss(dev)) {
+	if (has_dpu(dev) || has_dcss(dev)) {
 		drm->mode_config.allow_fb_modifiers = true;
 		dev_dbg(dev, "allow fb modifiers\n");
 	}
@@ -273,10 +299,11 @@ err_poll_fini:
 	component_unbind_all(drm->dev, drm);
 err_kms:
 	drm_mode_config_cleanup(drm);
-
+err_wq:
 	if (imxdrm->dcss_nonblock_commit_wq)
 		destroy_workqueue(imxdrm->dcss_nonblock_commit_wq);
-
+	if (imxdrm->dpu_nonblock_commit_wq)
+		destroy_workqueue(imxdrm->dpu_nonblock_commit_wq);
 err_unref:
 	drm_dev_put(drm);
 
@@ -287,6 +314,9 @@ static void imx_drm_unbind(struct device *dev)
 {
 	struct drm_device *drm = dev_get_drvdata(dev);
 	struct imx_drm_device *imxdrm = drm->dev_private;
+
+	if (has_dpu(dev))
+		flush_workqueue(imxdrm->dpu_nonblock_commit_wq);
 
 	if (has_dcss(dev))
 		flush_workqueue(imxdrm->dcss_nonblock_commit_wq);
@@ -299,6 +329,9 @@ static void imx_drm_unbind(struct device *dev)
 
 	component_unbind_all(drm->dev, drm);
 	dev_set_drvdata(dev, NULL);
+
+	if (has_dpu(dev))
+		destroy_workqueue(imxdrm->dpu_nonblock_commit_wq);
 
 	if (has_dcss(dev))
 		destroy_workqueue(imxdrm->dcss_nonblock_commit_wq);
