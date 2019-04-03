@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0
 
 xilinx-video-objs += xilinx-dma.o xilinx-vip.o xilinx-vipp.o
+xilinx-scd-objs += xilinx-scenechange.o xilinx-scenechange-channel.o \
+		   xilinx-scenechange-dma.o
 
 obj-$(CONFIG_VIDEO_XILINX) += xilinx-video.o
 obj-$(CONFIG_VIDEO_XILINX_AXI4S_SWITCH) += xilinx-axis-switch.o
@@ -15,9 +17,7 @@ obj-$(CONFIG_VIDEO_XILINX_MULTISCALER) += xilinx-multi-scaler.o
 obj-$(CONFIG_VIDEO_XILINX_REMAPPER) += xilinx-remapper.o
 obj-$(CONFIG_VIDEO_XILINX_RGB2YUV) += xilinx-rgb2yuv.o
 obj-$(CONFIG_VIDEO_XILINX_SCALER) += xilinx-scaler.o
-obj-$(CONFIG_VIDEO_XILINX_SCD) += xilinx-scenechange.o
-obj-$(CONFIG_VIDEO_XILINX_SCD) += xilinx-scenechange-channel.o
-obj-$(CONFIG_VIDEO_XILINX_SCD) += xilinx-scenechange-dma.o
+obj-$(CONFIG_VIDEO_XILINX_SCD) += xilinx-scd.o
 obj-$(CONFIG_VIDEO_XILINX_SDIRXSS) += xilinx-sdirxss.o
 obj-$(CONFIG_VIDEO_XILINX_SWITCH) += xilinx-switch.o
 obj-$(CONFIG_VIDEO_XILINX_TPG) += xilinx-tpg.o
