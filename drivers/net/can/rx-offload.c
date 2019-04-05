@@ -44,11 +44,11 @@ static int can_rx_offload_napi_poll(struct napi_struct *napi, int quota)
 
 	while ((work_done < quota) &&
 	       (skb = skb_dequeue(&offload->skb_queue))) {
-		struct can_frame *cf = (struct can_frame *)skb->data;
+		struct canfd_frame *cf = (struct canfd_frame *)skb->data;
 
 		work_done++;
 		stats->rx_packets++;
-		stats->rx_bytes += cf->can_dlc;
+		stats->rx_bytes += cf->len;
 		netif_receive_skb(skb);
 	}
 
@@ -133,51 +133,23 @@ can_rx_offload_offload_one(struct can_rx_offload *offload, unsigned int n)
 {
 	struct sk_buff *skb = NULL, *skb_error = NULL;
 	struct can_rx_offload_cb *cb;
-	struct can_frame *cf;
+	struct canfd_frame *cf;
 	int ret;
 
-	if (likely(skb_queue_len(&offload->skb_queue) <
+ 	/* If queue is full or skb not available, read to discard mailbox */
+	if (likely(skb_queue_len(&offload->skb_queue) <=
 		   offload->skb_queue_len_max)) {
-		skb = alloc_can_skb(offload->dev, &cf);
-		if (unlikely(!skb))
-			skb_error = ERR_PTR(-ENOMEM);	/* skb alloc failed */
-	} else {
-		skb_error = ERR_PTR(-ENOBUFS);		/* skb_queue is full */
+		if (offload->is_canfd)
+			skb = alloc_canfd_skb(offload->dev, &cf);
+		else
+			skb = alloc_can_skb(offload->dev, (struct can_frame **)&cf);
 	}
 
-	/* If queue is full or skb not available, drop by reading into
-	 * overflow buffer.
-	 */
-	if (unlikely(skb_error)) {
-		struct can_frame cf_overflow;
-		u32 timestamp;
-
-		ret = offload->mailbox_read(offload, &cf_overflow,
-					    &timestamp, n);
-
-		/* Mailbox was empty. */
-		if (unlikely(!ret))
-			return NULL;
-
-		/* Mailbox has been read and we're dropping it or
-		 * there was a problem reading the mailbox.
-		 *
-		 * Increment error counters in any case.
-		 */
-		offload->dev->stats.rx_dropped++;
-		offload->dev->stats.rx_fifo_errors++;
-
-		/* There was a problem reading the mailbox, propagate
-		 * error value.
-		 */
-		if (unlikely(ret < 0))
-			return ERR_PTR(ret);
-
-		return skb_error;
-	}
-
-	cb = can_rx_offload_get_cb(skb);
-	ret = offload->mailbox_read(offload, cf, &cb->timestamp, n);
+	if (!skb) {
+		struct canfd_frame cf_overflow;
+ 		u32 timestamp;
+ 
+ 		ret = offload->mailbox_read(offload, &cf_overflow,
 
 	/* Mailbox was empty. */
 	if (unlikely(!ret)) {
