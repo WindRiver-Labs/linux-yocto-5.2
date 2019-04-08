@@ -45,6 +45,10 @@ Optional properties:
 		 ack_gpr is the gpr register offset of CAN stop acknowledge.
 		 ack_bit is the bit offset of CAN stop acknowledge.
 
+- s32v234-ocotp: On S32V234 SoCs, phandle pointer to the On-Chip One Time
+                 Programmable (OCOTP) node, if CAN FD support is desired on
+                 compatible parts
+
 Example:
 
 	can@1c000 {
