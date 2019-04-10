@@ -8,8 +8,16 @@
  */
 
 #include <linux/platform_device.h>
+#include <linux/of_device.h>
+#include <linux/usb/xhci_pdriver.h>
 
 #include "core.h"
+
+void dwc3_host_wakeup_capable(struct device *dev, bool wakeup)
+{
+	dwc3_simple_wakeup_capable(dev, wakeup);
+}
+EXPORT_SYMBOL(dwc3_host_wakeup_capable);
 
 static int dwc3_host_get_irq(struct dwc3 *dwc)
 {
@@ -46,7 +54,7 @@ out:
 
 int dwc3_host_init(struct dwc3 *dwc)
 {
-	struct property_entry	props[3];
+	struct property_entry	props[4];
 	struct platform_device	*xhci;
 	int			ret, irq;
 	struct resource		*res;
@@ -93,6 +101,10 @@ int dwc3_host_init(struct dwc3 *dwc)
 	if (dwc->usb3_lpm_capable)
 		props[prop_idx++].name = "usb3-lpm-capable";
 
+	if (device_property_read_bool(&dwc3_pdev->dev,
+					"snps,xhci-stream-quirk"))
+		props[prop_idx++].name = "xhci-stream-quirk";
+
 	/**
 	 * WORKAROUND: dwc3 revisions <=3.00a have a limitation
 	 * where Port Disable command doesn't work.
@@ -117,6 +129,17 @@ int dwc3_host_init(struct dwc3 *dwc)
 			  dev_name(dwc->dev));
 	phy_create_lookup(dwc->usb3_generic_phy, "usb3-phy",
 			  dev_name(dwc->dev));
+
+	if (dwc->dr_mode == USB_DR_MODE_OTG) {
+		struct usb_phy *phy = usb_get_phy(USB_PHY_TYPE_USB3);
+
+		if (!IS_ERR(phy)) {
+			if (phy && phy->otg)
+				otg_set_host(phy->otg,
+					     (struct usb_bus *)0xdeadbeef);
+			usb_put_phy(phy);
+		}
+	}
 
 	ret = platform_device_add(xhci);
 	if (ret) {

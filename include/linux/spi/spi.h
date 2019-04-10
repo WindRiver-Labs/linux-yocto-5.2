@@ -450,6 +450,20 @@ struct spi_controller {
 
 #define SPI_MASTER_GPIO_SS		BIT(5)	/* GPIO CS must select slave */
 
+	/* Controller may support data stripe feature when more than one
+	 * chips are present.
+	 * Setting data stripe will send data in following manner:
+	 * -> even bytes i.e. 0, 2, 4,... are transmitted on lower data bus
+	 * -> odd bytes i.e. 1, 3, 5,.. are transmitted on upper data bus
+	 */
+#define SPI_MASTER_QUAD_MODE	BIT(6) /* support quad mode */
+#define SPI_MASTER_DATA_STRIPE	BIT(7)		/* support data stripe */
+	/* Controller may support asserting more than one chip select at once.
+	 * This flag will enable that feature.
+	 */
+#define SPI_MASTER_BOTH_CS	BIT(8)		/* assert both chip selects */
+#define SPI_MASTER_U_PAGE       BIT(9)          /* select upper flash */
+
 	/* flag indicating this is an SPI slave controller */
 	bool			slave;
 
@@ -705,6 +719,7 @@ extern void spi_res_release(struct spi_controller *ctlr,
  * @len: size of rx and tx buffers (in bytes)
  * @speed_hz: Select a speed other than the device default for this
  *      transfer. If 0 the default (from @spi_device) is used.
+ * @dummy: number of dummy cycles.
  * @bits_per_word: select a bits_per_word other than the device default
  *      for this transfer. If 0 the default (from @spi_device) is used.
  * @cs_change: affects chipselect after this transfer completes
@@ -714,6 +729,7 @@ extern void spi_res_release(struct spi_controller *ctlr,
  * @transfer_list: transfers are sequenced through @spi_message.transfers
  * @tx_sg: Scatterlist for transmit, currently not for client use
  * @rx_sg: Scatterlist for receive, currently not for client use
+ * @stripe: true-> enable stripe, false-> disable stripe.
  *
  * SPI transfers always write the same number of bytes as they read.
  * Protocol drivers should always provide @rx_buf and/or @tx_buf.
@@ -793,7 +809,8 @@ struct spi_transfer {
 	u8		bits_per_word;
 	u16		delay_usecs;
 	u32		speed_hz;
-
+	u32		dummy;
+	bool		stripe;
 	struct list_head transfer_list;
 };
 
@@ -1309,6 +1326,8 @@ spi_transfer_is_last(struct spi_controller *ctlr, struct spi_transfer *xfer)
 	return list_is_last(&xfer->transfer_list, &ctlr->cur_msg->transfers);
 }
 
+bool
+update_stripe(const u8 opcode);
 
 /* Compatibility layer */
 #define spi_master			spi_controller
