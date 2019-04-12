@@ -783,6 +783,9 @@ unsigned long clk_hw_get_rate(const struct clk_hw *hw);
 unsigned long __clk_get_flags(struct clk *clk);
 unsigned long clk_hw_get_flags(const struct clk_hw *hw);
 unsigned int clk_get_children(char *name);
+#define clk_hw_can_set_rate_parent(hw) \
+	(clk_hw_get_flags((hw)) & CLK_SET_RATE_PARENT)
+
 bool clk_hw_is_prepared(const struct clk_hw *hw);
 bool clk_hw_rate_is_protected(const struct clk_hw *hw);
 bool clk_hw_is_enabled(const struct clk_hw *hw);
