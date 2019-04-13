@@ -19,7 +19,24 @@
 #include <linux/interrupt.h>
 #include <linux/types.h>
 #include <video/dpu.h>
+#include "dpu-crc.h"
 #include "dpu-crtc.h"
+
+static inline void get_left(struct drm_rect *r, struct drm_display_mode *m)
+{
+	r->x1 = 0;
+	r->y1 = 0;
+	r->x2 = m->hdisplay >> 1;
+	r->y2 = m->vdisplay;
+}
+
+static inline void get_right(struct drm_rect *r, struct drm_display_mode *m)
+{
+	r->x1 = m->hdisplay >> 1;
+	r->y1 = 0;
+	r->x2 = m->hdisplay;
+	r->y2 = m->vdisplay;
+}
 
 static void
 dpu_enable_signature_roi(struct dpu_signature *sig, struct drm_rect *roi)
@@ -120,19 +137,17 @@ int dpu_crtc_verify_crc_source(struct drm_crtc *crtc, const char *src_name,
 }
 
 int dpu_crtc_set_crc_source(struct drm_crtc *crtc, const char *source_name)
+
 {
 	struct dpu_crtc *dpu_crtc = to_dpu_crtc(crtc);
 	struct drm_modeset_acquire_ctx ctx;
 	struct drm_crtc_state *crtc_state;
 	struct drm_atomic_state *state;
+	struct drm_rect roi = {0, 0, 0, 0};
 	enum dpu_crc_source source;
 	int ret;
 
-	if (!source_name) {
-		source = DPU_CRC_SRC_NONE;
-	} else if (!strcmp(source_name, "auto")) {
-		source = DPU_CRC_SRC_FRAMEGEN;
-	} else {
+	if (dpu_crc_parse_source(source_name, &source, &roi) < 0) {
 		dev_dbg(dpu_crtc->dev, "unknown source %s\n", source_name);
 		return -EINVAL;
 	}
@@ -157,6 +172,7 @@ retry:
 		imx_crtc_state = to_imx_crtc_state(crtc_state);
 		dcstate = to_dpu_crtc_state(imx_crtc_state);
 		dcstate->crc.source = source;
+		dpu_copy_roi(&roi, &dcstate->crc.roi);
 
 		dpu_crtc->use_dual_crc = dcstate->use_pc;
 		crtc->crc.values_cnt = dpu_crtc->use_dual_crc ? 6 : 3;
@@ -201,9 +217,12 @@ irqreturn_t dpu_crc_valid_irq_threaded_handler(int irq, void *dev_id)
 		return IRQ_HANDLED;
 	}
 
-	crcs[2] = dpu_crtc->crc_red;
-	crcs[1] = dpu_crtc->crc_green;
-	crcs[0] = dpu_crtc->crc_blue;
+	if (!dual_crc ||
+	    (dual_crc && dpu_crtc->dual_crc_flag != DPU_DUAL_CRC_FLAG_RIGHT)) {
+		crcs[2] = dpu_crtc->crc_red;
+		crcs[1] = dpu_crtc->crc_green;
+		crcs[0] = dpu_crtc->crc_blue;
+	}
 
 	if (dual_crc && dpu_crtc->stream_id == 0) {
 		ret = wait_for_completion_timeout(&dpu_crtc->aux_crc_done,
@@ -212,9 +231,11 @@ irqreturn_t dpu_crc_valid_irq_threaded_handler(int irq, void *dev_id)
 			dev_warn(dpu_crtc->dev,
 				"wait for auxiliary CRC done timeout\n");
 
-		crcs[5] = aux_dpu_crtc->crc_red;
-		crcs[4] = aux_dpu_crtc->crc_green;
-		crcs[3] = aux_dpu_crtc->crc_blue;
+		if (dpu_crtc->dual_crc_flag != DPU_DUAL_CRC_FLAG_LEFT) {
+			crcs[5] = aux_dpu_crtc->crc_red;
+			crcs[4] = aux_dpu_crtc->crc_green;
+			crcs[3] = aux_dpu_crtc->crc_blue;
+		}
 	}
 
 	drm_crtc_add_crc_entry(&dpu_crtc->base, false, 0, crcs);
@@ -223,7 +244,8 @@ irqreturn_t dpu_crc_valid_irq_threaded_handler(int irq, void *dev_id)
 }
 
 void dpu_crtc_enable_crc_source(struct drm_crtc *crtc,
-				enum dpu_crc_source source)
+				enum dpu_crc_source source,
+				struct drm_rect *roi)
 {
 	struct dpu_crtc *dpu_crtc = to_dpu_crtc(crtc);
 	struct dpu_crtc *aux_dpu_crtc = dpu_crtc_get_aux_dpu_crtc(dpu_crtc);
@@ -231,8 +253,11 @@ void dpu_crtc_enable_crc_source(struct drm_crtc *crtc,
 	struct dpu_crtc_state *dcstate = to_dpu_crtc_state(imx_crtc_state);
 	struct drm_display_mode *mode = &crtc->state->adjusted_mode;
 	struct completion *shdld_done;
-	struct drm_rect roi;
+	struct drm_rect left, right;
+	struct drm_rect r, aux_r, clip;
 	bool dual_crc = dpu_crtc->use_dual_crc;
+	bool use_left, use_right;
+	int half_hdisplay;
 	unsigned long ret;
 
 	if (source == DPU_CRC_SRC_NONE)
@@ -244,23 +269,57 @@ void dpu_crtc_enable_crc_source(struct drm_crtc *crtc,
 	if (dpu_crtc->crc_is_enabled)
 		return;
 
-	/* region of interest */
-	roi.x1 = 0;
-	roi.y1 = 0;
-	roi.x2 = dual_crc ? mode->hdisplay >> 1 : mode->hdisplay;
-	roi.y2 = mode->vdisplay;
+	if (dual_crc) {
+		half_hdisplay = mode->hdisplay >> 1;
+
+		get_left(&left, mode);
+		get_right(&right, mode);
+
+		dpu_copy_roi(&left, &clip);
+		if (drm_rect_intersect(&clip, roi)) {
+			dpu_copy_roi(&clip, &r);
+			use_left = true;
+		} else {
+			dpu_copy_roi(&left, &r);
+			use_left = false;
+		}
+
+		if (drm_rect_intersect(&right, roi)) {
+			right.x1 -= half_hdisplay;
+			right.x2 -= half_hdisplay;
+			dpu_copy_roi(&right, &aux_r);
+			use_right = true;
+		} else {
+			dpu_copy_roi(&left, &aux_r);
+			use_right = false;
+		}
+
+		if (use_left && !use_right) {
+			dpu_crtc->dual_crc_flag = DPU_DUAL_CRC_FLAG_LEFT;
+		} else if (!use_left && use_right) {
+			dpu_crtc->dual_crc_flag = DPU_DUAL_CRC_FLAG_RIGHT;
+		} else if (use_left && use_right) {
+			dpu_crtc->dual_crc_flag = DPU_DUAL_CRC_FLAG_DUAL;
+		} else {
+			dpu_crtc->dual_crc_flag = DPU_DUAL_CRC_FLAG_ERR_NONE;
+			dev_err(dpu_crtc->dev, "error flag for dual CRC\n");
+			return;
+		}
+	} else {
+		dpu_copy_roi(roi, &r);
+	}
 
 	enable_irq(dpu_crtc->crc_valid_irq);
 	enable_irq(dpu_crtc->crc_shdld_irq);
 	disengcfg_sig_select(dpu_crtc->dec, DEC_SIG_SEL_FRAMEGEN);
-	dpu_enable_signature_roi(dpu_crtc->sig, &roi);
+	dpu_enable_signature_roi(dpu_crtc->sig, &r);
 
 	if (dual_crc) {
 		aux_dpu_crtc->use_dual_crc = dual_crc;
 		enable_irq(aux_dpu_crtc->crc_valid_irq);
 		enable_irq(aux_dpu_crtc->crc_shdld_irq);
 		disengcfg_sig_select(dpu_crtc->aux_dec, DEC_SIG_SEL_FRAMEGEN);
-		dpu_enable_signature_roi(dpu_crtc->aux_sig, &roi);
+		dpu_enable_signature_roi(dpu_crtc->aux_sig, &aux_r);
 	}
 
 	shdld_done = &dpu_crtc->crc_shdld_done;
@@ -282,7 +341,8 @@ void dpu_crtc_enable_crc_source(struct drm_crtc *crtc,
 
 	dpu_crtc->crc_is_enabled = true;
 
-	dev_dbg(dpu_crtc->dev, "enable CRC source\n");
+	dev_dbg(dpu_crtc->dev, "enable CRC source %d, ROI:" DRM_RECT_FMT "\n",
+		source, DRM_RECT_ARG(roi));
 }
 
 void dpu_crtc_disable_crc_source(struct drm_crtc *crtc, bool dual_crc)
