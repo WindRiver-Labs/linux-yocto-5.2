@@ -325,6 +325,11 @@ static inline void activate_page_drain(int cpu)
 {
 }
 
+static bool need_activate_page_drain(int cpu)
+{
+	return false;
+}
+
 void activate_page(struct page *page)
 {
 	struct zone *zone = page_zone(page);
@@ -728,12 +733,6 @@ void lru_add_drain_all(void)
 
 	mutex_unlock(&lock);
 }
-#else
-void lru_add_drain_all(void)
-{
-	lru_add_drain();
-}
-#endif
 
 /**
  * release_pages - batched put_page()
