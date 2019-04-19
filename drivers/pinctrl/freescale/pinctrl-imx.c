@@ -780,23 +780,15 @@ static void imx_free_resources(struct imx_pinctrl *ipctl)
 int imx_pinctrl_probe(struct platform_device *pdev,
 		      const struct imx_pinctrl_soc_info *info)
 {
-	struct regmap_config config = { .name = "gpr" };
 	struct device_node *dev_np = pdev->dev.of_node;
 	struct pinctrl_desc *imx_pinctrl_desc;
 	struct device_node *np;
 	struct imx_pinctrl *ipctl;
-	struct regmap *gpr;
 	int ret, i;
 
 	if (!info || !info->pins || !info->npins) {
 		dev_err(&pdev->dev, "wrong pinctrl info\n");
 		return -EINVAL;
-	}
-
-	if (info->gpr_compatible) {
-		gpr = syscon_regmap_lookup_by_compatible(info->gpr_compatible);
-		if (!IS_ERR(gpr))
-			regmap_attach_dev(&pdev->dev, gpr, &config);
 	}
 
 	/* Create state holders etc for this driver */
