@@ -128,77 +128,26 @@ static int can_rx_offload_compare(struct sk_buff *a, struct sk_buff *b)
  *
  *         ERR_PTR() in case of an error
  */
-static struct sk_buff *
-can_rx_offload_offload_one(struct can_rx_offload *offload, unsigned int n)
+static struct sk_buff *can_rx_offload_offload_one(struct can_rx_offload *offload, unsigned int n)
 {
-	struct sk_buff *skb = NULL, *skb_error = NULL;
-	struct can_rx_offload_cb *cb;
-	struct canfd_frame *cf;
-	int ret;
+	struct sk_buff *skb = NULL;
+	u32 timestamp;
 
-	if (likely(skb_queue_len(&offload->skb_queue) <
-		   offload->skb_queue_len_max)) {
-		if (offload->is_canfd)
-			skb = alloc_canfd_skb(offload->dev, &cf);
-		else
-			skb = alloc_can_skb(offload->dev, (struct can_frame **)&cf);
-		if (unlikely(!skb))
-			skb_error = ERR_PTR(-ENOMEM);	/* skb alloc failed */
-	} else {
-		skb_error = ERR_PTR(-ENOBUFS);		/* skb_queue is full */
-	}
+	/* If queue is full or skb not available, read to discard mailbox */
+	bool drop = unlikely(skb_queue_len(&offload->skb_queue) >
+					   offload->skb_queue_len_max);
 
-	/* If queue is full or skb not available, drop by reading into
-	 * overflow buffer.
-	 */
-	if (unlikely(skb_error)) {
-		struct canfd_frame cf_overflow;
-		u32 timestamp;
-
-		ret = offload->mailbox_read(offload, &cf_overflow,
-					    &timestamp, n);
-
-		/* Mailbox was empty. */
-		if (unlikely(!ret))
-			return NULL;
-
-		/* Mailbox has been read and we're dropping it or
-		 * there was a problem reading the mailbox.
-		 *
-		 * Increment error counters in any case.
-		 */
+	if (offload->mailbox_read(offload, drop, &skb, &timestamp, n) && !skb) {
 		offload->dev->stats.rx_dropped++;
 		offload->dev->stats.rx_fifo_errors++;
-
-		/* There was a problem reading the mailbox, propagate
-		 * error value.
-		 */
-		if (unlikely(ret < 0))
-			return ERR_PTR(ret);
-
-		return skb_error;
 	}
 
-	cb = can_rx_offload_get_cb(skb);
-	ret = offload->mailbox_read(offload, cf, &cb->timestamp, n);
+	if (skb) {
+		struct can_rx_offload_cb *cb = can_rx_offload_get_cb(skb);
 
-	/* Mailbox was empty. */
-	if (unlikely(!ret)) {
-		kfree_skb(skb);
-		return NULL;
+		cb->timestamp = timestamp;
 	}
 
-	/* There was a problem reading the mailbox, propagate error value. */
-	if (unlikely(ret < 0)) {
-		kfree_skb(skb);
-
-		offload->dev->stats.rx_dropped++;
-		offload->dev->stats.rx_fifo_errors++;
-
-		return ERR_PTR(ret);
-	}
-
-	/* Mailbox was read. */
 	return skb;
 }
 
