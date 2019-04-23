@@ -841,7 +841,7 @@ static int fsl_lpspi_probe(struct platform_device *pdev)
 	struct spi_imx_master *lpspi_platform_info =
 		dev_get_platdata(&pdev->dev);
 	struct resource *res;
-	int i, ret, irq;
+	int i, ret, irq, num_cs;
 	u32 temp;
 	bool is_slave;
 
@@ -899,6 +899,16 @@ static int fsl_lpspi_probe(struct platform_device *pdev)
 	controller->dev.of_node = pdev->dev.of_node;
 	controller->bus_num = pdev->id;
 	controller->slave_abort = fsl_lpspi_slave_abort;
+
+	ret = of_property_read_u32(np, "fsl,spi-num-chipselects", &num_cs);
+	if (ret < 0) {
+		if (lpspi_platform_info) {
+			num_cs = lpspi_platform_info->num_chipselect;
+			controller->num_chipselect = num_cs;
+		}
+	} else {
+		controller->num_chipselect = num_cs;
+	}
 
 	init_completion(&fsl_lpspi->xfer_done);
 
