@@ -1999,19 +1999,17 @@ static long mxc_v4l_do_ioctl(struct file *file,
 			break;
 		}
 
-		if (buf->memory & V4L2_MEMORY_MMAP) {
-			memset(buf, 0, sizeof(*buf));
-			buf->index = index;
-		}
-
 		down(&cam->param_lock);
 		if (buf->memory & V4L2_MEMORY_USERPTR) {
 			mxc_v4l2_release_bufs(cam);
 			retval = mxc_v4l2_prepare_bufs(cam, buf);
 		}
 
-		if (buf->memory & V4L2_MEMORY_MMAP)
+		if (buf->memory & V4L2_MEMORY_MMAP) {
+			memset(buf, 0, sizeof(*buf));
+			buf->index = index;
 			retval = mxc_v4l2_buffer_status(cam, buf);
+		}
 		up(&cam->param_lock);
 		break;
 	}
@@ -2543,6 +2541,7 @@ static void camera_callback(u32 mask, void *dev)
 	struct mxc_v4l_frame *done_frame;
 	struct mxc_v4l_frame *ready_frame;
 	struct timeval cur_time;
+	struct timespec ts;
 
 	cam_data *cam = (cam_data *) dev;
 	if (cam == NULL)
@@ -2553,7 +2552,9 @@ static void camera_callback(u32 mask, void *dev)
 	spin_lock(&cam->queue_int_lock);
 	spin_lock(&cam->dqueue_int_lock);
 	if (!list_empty(&cam->working_q)) {
-		do_gettimeofday(&cur_time);
+        ktime_get_ts(&ts);
+        cur_time.tv_sec = ts.tv_sec;
+        cur_time.tv_usec = ts.tv_nsec / NSEC_PER_USEC;
 
 		done_frame = list_entry(cam->working_q.next,
 					struct mxc_v4l_frame,
