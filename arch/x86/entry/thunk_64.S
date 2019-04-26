@@ -41,6 +41,8 @@
 #ifdef CONFIG_TRACE_IRQFLAGS
 	THUNK trace_hardirqs_on_thunk,trace_hardirqs_on_caller,1
 	THUNK trace_hardirqs_off_thunk,trace_hardirqs_off_caller,1
+	THUNK trace_hardirqs_on_thunk_cr2,trace_hardirqs_on_caller_cr2,1
+	THUNK trace_hardirqs_off_thunk_cr2,trace_hardirqs_off_caller_cr2,1
 #endif
 
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
