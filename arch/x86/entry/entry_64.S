@@ -1288,12 +1288,12 @@ ENTRY(error_entry)
 	 * we fix gsbase, and we should do it before enter_from_user_mode
 	 * (which can take locks).
 	 */
-	TRACE_IRQS_OFF
+	TRACE_IRQS_OFF_CR2
 	CALL_enter_from_user_mode
 	ret
 
 .Lerror_entry_done:
-	TRACE_IRQS_OFF
+	TRACE_IRQS_OFF_CR2
 	ret
 
 	/*
