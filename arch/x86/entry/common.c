@@ -299,6 +299,32 @@ __visible void do_syscall_64(unsigned long nr, struct pt_regs *regs)
 
 	syscall_return_slowpath(regs);
 }
+
+extern void trace_hardirqs_on_caller(unsigned long caller_addr);
+__visible void trace_hardirqs_on_caller_cr2(unsigned long caller_addr)
+{
+	unsigned long address = read_cr2(); /* Get the faulting address */
+	enum ctx_state prev_state;
+
+	prev_state = exception_enter();
+	trace_hardirqs_on_caller(caller_addr);
+	if (address != read_cr2())
+		write_cr2(address);
+	exception_exit(prev_state);
+}
+
+extern void trace_hardirqs_off_caller(unsigned long caller_addr);
+__visible void trace_hardirqs_off_caller_cr2(unsigned long caller_addr)
+{
+	unsigned long address = read_cr2(); /* Get the faulting address */
+	enum ctx_state prev_state;
+
+	prev_state = exception_enter();
+	trace_hardirqs_off_caller(caller_addr);
+	if (address != read_cr2())
+		write_cr2(address);
+	exception_exit(prev_state);
+}
 #endif
 
 #if defined(CONFIG_X86_32) || defined(CONFIG_IA32_EMULATION)
