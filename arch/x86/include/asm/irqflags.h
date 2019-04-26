@@ -172,9 +172,13 @@ static inline int arch_irqs_disabled(void)
 #ifdef CONFIG_TRACE_IRQFLAGS
 #  define TRACE_IRQS_ON		call trace_hardirqs_on_thunk;
 #  define TRACE_IRQS_OFF	call trace_hardirqs_off_thunk;
+#  define TRACE_IRQS_ON_CR2	call trace_hardirqs_on_thunk_cr2;
+#  define TRACE_IRQS_OFF_CR2	call trace_hardirqs_off_thunk_cr2;
 #else
 #  define TRACE_IRQS_ON
 #  define TRACE_IRQS_OFF
+#  define TRACE_IRQS_ON_CR2
+#  define TRACE_IRQS_OFF_CR2
 #endif
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 #  ifdef CONFIG_X86_64
