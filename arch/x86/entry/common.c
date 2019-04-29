@@ -293,6 +293,7 @@ __visible void do_syscall_64(unsigned long nr, struct pt_regs *regs)
 	syscall_return_slowpath(regs);
 }
 
+#ifdef CONFIG_TRACE_IRQFLAGS
 extern void trace_hardirqs_on_caller(unsigned long caller_addr);
 __visible void trace_hardirqs_on_caller_cr2(unsigned long caller_addr)
 {
@@ -318,6 +319,7 @@ __visible void trace_hardirqs_off_caller_cr2(unsigned long caller_addr)
 		write_cr2(address);
 	exception_exit(prev_state);
 }
+#endif
 #endif
 
 #if defined(CONFIG_X86_32) || defined(CONFIG_IA32_EMULATION)
