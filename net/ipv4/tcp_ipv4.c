@@ -1687,11 +1687,6 @@ bool tcp_add_backlog(struct sock *sk, struct sk_buff *skb)
 	if (skb_try_coalesce(tail, skb, &fragstolen, &delta)) {
 		thtail->window = th->window;
 
-		/* We have to update both TCP_SKB_CB(tail)->tcp_flags and
-		 * thtail->fin, so that the fast path in tcp_rcv_established()
-		 * is not entered if we append a packet with a FIN.
-		 */
-		thtail->fin |= th->fin;
 		TCP_SKB_CB(tail)->end_seq = TCP_SKB_CB(skb)->end_seq;
 
 		if (after(TCP_SKB_CB(skb)->ack_seq, TCP_SKB_CB(tail)->ack_seq))
