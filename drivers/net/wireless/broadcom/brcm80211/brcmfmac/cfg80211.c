@@ -5024,7 +5024,6 @@ static int brcmf_cfg80211_get_channel(struct wiphy *wiphy,
 {
 	struct brcmf_cfg80211_info *cfg = wiphy_to_cfg(wiphy);
 	struct net_device *ndev = wdev->netdev;
-	struct brcmf_pub *drvr = cfg->pub;
 	struct brcmf_if *ifp;
 	struct brcmu_chan ch;
 	enum nl80211_band band = 0;
@@ -5038,7 +5037,7 @@ static int brcmf_cfg80211_get_channel(struct wiphy *wiphy,
 
 	err = brcmf_fil_iovar_int_get(ifp, "chanspec", &chanspec);
 	if (err) {
-		bphy_err(drvr, "chanspec failed (%d)\n", err);
+		brcmf_dbg(TRACE, "chanspec failed (%d)\n", err);
 		return err;
 	}
 
