@@ -157,7 +157,6 @@ static int tcpci_start_toggling(struct tcpc_dev *tcpc,
 			return ret;
 	}
 
-	switch (cc) {
 	/* Only set DRP bit for auto toggle when unattached */
 	if (attach) {
 		switch (cc) {
@@ -846,7 +845,7 @@ static int tcpci_suspend(struct device *dev)
 	if (device_may_wakeup(dev))
 		enable_irq_wake(chip->tcpci->client->irq);
 	else
-		disable_irq(tcpci->client->irq);
+		disable_irq(chip->tcpci->client->irq);
 
 	return 0;
 }
@@ -858,7 +857,7 @@ static int tcpci_resume(struct device *dev)
 	if (device_may_wakeup(dev))
 		disable_irq_wake(chip->tcpci->client->irq);
 	else
-		enable_irq(tcpci->client->irq);
+		enable_irq(chip->tcpci->client->irq);
 
 	return 0;
 }
