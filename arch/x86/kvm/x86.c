@@ -6984,7 +6984,6 @@ static struct perf_guest_info_callbacks kvm_guest_cbs = {
 static void kvm_set_mmio_spte_mask(void)
 {
 	u64 mask;
-	int maxphyaddr = boot_cpu_data.x86_phys_bits;
 
 	/*
 	 * Set the reserved bits and the present bit of an paging-structure
@@ -7004,7 +7003,7 @@ static void kvm_set_mmio_spte_mask(void)
 	 * If reserved bit is not supported, clear the present bit to disable
 	 * mmio page fault.
 	 */
-	if (IS_ENABLED(CONFIG_X86_64) && maxphyaddr == 52)
+	if (IS_ENABLED(CONFIG_X86_64) && shadow_phys_bits == 52)
 		mask &= ~1ull;
 
 	kvm_mmu_set_mmio_spte_mask(mask, mask);
