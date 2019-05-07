@@ -348,6 +348,8 @@ static void mxsfb_pipe_disable(struct drm_simple_display_pipe *pipe)
 	drm_panel_unprepare(mxsfb->panel);
 	pm_runtime_put_sync(drm->dev);
 
+	drm_crtc_vblank_off(&mxsfb->pipe.crtc);
+
 	if (mxsfb->connector != &mxsfb->panel_connector)
 		mxsfb->connector = NULL;
 
