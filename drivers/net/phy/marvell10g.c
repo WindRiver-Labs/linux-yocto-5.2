@@ -30,19 +30,20 @@
 #define MV_PHY_ALASKA_NBT_QUIRK_MASK	0xfffffffe
 #define MV_PHY_ALASKA_NBT_QUIRK_REV	(MARVELL_PHY_ID_88X3310 | 0xa)
 
-#define MII_88E2110_PHY_STATUS		0x8008
-#define MII_88E2110_PHY_STATUS_SPD_MASK	0xc00c
-#define MII_88E2110_PHY_STATUS_5000	0xc008
-#define MII_88E2110_PHY_STATUS_2500	0xc004
-#define MII_88E2110_PHY_STATUS_1000	0x8000
-#define MII_88E2110_PHY_STATUS_100	0x4000
-#define MII_88E2110_PHY_STATUS_DUPLEX	0x2000
-#define MII_88E2110_PHY_STATUS_SPDDONE	0x0800
-#define MII_88E2110_PHY_STATUS_LINK	0x0400
+#define MV_COPPER_PHY_STATUS_LINK	0x0400
+#define MV_PHY_AN_ADVERTISE		0x10
+#define MV_PHY_AN_LPA			0x13
+#define MV_PHY_STATUS_DUPLEX		0x2000
+#define MV_PHY_STATUS_SPD_MASK		0xc00c
+#define MV_PHY_STATUS_10000		0xc000
+#define MV_PHY_STATUS_5000		0xc008
+#define MV_PHY_STATUS_2500		0xc004
+#define MV_PHY_STATUS_1000		0x8000
+#define MV_PHY_STATUS_100		0x4000
 
-#define MII_88E2110_ADVERTISE		0x10
-#define MII_88E2110_LPA			0x13
-#define MII_88E2110_STAT1000		0x8001
+#define MV_MGBASET_AN_FS_RETRAIN_10G	0x2
+#define MV_MGBASET_AN_FS_RETRAIN_5G	0x40
+#define MV_MGBASET_AN_FS_RETRAIN_2_5G	0x20
 
 enum {
 	MV_PMA_BOOT		= 0xc050,
@@ -56,6 +57,7 @@ enum {
 	MV_PCS_PAIRSWAP_MASK	= 0x0003,
 	MV_PCS_PAIRSWAP_AB	= 0x0002,
 	MV_PCS_PAIRSWAP_NONE	= 0x0003,
+	MV_PCS_COPPER_STATUS	= 0x8008,
 
 	/* These registers appear at 0x800X and 0xa00X - the 0xa00X control
 	 * registers appear to set themselves to the 0x800X when AN is
@@ -500,17 +502,17 @@ static int m88e2110_read_status(struct phy_device *phydev)
 {
 	int adv, lpa, lpagb, status;
 
-	status = phy_read_mmd(phydev, MDIO_MMD_PCS, MII_88E2110_PHY_STATUS);
+	status = phy_read_mmd(phydev, MDIO_MMD_PCS, MV_PCS_COPPER_STATUS);
 	if (status < 0)
 		return status;
 
-	if (!(status & MII_88E2110_PHY_STATUS_LINK)) {
+	if (!(status & MV_COPPER_PHY_STATUS_LINK)) {
 		phydev->link = 0;
 		return 0;
 	}
 
 	phydev->link = 1;
-	if (status & MII_88E2110_PHY_STATUS_DUPLEX)
+	if (status & MV_PHY_STATUS_DUPLEX)
 		phydev->duplex = DUPLEX_FULL;
 	else
 		phydev->duplex = DUPLEX_HALF;
@@ -518,17 +520,17 @@ static int m88e2110_read_status(struct phy_device *phydev)
 	phydev->pause = 0;
 	phydev->asym_pause = 0;
 
-	switch (status & MII_88E2110_PHY_STATUS_SPD_MASK) {
-	case MII_88E2110_PHY_STATUS_5000:
+	switch (status & MV_PHY_STATUS_SPD_MASK) {
+	case MV_PHY_STATUS_5000:
 		phydev->speed = SPEED_5000;
 		break;
-	case MII_88E2110_PHY_STATUS_2500:
+	case MV_PHY_STATUS_2500:
 		phydev->speed = SPEED_2500;
 		break;
-	case MII_88E2110_PHY_STATUS_1000:
+	case MV_PHY_STATUS_1000:
 		phydev->speed = SPEED_1000;
 		break;
-	case MII_88E2110_PHY_STATUS_100:
+	case MV_PHY_STATUS_100:
 		phydev->speed = SPEED_100;
 		break;
 	default:
@@ -541,11 +543,11 @@ static int m88e2110_read_status(struct phy_device *phydev)
 		if (lpa < 0)
 			return lpa;
 
-		lpagb = phy_read_mmd(phydev, MDIO_MMD_AN, MII_88E2110_STAT1000);
+		lpagb = phy_read_mmd(phydev, MDIO_MMD_AN, MV_AN_STAT1000);
 		if (lpagb < 0)
 			return lpagb;
 
-		adv = phy_read_mmd(phydev, MDIO_MMD_AN, MII_88E2110_ADVERTISE);
+		adv = phy_read_mmd(phydev, MDIO_MMD_AN, MV_PHY_AN_ADVERTISE);
 		if (adv < 0)
 			return adv;
 
