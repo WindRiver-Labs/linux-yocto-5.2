@@ -261,6 +261,64 @@ static int mv3310_suspend(struct phy_device *phydev)
 				MV_V2_PORT_CTRL_PWRDOWN);
 }
 
+static int mv3310_modify(struct phy_device *phydev, int devad, u16 reg,
+			 u16 mask, u16 bits)
+{
+	int old, val, ret;
+
+	old = phy_read_mmd(phydev, devad, reg);
+	if (old < 0)
+		return old;
+
+	val = (old & ~mask) | (bits & mask);
+	if (val == old)
+		return 0;
+
+	ret = phy_write_mmd(phydev, devad, reg, val);
+
+	return ret < 0 ? ret : 1;
+}
+
+static void mv_set_adv_config_init(struct phy_device *phydev)
+{
+	u32 mask = MV_MGBASET_AN_FS_RETRAIN_10G | MV_MGBASET_AN_FS_RETRAIN_10G |
+		   MDIO_AN_10GBT_CTRL_ADV5G | MV_MGBASET_AN_FS_RETRAIN_5G |
+		   MDIO_AN_10GBT_CTRL_ADV2_5G | MV_MGBASET_AN_FS_RETRAIN_2_5G;
+
+	mv3310_modify(phydev, MDIO_MMD_AN, MDIO_AN_10GBT_CTRL, mask, 0);
+
+	switch (phydev->interface) {
+	case PHY_INTERFACE_MODE_10GKR:
+	case PHY_INTERFACE_MODE_RXAUI:
+	case PHY_INTERFACE_MODE_XAUI:
+		mv3310_modify(phydev, MDIO_MMD_AN, MDIO_AN_10GBT_CTRL,
+			      MDIO_AN_10GBT_CTRL_ADV10G,
+			      MDIO_AN_10GBT_CTRL_ADV10G);
+		mv3310_modify(phydev, MDIO_MMD_AN, MDIO_AN_10GBT_CTRL,
+			      MV_MGBASET_AN_FS_RETRAIN_10G,
+			      MV_MGBASET_AN_FS_RETRAIN_10G);
+		/* Fall-through */
+	case PHY_INTERFACE_MODE_5GKR:
+		mv3310_modify(phydev, MDIO_MMD_AN, MDIO_AN_10GBT_CTRL,
+			      MDIO_AN_10GBT_CTRL_ADV5G,
+			      MDIO_AN_10GBT_CTRL_ADV5G);
+		mv3310_modify(phydev, MDIO_MMD_AN, MDIO_AN_10GBT_CTRL,
+			      MV_MGBASET_AN_FS_RETRAIN_5G,
+			      MV_MGBASET_AN_FS_RETRAIN_5G);
+		/* Fall-through */
+	case PHY_INTERFACE_MODE_2500BASET:
+		mv3310_modify(phydev, MDIO_MMD_AN, MDIO_AN_10GBT_CTRL,
+			      MDIO_AN_10GBT_CTRL_ADV2_5G,
+			      MDIO_AN_10GBT_CTRL_ADV2_5G);
+		mv3310_modify(phydev, MDIO_MMD_AN, MDIO_AN_10GBT_CTRL,
+			      MV_MGBASET_AN_FS_RETRAIN_2_5G,
+			      MV_MGBASET_AN_FS_RETRAIN_2_5G);
+		break;
+	default:
+		return;
+	}
+}
+
 static int mv3310_resume(struct phy_device *phydev)
 {
 	int ret;
@@ -301,6 +359,8 @@ static int mv3310_config_init(struct phy_device *phydev)
 	    phydev->interface != PHY_INTERFACE_MODE_10GKR &&
 	    phydev->interface != PHY_INTERFACE_MODE_5GKR)
 		return -ENODEV;
+
+	mv_set_adv_config_init(phydev);
 
 	return 0;
 }
