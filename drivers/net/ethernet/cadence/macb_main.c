@@ -3468,6 +3468,7 @@ static int macb_clk_init(struct platform_device *pdev, struct clk **pclk,
 	int err;
 
 	*pclk = devm_clk_get(&pdev->dev, "pclk");
+
 	if (IS_ERR_OR_NULL(*pclk)) {
 		err = PTR_ERR(*pclk);
 		if (!err)
