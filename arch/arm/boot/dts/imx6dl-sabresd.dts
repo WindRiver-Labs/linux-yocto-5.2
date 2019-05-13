@@ -57,72 +57,85 @@
 };
 
 &i2c3 {
-        max17135@48 {
-                compatible = "maxim,max17135";
-                reg = <0x48>;
-                vneg_pwrup = <1>;
-                gvee_pwrup = <1>;
-                vpos_pwrup = <2>;
-                gvdd_pwrup = <1>;
-                gvdd_pwrdn = <1>;
-                vpos_pwrdn = <2>;
-                gvee_pwrdn = <1>;
-                vneg_pwrdn = <1>;
-                SENSOR-supply = <&reg_sensor>;
-                gpio_pmic_pwrgood = <&gpio2 21 0>;
-                gpio_pmic_vcom_ctrl = <&gpio3 17 0>;
-                gpio_pmic_wakeup = <&gpio3 20 0>;
-                gpio_pmic_v3p3 = <&gpio2 20 0>;
-                gpio_pmic_intr = <&gpio2 25 0>;
+	elan@10 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_epdc_elan_touch>;
+		compatible = "elan,elan-touch";
+		reg = <0x10>;
+		interrupt-parent = <&gpio3>;
+		interrupts = <28 IRQ_TYPE_EDGE_FALLING>;
+		gpio_elan_cs = <&gpio2 18 0>;
+		gpio_elan_rst = <&gpio3 8 0>;
+		gpio_intr = <&gpio3 28 0>;
+		status = "okay";
+	};
 
-                regulators {
-                        DISPLAY_reg: DISPLAY {
-                                regulator-name = "DISPLAY";
-                        };
+    max17135@48 {
+            compatible = "maxim,max17135";
+            reg = <0x48>;
+            vneg_pwrup = <1>;
+            gvee_pwrup = <1>;
+            vpos_pwrup = <2>;
+            gvdd_pwrup = <1>;
+            gvdd_pwrdn = <1>;
+            vpos_pwrdn = <2>;
+            gvee_pwrdn = <1>;
+            vneg_pwrdn = <1>;
+            SENSOR-supply = <&reg_sensors>;
+            gpio_pmic_pwrgood = <&gpio2 21 0>;
+            gpio_pmic_vcom_ctrl = <&gpio3 17 0>;
+            gpio_pmic_wakeup = <&gpio3 20 0>;
+            gpio_pmic_v3p3 = <&gpio2 20 0>;
+            gpio_pmic_intr = <&gpio2 25 0>;
 
-                        GVDD_reg: GVDD {
-                                /* 20v */
-                                regulator-name = "GVDD";
-                        };
+            regulators {
+                    DISPLAY_reg: DISPLAY {
+                            regulator-name = "DISPLAY";
+                    };
 
-                        GVEE_reg: GVEE {
-                                /* -22v */
-                                regulator-name = "GVEE";
-                        };
+                    GVDD_reg: GVDD {
+                            /* 20v */
+                            regulator-name = "GVDD";
+                    };
 
-                        HVINN_reg: HVINN {
-                                /* -22v */
-                                regulator-name = "HVINN";
-                        };
+                    GVEE_reg: GVEE {
+                            /* -22v */
+                            regulator-name = "GVEE";
+                    };
 
-                        HVINP_reg: HVINP {
-                                /* 20v */
-                                regulator-name = "HVINP";
-                        };
+                    HVINN_reg: HVINN {
+                            /* -22v */
+                            regulator-name = "HVINN";
+                    };
 
-                        VCOM_reg: VCOM {
-                                regulator-name = "VCOM";
-                                /* Real max: -500000 */
-                                regulator-max-microvolt = <4325000>;
-                                /* Real min: -4325000 */
-                                regulator-min-microvolt = <500000>;
-                        };
+                    HVINP_reg: HVINP {
+                            /* 20v */
+                            regulator-name = "HVINP";
+                    };
 
-                        VNEG_reg: VNEG {
-                                /* -15v */
-                                regulator-name = "VNEG";
-                        };
+                    VCOM_reg: VCOM {
+                            regulator-name = "VCOM";
+                            /* Real max: -500000 */
+                            regulator-max-microvolt = <4325000>;
+                            /* Real min: -4325000 */
+                            regulator-min-microvolt = <500000>;
+                    };
 
-                        VPOS_reg: VPOS {
-                                /* 15v */
-                                regulator-name = "VPOS";
-                        };
+                    VNEG_reg: VNEG {
+                            /* -15v */
+                            regulator-name = "VNEG";
+                    };
 
-                        V3P3_reg: V3P3 {
-                                regulator-name = "V3P3";
-                        };
-                };
-        };
+                    VPOS_reg: VPOS {
+                            /* 15v */
+                            regulator-name = "VPOS";
+                    };
+
+                    V3P3_reg: V3P3 {
+                            regulator-name = "V3P3";
+                    };
+            };
+    };
 };
 
 &ipu1_csi1_from_ipu1_csi1_mux {

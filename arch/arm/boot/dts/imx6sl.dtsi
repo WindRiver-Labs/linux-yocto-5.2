@@ -925,9 +925,6 @@
 				ahb-burst-config = <0x0>;
 				tx-burst-size-dword = <0x10>;
 				rx-burst-size-dword = <0x10>;
-				phy_type = "hsic";
-				fsl,usbphy = <&usbphy_nop1>;
-				fsl,anatop = <&anatop>;
 				status = "disabled";
 			};
 
@@ -943,9 +940,10 @@
 				ahb-burst-config = <0x0>;
 				tx-burst-size-dword = <0x10>;
 				rx-burst-size-dword = <0x10>;
+				fsl,anatop = <&anatop>;
 				status = "disabled";
 			};
-
+			
 			usbmisc: usbmisc@2184800 {
 				#index-cells = <1>;
 				compatible = "fsl,imx6sl-usbmisc", "fsl,imx6q-usbmisc";

@@ -14,8 +14,9 @@
 
 #include "imx6ul-14x14-evk-ecspi.dts"
 
-/delete-node/&spidev0;
+/delete-node/ &spidev0;
 
 &ecspi4 {
+	#address-cells = <0>;
 	spi-slave;
 };
