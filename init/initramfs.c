@@ -542,7 +542,7 @@ static void __init free_initrd(void)
 	 * If the initrd region is overlapped with crashkernel reserved region,
 	 * free only memory that is not part of crashkernel region.
 	 */
-	if (initrd_start < crashk_end && initrd_end > crashk_start) {
+	if (initrd_start && initrd_start < crashk_end && initrd_end > crashk_start) {
 		/*
 		 * Initialize initrd memory region since the kexec boot does
 		 * not do.
@@ -552,7 +552,7 @@ static void __init free_initrd(void)
 			free_initrd_mem(initrd_start, crashk_start);
 		if (initrd_end > crashk_end)
 			free_initrd_mem(crashk_end, initrd_end);
-	} else
+	} else if (initrd_start)
 #endif
 		free_initrd_mem(initrd_start, initrd_end);
 skip:
