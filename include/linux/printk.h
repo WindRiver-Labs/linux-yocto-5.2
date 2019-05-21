@@ -353,7 +353,7 @@ extern int kptr_restrict;
 #ifdef CONFIG_PRINTK
 #define printk_once(fmt, ...)					\
 ({								\
-	static bool __print_once __read_mostly;			\
+	static bool __section(.data.once) __print_once;		\
 	bool __ret_print_once = !__print_once;			\
 								\
 	if (!__print_once) {					\
@@ -364,7 +364,7 @@ extern int kptr_restrict;
 })
 #define printk_deferred_once(fmt, ...)				\
 ({								\
-	static bool __print_once __read_mostly;			\
+	static bool __section(.data.once) __print_once;		\
 	bool __ret_print_once = !__print_once;			\
 								\
 	if (!__print_once) {					\
