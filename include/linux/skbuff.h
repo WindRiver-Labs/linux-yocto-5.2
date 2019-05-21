@@ -675,15 +675,12 @@ struct sk_buff {
 				 * UDP receive path is one user.
 				 */
 				unsigned long		dev_scratch;
+				int			ip_defrag_offset;
 			};
 		};
-		struct rb_node	rbnode; /* used in netem, ip4 defrag, and tcp stack */
+		struct rb_node	rbnode; /* used in netem & tcp stack */
 	};
-
-	union {
-		struct sock		*sk;
-		int			ip_defrag_offset;
-	};
+	struct sock		*sk;
 
 	union {
 		ktime_t		tstamp;
