@@ -28,6 +28,7 @@
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/pm_domain.h>
+#include <asm/smp_plat.h>
 #include <soc/imx/fsl_sip.h>
 
 #define GPC_MAX_IRQS		(4 * 32)
@@ -98,7 +99,7 @@ static int imx_gpc_psci_irq_set_affinity(struct irq_data *d,
 
 	spin_lock(&gpc_psci_lock);
 	arm_smccc_smc(FSL_SIP_GPC, 0x4, d->hwirq,
-		      cpu, 0, 0, 0, 0, &res);
+		      cpu_logical_map(cpu), 0, 0, 0, 0, &res);
 	spin_unlock(&gpc_psci_lock);
 
 	return 0;
