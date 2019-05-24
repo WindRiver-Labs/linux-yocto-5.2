@@ -867,8 +867,6 @@ static inline long divider_ro_round_rate(struct clk_hw *hw, unsigned long rate,
  */
 unsigned long clk_hw_round_rate(struct clk_hw *hw, unsigned long rate);
 
-struct of_device_id;
-
 struct clk_onecell_data {
 	struct clk **clks;
 	unsigned int clk_num;
@@ -878,8 +876,6 @@ struct clk_hw_onecell_data {
 	unsigned int num;
 	struct clk_hw *hws[];
 };
-
-extern struct of_device_id __clk_of_table;
 
 #define CLK_OF_DECLARE(name, compat, fn) OF_DECLARE_1(clk, name, compat, fn)
 
