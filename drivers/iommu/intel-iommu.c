@@ -2614,7 +2614,6 @@ static struct dmar_domain *find_or_alloc_domain(struct device *dev, int gaw)
 	}
 
 out:
-
 	return domain;
 }
 
@@ -2952,7 +2951,7 @@ static bool device_is_rmrr_locked(struct device *dev)
  *  - IOMMU_DOMAIN_IDENTITY: device requires an identical mapping domain
  *  - 0: both identity and dynamic domains work for this device
  */
-static int device_def_domain_type(struct device *dev, int startup)
+static int device_def_domain_type(struct device *dev)
 {
 	if (dev_is_pci(dev)) {
 		struct pci_dev *pdev = to_pci_dev(dev);
@@ -3006,16 +3005,16 @@ static int device_def_domain_type(struct device *dev, int startup)
 			IOMMU_DOMAIN_IDENTITY : 0;
 }
 
-static inline int iommu_should_identity_map(struct device *dev, int startup)
+static inline int iommu_should_identity_map(struct device *dev)
 {
-	return device_def_domain_type(dev, startup) == IOMMU_DOMAIN_IDENTITY;
+	return device_def_domain_type(dev) == IOMMU_DOMAIN_IDENTITY;
 }
 
 static int __init dev_prepare_static_identity_mapping(struct device *dev, int hw)
 {
 	int ret;
 
-	if (!iommu_should_identity_map(dev, 1))
+	if (!iommu_should_identity_map(dev))
 		return 0;
 
 	ret = domain_add_dev_info(si_domain, dev);
@@ -3565,16 +3564,17 @@ static unsigned long intel_alloc_iova(struct device *dev,
 	return iova_pfn;
 }
 
-struct dmar_domain *get_valid_domain_for_dev(struct device *dev)
+static struct dmar_domain *get_private_domain_for_dev(struct device *dev)
 {
 	struct dmar_domain *domain, *tmp;
 	struct dmar_rmrr_unit *rmrr;
 	struct device *i_dev;
 	int i, ret;
 
+	/* Device shouldn't be attached by any domains. */
 	domain = find_domain(dev);
 	if (domain)
-		goto out;
+		return NULL;
 
 	domain = find_or_alloc_domain(dev, DEFAULT_DOMAIN_ADDRESS_WIDTH);
 	if (!domain)
@@ -3604,10 +3604,8 @@ struct dmar_domain *get_valid_domain_for_dev(struct device *dev)
 	}
 
 out:
-
 	if (!domain)
 		dev_err(dev, "Allocating domain failed\n");
-
 
 	return domain;
 }
@@ -3645,7 +3643,7 @@ static bool iommu_need_mapping(struct device *dev)
 				dmar_domain = to_dmar_domain(domain);
 				dmar_domain->flags |= DOMAIN_FLAG_LOSE_CHILDREN;
 			}
-			get_valid_domain_for_dev(dev);
+			get_private_domain_for_dev(dev);
 		}
 
 		dev_info(dev, "32bit DMA uses non-identity mapping\n");
@@ -3667,7 +3665,7 @@ static dma_addr_t __intel_map_single(struct device *dev, phys_addr_t paddr,
 
 	BUG_ON(dir == DMA_NONE);
 
-	domain = get_valid_domain_for_dev(dev);
+	domain = find_domain(dev);
 	if (!domain)
 		return DMA_MAPPING_ERROR;
 
@@ -3883,7 +3881,7 @@ static int intel_map_sg(struct device *dev, struct scatterlist *sglist, int nele
 	if (!iommu_need_mapping(dev))
 		return dma_direct_map_sg(dev, sglist, nelems, dir, attrs);
 
-	domain = get_valid_domain_for_dev(dev);
+	domain = find_domain(dev);
 	if (!domain)
 		return 0;
 
@@ -4583,7 +4581,7 @@ static int device_notifier(struct notifier_block *nb,
 
 		dmar_remove_one_dev_info(dev);
 	} else if (action == BUS_NOTIFY_ADD_DEVICE) {
-		if (iommu_should_identity_map(dev, 1))
+		if (iommu_should_identity_map(dev))
 			domain_add_dev_info(si_domain, dev);
 	}
 
@@ -5545,7 +5543,7 @@ static int intel_iommu_add_device(struct device *dev)
 	domain = iommu_get_domain_for_dev(dev);
 	dmar_domain = to_dmar_domain(domain);
 	if (domain->type == IOMMU_DOMAIN_DMA) {
-		if (device_def_domain_type(dev, 1) == IOMMU_DOMAIN_IDENTITY) {
+		if (device_def_domain_type(dev) == IOMMU_DOMAIN_IDENTITY) {
 			ret = iommu_request_dm_for_dev(dev);
 			if (ret) {
 				dmar_domain->flags |= DOMAIN_FLAG_LOSE_CHILDREN;
@@ -5558,11 +5556,11 @@ static int intel_iommu_add_device(struct device *dev)
 			return -ENODEV;
 		}
 	} else {
-		if (device_def_domain_type(dev, 1) == IOMMU_DOMAIN_DMA) {
+		if (device_def_domain_type(dev) == IOMMU_DOMAIN_DMA) {
 			ret = iommu_request_dm_for_dev(dev);
 			if (ret) {
 				dmar_domain->flags |= DOMAIN_FLAG_LOSE_CHILDREN;
-				if (!get_valid_domain_for_dev(dev)) {
+				if (!get_private_domain_for_dev(dev)) {
 					dev_warn(dev,
 						 "Failed to get a private domain.\n");
 					return -ENOMEM;
@@ -5655,7 +5653,7 @@ int intel_iommu_enable_pasid(struct intel_iommu *iommu, struct device *dev)
 	u64 ctx_lo;
 	int ret;
 
-	domain = get_valid_domain_for_dev(dev);
+	domain = find_domain(dev);
 	if (!domain)
 		return -EINVAL;
 
