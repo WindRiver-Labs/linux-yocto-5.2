@@ -1472,6 +1472,9 @@ int mvpp22_port_rss_ctx_create(struct mvpp2_port *port, u32 *port_ctx)
 			break;
 	}
 
+	if (i == MVPP22_N_RSS_TABLES)
+		return -EINVAL;
+
 	port->rss_ctx[i] = rss_ctx;
 	*port_ctx = i;
 
