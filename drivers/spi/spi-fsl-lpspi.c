@@ -863,10 +863,10 @@ static int fsl_lpspi_probe(struct platform_device *pdev)
 	fsl_lpspi->dev = &pdev->dev;
 	fsl_lpspi->is_slave = is_slave;
 
-	controller->cs_gpios = devm_kzalloc(&controller->dev,
+	if (!fsl_lpspi->is_slave) {
+		controller->cs_gpios = devm_kzalloc(&controller->dev,
 			sizeof(int) * controller->num_chipselect, GFP_KERNEL);
 
-	if (!fsl_lpspi->is_slave) {
 		for (i = 0; i < controller->num_chipselect; i++) {
 			int cs_gpio = of_get_named_gpio(np, "cs-gpios", i);
 
