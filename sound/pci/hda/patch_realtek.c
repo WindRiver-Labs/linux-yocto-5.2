@@ -431,12 +431,45 @@ static void alc_auto_setup_eapd(struct hda_codec *codec, bool on)
 		set_eapd(codec, *p, on);
 }
 
+static int find_ext_mic_pin(struct hda_codec *codec);
+
+static void alc_headset_mic_no_shutup(struct hda_codec *codec)
+{
+	const struct hda_pincfg *pin;
+	int mic_pin = find_ext_mic_pin(codec);
+	int i;
+
+	/* don't shut up pins when unloading the driver; otherwise it breaks
+	 * the default pin setup at the next load of the driver
+	 */
+	if (codec->bus->shutdown)
+		return;
+
+	snd_array_for_each(&codec->init_pins, i, pin) {
+		/* use read here for syncing after issuing each verb */
+		if (pin->nid != mic_pin)
+			snd_hda_codec_read(codec, pin->nid, 0,
+					AC_VERB_SET_PIN_WIDGET_CONTROL, 0);
+	}
+
+	codec->pins_shutup = 1;
+}
+
 static void alc_shutup_pins(struct hda_codec *codec)
 {
 	struct alc_spec *spec = codec->spec;
 
-	if (!spec->no_shutup_pins)
-		snd_hda_shutup_pins(codec);
+	switch (codec->core.vendor_id) {
+	case 0x10ec0286:
+	case 0x10ec0288:
+	case 0x10ec0298:
+		alc_headset_mic_no_shutup(codec);
+		break;
+	default:
+		if (!spec->no_shutup_pins)
+			snd_hda_shutup_pins(codec);
+		break;
+	}
 }
 
 /* generic shutup callback;
@@ -796,10 +829,9 @@ static int alc_init(struct hda_codec *codec)
 	if (spec->init_hook)
 		spec->init_hook(codec);
 
+	snd_hda_gen_init(codec);
 	alc_fix_pll(codec);
 	alc_auto_init_amp(codec, spec->init_amp);
-
-	snd_hda_gen_init(codec);
 
 	snd_hda_apply_fixup(codec, HDA_FIXUP_ACT_INIT);
 
@@ -2877,27 +2909,6 @@ static int alc269_parse_auto_config(struct hda_codec *codec)
 	}
 
 	return alc_parse_auto_config(codec, alc269_ignore, ssids);
-}
-
-static int find_ext_mic_pin(struct hda_codec *codec);
-
-static void alc286_shutup(struct hda_codec *codec)
-{
-	const struct hda_pincfg *pin;
-	int i;
-	int mic_pin = find_ext_mic_pin(codec);
-	/* don't shut up pins when unloading the driver; otherwise it breaks
-	 * the default pin setup at the next load of the driver
-	 */
-	if (codec->bus->shutdown)
-		return;
-	snd_array_for_each(&codec->init_pins, i, pin) {
-		/* use read here for syncing after issuing each verb */
-		if (pin->nid != mic_pin)
-			snd_hda_codec_read(codec, pin->nid, 0,
-					AC_VERB_SET_PIN_WIDGET_CONTROL, 0);
-	}
-	codec->pins_shutup = 1;
 }
 
 static void alc269vb_toggle_power_output(struct hda_codec *codec, int power_up)
@@ -6718,7 +6729,7 @@ static const struct snd_pci_quirk alc269_fixup_tbl[] = {
 	SND_PCI_QUIRK(0x17aa, 0x313c, "ThinkCentre Station", ALC294_FIXUP_LENOVO_MIC_LOCATION),
 	SND_PCI_QUIRK(0x17aa, 0x3902, "Lenovo E50-80", ALC269_FIXUP_DMIC_THINKPAD_ACPI),
 	SND_PCI_QUIRK(0x17aa, 0x3977, "IdeaPad S210", ALC283_FIXUP_INT_MIC),
-	SND_PCI_QUIRK(0x17aa, 0x3978, "IdeaPad Y410P", ALC269_FIXUP_NO_SHUTUP),
+	SND_PCI_QUIRK(0x17aa, 0x3978, "Lenovo B50-70", ALC269_FIXUP_DMIC_THINKPAD_ACPI),
 	SND_PCI_QUIRK(0x17aa, 0x5013, "Thinkpad", ALC269_FIXUP_LIMIT_INT_MIC_BOOST),
 	SND_PCI_QUIRK(0x17aa, 0x501a, "Thinkpad", ALC283_FIXUP_INT_MIC),
 	SND_PCI_QUIRK(0x17aa, 0x501e, "Thinkpad L440", ALC292_FIXUP_TPT440_DOCK),
@@ -7361,7 +7372,6 @@ static int patch_alc269(struct hda_codec *codec)
 	case 0x10ec0286:
 	case 0x10ec0288:
 		spec->codec_variant = ALC269_TYPE_ALC286;
-		spec->shutup = alc286_shutup;
 		break;
 	case 0x10ec0298:
 		spec->codec_variant = ALC269_TYPE_ALC298;
