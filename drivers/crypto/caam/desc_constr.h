@@ -469,7 +469,7 @@ struct alginfo {
 	unsigned int keylen_pad;
 	union {
 		caam_dma_addr_t key_dma;
-		void *key_virt;
+		const void *key_virt;
 	};
 	bool key_inline;
 };
