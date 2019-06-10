@@ -33,12 +33,11 @@ static inline void append_dec_op1(u32 *desc, u32 type)
 	}
 
 	jump_cmd = append_jump(desc, JUMP_TEST_ALL | JUMP_COND_SHRD);
-	append_operation(desc, type | OP_ALG_AS_INITFINAL |
-			 OP_ALG_DECRYPT);
+	append_operation(desc, type | OP_ALG_AS_INIT | OP_ALG_DECRYPT);
 	uncond_jump_cmd = append_jump(desc, JUMP_TEST_ALL);
 	set_jump_tgt_here(desc, jump_cmd);
-	append_operation(desc, type | OP_ALG_AS_INITFINAL |
-			 OP_ALG_DECRYPT | OP_ALG_AAI_DK);
+	append_operation(desc, type | OP_ALG_AS_INIT | OP_ALG_DECRYPT |
+			 OP_ALG_AAI_DK);
 	set_jump_tgt_here(desc, uncond_jump_cmd);
 }
 
@@ -1419,11 +1418,17 @@ void cnstr_shdsc_skcipher_encap(u32 * const desc, struct alginfo *cdata,
 				      LDST_OFFSET_SHIFT));
 
 	/* Load operation */
-	append_operation(desc, cdata->algtype | OP_ALG_AS_INITFINAL |
+	append_operation(desc, cdata->algtype | OP_ALG_AS_INIT |
 			 OP_ALG_ENCRYPT);
 
 	/* Perform operation */
 	skcipher_append_src_dst(desc);
+
+	/* Store IV */
+	if (ivsize)
+		append_seq_store(desc, ivsize, LDST_SRCDST_BYTE_CONTEXT |
+				 LDST_CLASS_1_CCB | (ctx1_iv_off <<
+				 LDST_OFFSET_SHIFT));
 
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR,
@@ -1488,13 +1493,19 @@ void cnstr_shdsc_skcipher_decap(u32 * const desc, struct alginfo *cdata,
 
 	/* Choose operation */
 	if (ctx1_iv_off)
-		append_operation(desc, cdata->algtype | OP_ALG_AS_INITFINAL |
+		append_operation(desc, cdata->algtype | OP_ALG_AS_INIT |
 				 OP_ALG_DECRYPT);
 	else
 		append_dec_op1(desc, cdata->algtype);
 
 	/* Perform operation */
 	skcipher_append_src_dst(desc);
+
+	/* Store IV */
+	if (ivsize)
+		append_seq_store(desc, ivsize, LDST_SRCDST_BYTE_CONTEXT |
+				 LDST_CLASS_1_CCB | (ctx1_iv_off <<
+				 LDST_OFFSET_SHIFT));
 
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR,
@@ -1547,6 +1558,10 @@ void cnstr_shdsc_xts_skcipher_encap(u32 * const desc, struct alginfo *cdata)
 	/* Perform operation */
 	skcipher_append_src_dst(desc);
 
+	/* Store upper 8B of IV */
+	append_seq_store(desc, 8, LDST_SRCDST_BYTE_CONTEXT | LDST_CLASS_1_CCB |
+			 (0x20 << LDST_OFFSET_SHIFT));
+
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR,
 		       "xts skcipher enc shdesc@" __stringify(__LINE__) ": ",
@@ -1596,6 +1611,10 @@ void cnstr_shdsc_xts_skcipher_decap(u32 * const desc, struct alginfo *cdata)
 
 	/* Perform operation */
 	skcipher_append_src_dst(desc);
+
+	/* Store upper 8B of IV */
+	append_seq_store(desc, 8, LDST_SRCDST_BYTE_CONTEXT | LDST_CLASS_1_CCB |
+			 (0x20 << LDST_OFFSET_SHIFT));
 
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR,
