@@ -739,10 +739,7 @@ static int fimc_cap_enum_fmt_mplane(struct file *file, void *priv,
 			       f->index);
 	if (!fmt)
 		return -EINVAL;
-	strscpy(f->description, fmt->name, sizeof(f->description));
 	f->pixelformat = fmt->fourcc;
-	if (fmt->fourcc == MEDIA_BUS_FMT_JPEG_1X8)
-		f->flags |= V4L2_FMT_FLAG_COMPRESSED;
 	return 0;
 }
 

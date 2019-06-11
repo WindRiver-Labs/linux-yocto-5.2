@@ -248,7 +248,6 @@ static int fimc_m2m_enum_fmt_mplane(struct file *file, void *priv,
 	if (!fmt)
 		return -EINVAL;
 
-	strscpy(f->description, fmt->name, sizeof(f->description));
 	f->pixelformat = fmt->fourcc;
 	return 0;
 }
