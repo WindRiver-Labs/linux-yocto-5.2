@@ -7,3 +7,4 @@ obj-$(CONFIG_HAVE_IMX_SC) += sc/
 obj-$(CONFIG_HAVE_IMX_SC_PD) += pm-domains.o
 obj-$(CONFIG_HAVE_IMX_BUSFREQ) += busfreq-imx8mq.o 
 obj-$(CONFIG_HAVE_IMX_GPC_PSCI) += gpc-psci.o
+obj-$(CONFIG_HAVE_IMX8_SECO) += seco_mu/
