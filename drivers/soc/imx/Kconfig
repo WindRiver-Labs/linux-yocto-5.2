@@ -27,4 +27,8 @@ config HAVE_IMX_RPMSG
 	select RPMSG_VIRTIO
 	select RPMSG
 	bool
+
+config HAVE_IMX8_SECO
+	bool
+
 endmenu
