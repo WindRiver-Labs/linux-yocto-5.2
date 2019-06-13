@@ -31,6 +31,8 @@
 #define DWC3_ALIGN_FRAME(d, n)	(((d)->frame_number + ((d)->interval * (n))) \
 					& ~((d)->interval - 1))
 
+static struct work_struct request_busfreq_worker;
+static struct work_struct release_busfreq_worker;
 /**
  * dwc3_gadget_set_test_mode - enables usb2 test modes
  * @dwc: pointer to our context structure
@@ -2740,9 +2742,19 @@ static void dwc3_gadget_disconnect_interrupt(struct dwc3 *dwc)
 	usb_gadget_set_state(&dwc->gadget, USB_STATE_NOTATTACHED);
 
 	if (dwc->connected) {
-		release_bus_freq(BUS_FREQ_HIGH);
+		schedule_work(&release_busfreq_worker);
 		dwc->connected = false;
 	}
+}
+
+static void request_busfreq_worker_handler(struct work_struct *work)
+{
+		request_bus_freq(BUS_FREQ_HIGH);
+}
+
+static void release_busfreq_worker_handler(struct work_struct *work)
+{
+		release_bus_freq(BUS_FREQ_HIGH);
 }
 
 static void dwc3_gadget_reset_interrupt(struct dwc3 *dwc)
@@ -2750,7 +2762,7 @@ static void dwc3_gadget_reset_interrupt(struct dwc3 *dwc)
 	u32			reg;
 
 	if (!dwc->connected) {
-		request_bus_freq(BUS_FREQ_HIGH);
+		schedule_work(&request_busfreq_worker);
 		dwc->connected = true;
 	}
 
@@ -3372,6 +3384,9 @@ int dwc3_gadget_init(struct dwc3 *dwc)
 	}
 
 	dwc3_gadget_set_speed(&dwc->gadget, dwc->maximum_speed);
+
+	INIT_WORK(&request_busfreq_worker, request_busfreq_worker_handler);
+	INIT_WORK(&release_busfreq_worker, release_busfreq_worker_handler);
 
 	return 0;
 
