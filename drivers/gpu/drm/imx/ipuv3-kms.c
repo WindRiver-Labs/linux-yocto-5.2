@@ -16,6 +16,7 @@
 #include <drm/drm_atomic.h>
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_fb_cma_helper.h>
+#include <drm/drm_fb_helper.h>
 #include <drm/drm_gem_cma_helper.h>
 #include <linux/dma-buf.h>
 #include <linux/reservation.h>
@@ -48,6 +49,7 @@ static int imx_drm_atomic_check(struct drm_device *dev,
 
 const struct drm_mode_config_funcs ipuv3_drm_mode_config_funcs = {
 	.fb_create = drm_fb_cma_create,
+	.output_poll_changed = drm_fb_helper_output_poll_changed,
 	.atomic_check = imx_drm_atomic_check,
 	.atomic_commit = drm_atomic_helper_commit,
 };
