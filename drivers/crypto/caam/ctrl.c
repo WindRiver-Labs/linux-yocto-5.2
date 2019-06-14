@@ -83,10 +83,11 @@ static int caam_remove(struct platform_device *pdev)
 	iounmap(ctrl);
 
 	/* shut clocks off before finalizing shutdown */
-	if (!of_machine_is_compatible("fsl,imx8mm") &&
-		!of_machine_is_compatible("fsl,imx8mq") &&
-		!of_machine_is_compatible("fsl,imx8qm") &&
-		!of_machine_is_compatible("fsl,imx8qxp")) {
+	if (!of_machine_is_compatible("fsl,imx8mn") &&
+	    !of_machine_is_compatible("fsl,imx8mm") &&
+	    !of_machine_is_compatible("fsl,imx8mq") &&
+	    !of_machine_is_compatible("fsl,imx8qm") &&
+	    !of_machine_is_compatible("fsl,imx8qxp")) {
 		clk_disable_unprepare(ctrlpriv->caam_ipg);
 		clk_disable_unprepare(ctrlpriv->caam_aclk);
 		if (ctrlpriv->caam_mem)
@@ -304,7 +305,7 @@ static void caam_ctrl_hw_configuration(struct caam_drv_private *ctrlpriv)
 			      (sizeof(dma_addr_t) == sizeof(u64) ?
 			       MCFGR_LONG_PTR : 0));
 
-	handle_imx6_err005766(ctrlpriv);
+	handle_imx6_err005766(&ctrlpriv->ctrl->mcr);
 
 	enable_virt(ctrlpriv);
 }
@@ -341,10 +342,11 @@ static int caam_probe(struct platform_device *pdev)
 
 	caam_imx = (bool)soc_device_match(imx_soc);
 
-	if (!of_machine_is_compatible("fsl,imx8mm") &&
-		 !of_machine_is_compatible("fsl,imx8mq") &&
-	     !of_machine_is_compatible("fsl,imx8qm") &&
-	     !of_machine_is_compatible("fsl,imx8qxp")) {
+	if (!of_machine_is_compatible("fsl,imx8mn") &&
+	    !of_machine_is_compatible("fsl,imx8mm") &&
+	    !of_machine_is_compatible("fsl,imx8mq") &&
+	    !of_machine_is_compatible("fsl,imx8qm") &&
+	    !of_machine_is_compatible("fsl,imx8qxp")) {
 		ret = init_clocks(ctrlpriv);
 		if (ret)
 			goto exit;
@@ -432,8 +434,9 @@ static int caam_probe(struct platform_device *pdev)
 		goto iounmap_ctrl;
 	}
 
-	if (!of_machine_is_compatible("fsl,imx8mm") &&
-		!of_machine_is_compatible("fsl,imx8mq") &&
+	if (!of_machine_is_compatible("fsl,imx8mn") &&
+	    !of_machine_is_compatible("fsl,imx8mm") &&
+	    !of_machine_is_compatible("fsl,imx8mq") &&
 	    !of_machine_is_compatible("fsl,imx8qm") &&
 	    !of_machine_is_compatible("fsl,imx8qxp")) {
 		ctrlpriv->sm_size = resource_size(&res_regs);
@@ -448,10 +451,11 @@ static int caam_probe(struct platform_device *pdev)
 		caam_ctrl_hw_configuration(ctrlpriv);
 
 	/* Set DMA masks according to platform ranging */
-	if (of_machine_is_compatible("fsl,imx8mm") ||
-		of_machine_is_compatible("fsl,imx8qm") ||
-		of_machine_is_compatible("fsl,imx8qxp") ||
-		of_machine_is_compatible("fsl,imx8mq")) {
+	if (of_machine_is_compatible("fsl,imx8mn") ||
+	    of_machine_is_compatible("fsl,imx8mm") ||
+	    of_machine_is_compatible("fsl,imx8qm") ||
+	    of_machine_is_compatible("fsl,imx8qxp") ||
+	    of_machine_is_compatible("fsl,imx8mq")) {
 		ret = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
 	} else if (sizeof(dma_addr_t) == sizeof(u64))
 		if (of_device_is_compatible(nprop, "fsl,sec-v5.0"))
@@ -502,10 +506,11 @@ caam_remove:
 iounmap_ctrl:
 	iounmap(ctrl);
 disable_clocks:
-	if (!of_machine_is_compatible("fsl,imx8mm") &&
-		!of_machine_is_compatible("fsl,imx8mq") &&
-		!of_machine_is_compatible("fsl,imx8qm") &&
-		!of_machine_is_compatible("fsl,imx8qxp")) {
+	if (!of_machine_is_compatible("fsl,imx8mn") &&
+	    !of_machine_is_compatible("fsl,imx8mm") &&
+	    !of_machine_is_compatible("fsl,imx8mq") &&
+	    !of_machine_is_compatible("fsl,imx8qm") &&
+	    !of_machine_is_compatible("fsl,imx8qxp")) {
 		clk_disable_unprepare(ctrlpriv->caam_emi_slow);
 		clk_disable_unprepare(ctrlpriv->caam_aclk);
 		clk_disable_unprepare(ctrlpriv->caam_mem);
@@ -661,10 +666,11 @@ static int probe_w_seco(struct caam_drv_private *ctrlpriv)
 	 */
 
 	/* Set DMA masks according to platform ranging */
-	if (of_machine_is_compatible("fsl,imx8mm") ||
-		of_machine_is_compatible("fsl,imx8qm") ||
-		of_machine_is_compatible("fsl,imx8qxp") ||
-		of_machine_is_compatible("fsl,imx8mq")) {
+	if (of_machine_is_compatible("fsl,imx8mn") ||
+	    of_machine_is_compatible("fsl,imx8mm") ||
+	    of_machine_is_compatible("fsl,imx8qm") ||
+	    of_machine_is_compatible("fsl,imx8qxp") ||
+	    of_machine_is_compatible("fsl,imx8mq")) {
 		ret = dma_set_mask_and_coherent(ctrlpriv->dev,
 			DMA_BIT_MASK(32));
 	} else if (sizeof(dma_addr_t) == sizeof(u64))
@@ -751,24 +757,24 @@ static void init_debugfs(struct caam_drv_private *ctrlpriv)
 	/* Internal covering keys (useful in non-secure mode only) */
 	ctrlpriv->ctl_kek_wrap.data = (__force void *)&ctrlpriv->ctrl->kek[0];
 	ctrlpriv->ctl_kek_wrap.size = KEK_KEY_SIZE * sizeof(u32);
-	ctrlpriv->ctl_kek = debugfs_create_blob("kek",
+	debugfs_create_blob("kek",
 						perm,
 						ctrlpriv->ctl,
 						&ctrlpriv->ctl_kek_wrap);
 
 	ctrlpriv->ctl_tkek_wrap.data = (__force void *)&ctrlpriv->ctrl->tkek[0];
 	ctrlpriv->ctl_tkek_wrap.size = KEK_KEY_SIZE * sizeof(u32);
-	ctrlpriv->ctl_tkek = debugfs_create_blob("tkek",
-						 perm,
-						 ctrlpriv->ctl,
-						 &ctrlpriv->ctl_tkek_wrap);
+	debugfs_create_blob("tkek",
+						perm,
+						ctrlpriv->ctl,
+						&ctrlpriv->ctl_tkek_wrap);
 
 	ctrlpriv->ctl_tdsk_wrap.data = (__force void *)&ctrlpriv->ctrl->tdsk[0];
 	ctrlpriv->ctl_tdsk_wrap.size = KEK_KEY_SIZE * sizeof(u32);
-	ctrlpriv->ctl_tdsk = debugfs_create_blob("tdsk",
-						 perm,
-						 ctrlpriv->ctl,
-						 &ctrlpriv->ctl_tdsk_wrap);
+	debugfs_create_blob("tdsk",
+						perm,
+						ctrlpriv->ctl,
+						&ctrlpriv->ctl_tdsk_wrap);
 #endif
 }
 

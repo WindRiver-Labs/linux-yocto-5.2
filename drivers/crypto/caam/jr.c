@@ -496,7 +496,6 @@ static void caam_jr_init_hw(struct device *dev, dma_addr_t inpbusaddr,
 
 static void caam_jr_reset_index(struct caam_drv_private_jr *jrp)
 {
-	jrp->inp_ring_write_index = 0;
 	jrp->out_ring_read_index = 0;
 	jrp->head = 0;
 	jrp->tail = 0;
@@ -635,10 +634,11 @@ static int caam_jr_probe(struct platform_device *pdev)
 
 	jrpriv->rregs = (struct caam_job_ring __iomem __force *)ctrl;
 
-	if (of_machine_is_compatible("fsl,imx8mm") ||
-		of_machine_is_compatible("fsl,imx8qm") ||
-		of_machine_is_compatible("fsl,imx8qxp") ||
-		of_machine_is_compatible("fsl,imx8mq")) {
+	if (of_machine_is_compatible("fsl,imx8mn") ||
+	    of_machine_is_compatible("fsl,imx8mm") ||
+	    of_machine_is_compatible("fsl,imx8qm") ||
+	    of_machine_is_compatible("fsl,imx8qxp") ||
+	    of_machine_is_compatible("fsl,imx8mq")) {
 		error = dma_set_mask_and_coherent(jrdev, DMA_BIT_MASK(32));
 	} else if (sizeof(dma_addr_t) == sizeof(u64)) {
 		if (caam_dpaa2)
