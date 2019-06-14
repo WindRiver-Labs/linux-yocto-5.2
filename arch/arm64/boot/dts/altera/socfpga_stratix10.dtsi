@@ -94,6 +94,7 @@
 		device_type = "soc";
 		interrupt-parent = <&intc>;
 		ranges = <0 0 0 0xffffffff>;
+		dma-ranges = <0x00000000 0x00000000 0x00000000 0x80000000>;
 
 		base_fpga_region {
 			#address-cells = <0x1>;
