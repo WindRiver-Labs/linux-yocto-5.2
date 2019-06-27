@@ -771,7 +771,7 @@ static void bss_info_ext_bss_handler (struct mt7615_dev *dev,
 /* SIFS 20us + 512 byte beacon tranmitted by 1Mbps (3906us) */
 #define BCN_TX_ESTIMATE_TIME (4096 + 20)
 	struct bss_info_ext_bss tlv = {0};
-	int ext_bss_idx;
+	int ext_bss_idx, tsf_offset;
 
 	ext_bss_idx = bss_info->omac_idx - EXT_BSSID_START;
 
@@ -780,7 +780,8 @@ static void bss_info_ext_bss_handler (struct mt7615_dev *dev,
 
 	tlv.tag = cpu_to_le16(BSS_INFO_EXT_BSS);
 	tlv.len = cpu_to_le16(sizeof(tlv));
-	tlv.mbss_tsf_offset = ext_bss_idx * BCN_TX_ESTIMATE_TIME;
+	tsf_offset = ext_bss_idx * BCN_TX_ESTIMATE_TIME;
+	tlv.mbss_tsf_offset = cpu_to_le32(tsf_offset);
 
 	memcpy(skb_put(skb, sizeof(tlv)), &tlv, sizeof(tlv));
 }
