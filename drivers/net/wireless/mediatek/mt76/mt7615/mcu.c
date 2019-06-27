@@ -1452,10 +1452,8 @@ int mt7615_mcu_set_ht_cap(struct mt7615_dev *dev, struct ieee80211_vif *vif,
 		sta_rec_vht->tag = cpu_to_le16(STA_REC_VHT);
 		sta_rec_vht->len = cpu_to_le16(sizeof(*sta_rec_vht));
 		sta_rec_vht->vht_cap = cpu_to_le32(sta->vht_cap.cap);
-		sta_rec_vht->vht_rx_mcs_map =
-			cpu_to_le16(sta->vht_cap.vht_mcs.rx_mcs_map);
-		sta_rec_vht->vht_tx_mcs_map =
-			cpu_to_le16(sta->vht_cap.vht_mcs.tx_mcs_map);
+		sta_rec_vht->vht_rx_mcs_map = sta->vht_cap.vht_mcs.rx_mcs_map;
+		sta_rec_vht->vht_tx_mcs_map = sta->vht_cap.vht_mcs.tx_mcs_map;
 	}
 
 	ret = __mt7615_mcu_set_sta_rec(dev, mvif->idx, msta->wcid.idx,
