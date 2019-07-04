@@ -297,7 +297,6 @@ static int dp83867_config_init(struct phy_device *phydev)
 		ret = phy_write(phydev, MII_DP83867_PHYCTRL, val);
 		if (ret)
 			return ret;
-
 	} else {
 		/* Set SGMIICTL1 6-wire mode */
 		if (dp83867->wiremode_6)
@@ -337,40 +336,6 @@ static int dp83867_config_init(struct phy_device *phydev)
 			val |= DP83867_CFG4_SGMII_AUTONEG_TIMER_11MS;
 			phy_write_mmd(phydev, DP83867_DEVADDR, DP83867_CFG4,
 				      val);
-		}
-	}
-
-	if ((phydev->interface >= PHY_INTERFACE_MODE_RGMII_ID) &&
-	    (phydev->interface <= PHY_INTERFACE_MODE_RGMII_RXID)) {
-		val = phy_read_mmd(phydev, DP83867_DEVADDR, DP83867_RGMIICTL);
-
-		if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID)
-			val |= (DP83867_RGMII_TX_CLK_DELAY_EN | DP83867_RGMII_RX_CLK_DELAY_EN);
-
-		if (phydev->interface == PHY_INTERFACE_MODE_RGMII_TXID)
-			val |= DP83867_RGMII_TX_CLK_DELAY_EN;
-
-		if (phydev->interface == PHY_INTERFACE_MODE_RGMII_RXID)
-			val |= DP83867_RGMII_RX_CLK_DELAY_EN;
-
-		phy_write_mmd(phydev, DP83867_DEVADDR, DP83867_RGMIICTL, val);
-
-		delay = (dp83867->rx_id_delay |
-			(dp83867->tx_id_delay << DP83867_RGMII_TX_CLK_DELAY_SHIFT));
-
-		phy_write_mmd(phydev, DP83867_DEVADDR, DP83867_RGMIIDCTL,
-			      delay);
-
-		if (dp83867->io_impedance >= 0) {
-			val = phy_read_mmd(phydev, DP83867_DEVADDR,
-					   DP83867_IO_MUX_CFG);
-
-			val &= ~DP83867_IO_MUX_CFG_IO_IMPEDANCE_CTRL;
-			val |= dp83867->io_impedance &
-			       DP83867_IO_MUX_CFG_IO_IMPEDANCE_CTRL;
-
-			phy_write_mmd(phydev, DP83867_DEVADDR,
-				      DP83867_IO_MUX_CFG, val);
 		}
 	}
 
