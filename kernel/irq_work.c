@@ -58,7 +58,7 @@ void __weak arch_irq_work_raise(void)
 }
 
 /* Enqueue on current CPU, work must already be claimed and preempt disabled */
-static void __irq_work_queue_local(struct irq_work *work)
+static void __irq_work_queue_local(struct irq_work *work, struct llist_head *list)
 {
         bool empty;
 
