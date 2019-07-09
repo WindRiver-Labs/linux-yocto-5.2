@@ -171,6 +171,10 @@ enum devlink_port_flavour {
 				      * the PCI PF. It is an internal
 				      * port that faces the PCI PF.
 				      */
+	DEVLINK_PORT_FLAVOUR_PCI_VF, /* Represents eswitch port
+				      * for the PCI VF. It is an internal
+				      * port that faces the PCI VF.
+				      */
 };
 
 enum devlink_param_cmode {
@@ -337,6 +341,8 @@ enum devlink_attr {
 	DEVLINK_ATTR_FLASH_UPDATE_COMPONENT,	/* string */
 
 	DEVLINK_ATTR_PORT_PCI_PF_NUMBER,	/* u16 */
+	DEVLINK_ATTR_PORT_PCI_VF_NUMBER,	/* u16 */
+
 	/* add new attributes above here, update the policy in devlink.c */
 
 	__DEVLINK_ATTR_MAX,
