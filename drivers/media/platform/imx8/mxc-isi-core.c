@@ -23,6 +23,7 @@ static irqreturn_t mxc_isi_irq_handler(int irq, void *priv)
 
 	status = mxc_isi_get_irq_status(mxc_isi);
 	mxc_isi_clean_irq_status(mxc_isi, status);
+	mxc_isi->status = status;
 
 	if (status & CHNL_STS_FRM_STRD_MASK) {
 		if (mxc_isi->is_m2m)
@@ -304,7 +305,7 @@ static int mxc_isi_of_parse_resets(struct mxc_isi_dev *mxc_isi)
 		if (!compat)
 			continue;
 
-		rstc = of_reset_control_array_get(child, false, false);
+		rstc = of_reset_control_array_get(child, false, false, true);
 		if (IS_ERR(rstc))
 			continue;
 
