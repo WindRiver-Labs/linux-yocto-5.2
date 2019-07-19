@@ -102,6 +102,9 @@ void sdhci_get_property(struct platform_device *pdev)
 
 	sdhci_get_compatibility(pdev);
 
+	if (device_property_present(dev, "broken-mmc-highspeed"))
+		host->quirks |= SDHCI_QUIRK_NO_HISPD_BIT;
+
 	device_property_read_u32(dev, "clock-frequency", &pltfm_host->clock);
 
 	if (device_property_present(dev, "keep-power-in-suspend"))

@@ -438,6 +438,7 @@ struct nand_ecc_ctrl {
  * @tWHR_min: WE# high to RE# low
  * @tWP_min: WE# pulse width
  * @tWW_min: WP# transition to WE# low
+ * @mode: sdr timing mode value
  */
 struct nand_sdr_timings {
 	u64 tBERS_max;
@@ -478,6 +479,7 @@ struct nand_sdr_timings {
 	u32 tWHR_min;
 	u32 tWP_min;
 	u32 tWW_min;
+	u8 mode;
 };
 
 /**
@@ -1367,6 +1369,15 @@ static inline void *nand_get_data_buf(struct nand_chip *chip)
 	chip->pagecache.page = -1;
 
 	return chip->data_buf;
+}
+
+/* return the supported synchronous timing mode. */
+static inline int onfi_get_sync_timing_mode(struct nand_chip *chip)
+{
+	if (!chip->parameters.onfi)
+		return ONFI_TIMING_MODE_UNKNOWN;
+
+	return le16_to_cpu(chip->parameters.onfi->src_sync_timing_mode);
 }
 
 #endif /* __LINUX_MTD_RAWNAND_H */

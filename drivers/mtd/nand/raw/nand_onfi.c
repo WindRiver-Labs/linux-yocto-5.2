@@ -149,6 +149,12 @@ int nand_onfi_detect(struct nand_chip *chip)
 
 	memorg = nanddev_get_memorg(&chip->base);
 
+	/* ONFI need to be probed in 8 bits mode, and 16 bits should be selected with NAND_BUSWIDTH_AUTO */
+	if (chip->options & NAND_BUSWIDTH_16) {
+		pr_err("Trying ONFI probe in 16 bits mode, aborting !\n");
+		return 0;
+	}
+
 	/* Try ONFI for unknown chip or LP */
 	ret = nand_readid_op(chip, 0x20, id, sizeof(id));
 	if (ret || strncmp(id, "ONFI", 4))
@@ -294,6 +300,8 @@ int nand_onfi_detect(struct nand_chip *chip)
 	onfi->tR = le16_to_cpu(p->t_r);
 	onfi->tCCS = le16_to_cpu(p->t_ccs);
 	onfi->async_timing_mode = le16_to_cpu(p->async_timing_mode);
+	onfi->src_sync_timing_mode = le16_to_cpu(p->src_sync_timing_mode);
+	onfi->jedec_id = le16_to_cpu(p->jedec_id);
 	onfi->vendor_revision = le16_to_cpu(p->vendor_revision);
 	memcpy(onfi->vendor, p->vendor, sizeof(p->vendor));
 	chip->parameters.onfi = onfi;

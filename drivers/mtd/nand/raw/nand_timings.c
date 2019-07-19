@@ -53,6 +53,7 @@ static const struct nand_data_interface onfi_sdr_timings[] = {
 			.tWHR_min = 120000,
 			.tWP_min = 50000,
 			.tWW_min = 100000,
+			.mode = 0,
 		},
 	},
 	/* Mode 1 */
@@ -95,6 +96,7 @@ static const struct nand_data_interface onfi_sdr_timings[] = {
 			.tWHR_min = 80000,
 			.tWP_min = 25000,
 			.tWW_min = 100000,
+			.mode = 1,
 		},
 	},
 	/* Mode 2 */
@@ -137,6 +139,7 @@ static const struct nand_data_interface onfi_sdr_timings[] = {
 			.tWHR_min = 80000,
 			.tWP_min = 17000,
 			.tWW_min = 100000,
+			.mode = 2,
 		},
 	},
 	/* Mode 3 */
@@ -179,6 +182,7 @@ static const struct nand_data_interface onfi_sdr_timings[] = {
 			.tWHR_min = 80000,
 			.tWP_min = 15000,
 			.tWW_min = 100000,
+			.mode = 3,
 		},
 	},
 	/* Mode 4 */
@@ -221,6 +225,7 @@ static const struct nand_data_interface onfi_sdr_timings[] = {
 			.tWHR_min = 80000,
 			.tWP_min = 12000,
 			.tWW_min = 100000,
+			.mode = 4,
 		},
 	},
 	/* Mode 5 */
@@ -263,6 +268,7 @@ static const struct nand_data_interface onfi_sdr_timings[] = {
 			.tWHR_min = 80000,
 			.tWP_min = 10000,
 			.tWW_min = 100000,
+			.mode = 5,
 		},
 	},
 };

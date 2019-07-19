@@ -145,6 +145,14 @@ extern "C" {
 #define DRM_FORMAT_BGRA1010102	fourcc_code('B', 'A', '3', '0') /* [31:0] B:G:R:A 10:10:10:2 little endian */
 
 /*
+ * 2 plane 10 bit per component YCbCr
+ * index 0 = Y plane, [31:0] x:Y2:Y1:Y0 2:10:10:10 little endian
+ * index 1 = Cb:Cr plane, [63:0] x:Cb2:Cr2:Cb1:x:Cr1:Cb0:Cr0 2:10:10:10:2:10:10:10 little endian
+ */
+#define DRM_FORMAT_XV15		fourcc_code('X', 'V', '1', '5') /* 2x2 subsampled Cb:Cr plane 2:10:10:10 */
+#define DRM_FORMAT_XV20		fourcc_code('X', 'V', '2', '0') /* 2x1 subsampled Cb:Cr plane 2:10:10:10 */
+
+/*
  * Floating point 64bpp RGB
  * IEEE 754-2008 binary16 half-precision float
  * [15:0] sign:exponent:mantissa 1:5:10
@@ -209,6 +217,13 @@ extern "C" {
 #define DRM_FORMAT_YUV420_8BIT	fourcc_code('Y', 'U', '0', '8')
 #define DRM_FORMAT_YUV420_10BIT	fourcc_code('Y', 'U', '1', '0')
 
+#define DRM_FORMAT_AVUY		fourcc_code('A', 'V', 'U', 'Y') /* [31:0] A:Cr:Cb:Y 8:8:8:8 little endian */
+#define DRM_FORMAT_XVUY8888	fourcc_code('X', 'V', '2', '4') /* [31:0] x:Cr:Cb:Y 8:8:8:8 little endian */
+#define DRM_FORMAT_XVUY2101010	fourcc_code('X', 'V', '3', '0') /* [31:0] x:Cr:Cb:Y 2:10:10:10 little endian */
+
+/* Grey scale */
+#define DRM_FORMAT_Y8		fourcc_code('G', 'R', 'E', 'Y') /* 8  Greyscale	*/
+#define DRM_FORMAT_Y10		fourcc_code('Y', '1', '0', ' ') /* 10 Greyscale */
 /*
  * 2 plane RGB + A
  * index 0 = RGB plane, same format as the corresponding non _A8 format has

@@ -122,7 +122,23 @@ struct drm_format_info {
 	 * drm_format_info_block_height()
 	 */
 	u8 block_h[3];
-
+	/**
+	 * @pixels_per_macropixel:
+	 * Number of pixels per macro-pixel (per plane). A macro-pixel is
+	 * composed of multiple pixels, and there can be extra bits between
+	 * pixels. This must be used along with @bytes_per_macropixel, only
+	 * when single pixel size is not byte-aligned. In this case, @cpp
+	 * is not valid and should be 0.
+	 */
+	u8 pixels_per_macropixel[3];
+	/**
+	 * @bytes_per_macropixel:
+	 * Number of bytes per macro-pixel (per plane). A macro-pixel is
+	 * composed of multiple pixels. The size of single macro-pixel should
+	 * be byte-aligned. This should be used with @pixels_per_macropixel,
+	 * and @cpp should be 0.
+	 */
+	u8 bytes_per_macropixel[3];
 	/** @hsub: Horizontal chroma subsampling factor */
 	u8 hsub;
 	/** @vsub: Vertical chroma subsampling factor */
@@ -280,6 +296,8 @@ unsigned int drm_format_info_block_height(const struct drm_format_info *info,
 					  int plane);
 uint64_t drm_format_info_min_pitch(const struct drm_format_info *info,
 				   int plane, unsigned int buffer_width);
+int drm_format_plane_width_bytes(const struct drm_format_info *info,
+				 int plane, int width);
 const char *drm_get_format_name(uint32_t format, struct drm_format_name_buf *buf);
 
 #endif /* __DRM_FOURCC_H__ */

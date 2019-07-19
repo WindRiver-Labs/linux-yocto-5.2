@@ -8,6 +8,7 @@
  * With code from the mailing list:
  * Copyright (C) 2013 Xilinx, Inc.
  */
+#include <linux/kernel.h>
 #include <linux/firmware.h>
 #include <linux/fpga/fpga-mgr.h>
 #include <linux/idr.h>
@@ -328,6 +329,11 @@ static int fpga_mgr_firmware_load(struct fpga_manager *mgr,
 
 	mgr->state = FPGA_MGR_STATE_FIRMWARE_REQ;
 
+	/* flags indicates whether to do full or partial reconfiguration */
+	info->flags = mgr->flags;
+	memcpy(info->key, mgr->key, ENCRYPTED_KEY_LEN);
+	memcpy(info->iv, mgr->key, ENCRYPTED_IV_LEN);
+
 	ret = request_firmware(&fw, image_name, dev);
 	if (ret) {
 		mgr->state = FPGA_MGR_STATE_FIRMWARE_REQ_ERR;
@@ -406,6 +412,91 @@ static ssize_t state_show(struct device *dev,
 	return sprintf(buf, "%s\n", state_str[mgr->state]);
 }
 
+static ssize_t firmware_store(struct device *dev,
+			      struct device_attribute *attr,
+			      const char *buf, size_t count)
+{
+	struct fpga_manager *mgr = to_fpga_manager(dev);
+	unsigned int len;
+	char image_name[NAME_MAX];
+	int ret;
+
+	/* struct with information about the FPGA image to program. */
+	struct fpga_image_info info = {0};
+
+	/* lose terminating \n */
+	strcpy(image_name, buf);
+	len = strlen(image_name);
+	if (image_name[len - 1] == '\n')
+		image_name[len - 1] = 0;
+
+	ret = fpga_mgr_firmware_load(mgr, &info, image_name);
+	if (ret)
+		return ret;
+
+	return count;
+}
+
+static ssize_t key_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct fpga_manager *mgr = to_fpga_manager(dev);
+
+	return snprintf(buf, ENCRYPTED_KEY_LEN + 1, "%s\n", mgr->key);
+}
+
+static ssize_t key_store(struct device *dev,
+			struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	struct fpga_manager *mgr = to_fpga_manager(dev);
+
+	memcpy(mgr->key, buf, count);
+
+	return count;
+}
+
+static ssize_t iv_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct fpga_manager *mgr = to_fpga_manager(dev);
+
+	return snprintf(buf, ENCRYPTED_IV_LEN + 1, "%s\r\n", mgr->iv);
+}
+
+static ssize_t iv_store(struct device *dev,
+			struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	struct fpga_manager *mgr = to_fpga_manager(dev);
+
+	memcpy(mgr->iv, buf, count);
+
+	return count;
+}
+
+static ssize_t flags_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct fpga_manager *mgr = to_fpga_manager(dev);
+
+	return sprintf(buf, "%lx\n", mgr->flags);
+}
+
+static ssize_t flags_store(struct device *dev,
+			struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	struct fpga_manager *mgr = to_fpga_manager(dev);
+	int ret;
+
+	ret = kstrtol(buf, 16, &mgr->flags);
+	if (ret)
+		return ret;
+
+	return count;
+}
+
 static ssize_t status_show(struct device *dev,
 			   struct device_attribute *attr, char *buf)
 {
@@ -434,11 +525,19 @@ static ssize_t status_show(struct device *dev,
 
 static DEVICE_ATTR_RO(name);
 static DEVICE_ATTR_RO(state);
+static DEVICE_ATTR_WO(firmware);
+static DEVICE_ATTR_RW(flags);
+static DEVICE_ATTR_RW(key);
+static DEVICE_ATTR_RW(iv);
 static DEVICE_ATTR_RO(status);
 
 static struct attribute *fpga_mgr_attrs[] = {
 	&dev_attr_name.attr,
 	&dev_attr_state.attr,
+	&dev_attr_firmware.attr,
+	&dev_attr_flags.attr,
+	&dev_attr_key.attr,
+	&dev_attr_iv.attr,
 	&dev_attr_status.attr,
 	NULL,
 };
@@ -517,6 +616,116 @@ void fpga_mgr_put(struct fpga_manager *mgr)
 	put_device(&mgr->dev);
 }
 EXPORT_SYMBOL_GPL(fpga_mgr_put);
+
+#ifdef CONFIG_FPGA_MGR_DEBUG_FS
+#include <linux/debugfs.h>
+
+static int fpga_mgr_read(struct seq_file *s, void *data)
+{
+	struct fpga_manager *mgr = (struct fpga_manager *)s->private;
+	int ret = 0;
+
+	if (!mgr->mops->read)
+		return -ENOENT;
+
+	if (!mutex_trylock(&mgr->ref_mutex))
+		return -EBUSY;
+
+	if (mgr->state != FPGA_MGR_STATE_OPERATING) {
+		ret = -EPERM;
+		goto err_unlock;
+	}
+
+	/* Read the FPGA configuration data from the fabric */
+	ret = mgr->mops->read(mgr, s);
+	if (ret)
+		dev_err(&mgr->dev, "Error while reading configuration data from FPGA\n");
+
+err_unlock:
+	mutex_unlock(&mgr->ref_mutex);
+
+	return ret;
+}
+
+static int fpga_mgr_read_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, fpga_mgr_read, inode->i_private);
+}
+
+static const struct file_operations fpga_mgr_ops_image = {
+	.owner = THIS_MODULE,
+	.open = fpga_mgr_read_open,
+	.read = seq_read,
+};
+
+/**
+ * fpga_mgr_debugfs_buf_load() - debugfs write function
+ * @file:	User file
+ * @ptr:	Fpga Image Address pointer
+ * @len:	Length of the image
+ * @off:	Offset within the file
+ *
+ * Return: Number of bytes if request succeeds,
+ *	   the corresponding error code otherwise
+ */
+static ssize_t fpga_mgr_debugfs_buf_load(struct file *file,
+					 const char __user *ptr, size_t len,
+					 loff_t *off)
+{
+	struct fpga_manager *mgr = file->private_data;
+	struct device *dev = &mgr->dev;
+	char *buf;
+	int ret = 0;
+
+	/* struct with information about the FPGA image to program. */
+	struct fpga_image_info info = {0};
+
+	/* flags indicates whether to do full or partial reconfiguration */
+	info.flags = mgr->flags;
+
+	ret = fpga_mgr_lock(mgr);
+	if (ret) {
+		dev_err(dev, "FPGA manager is busy\n");
+		return -EBUSY;
+	}
+
+	buf = vmalloc(len);
+	if (!buf) {
+		ret = -ENOMEM;
+		goto mgr_unlock;
+	}
+
+	if (copy_from_user(buf, ptr, len)) {
+		ret = -EFAULT;
+		goto free_buf;
+	}
+
+	info.buf = buf;
+	info.count = len;
+
+	ret = fpga_mgr_load(mgr, &info);
+	if (ret) {
+		dev_err(dev, "fpga_mgr_load returned with value %d\n\r", ret);
+		goto free_buf;
+	}
+
+free_buf:
+	vfree(buf);
+mgr_unlock:
+	fpga_mgr_unlock(mgr);
+
+	if (ret)
+		return ret;
+	else
+		return len;
+}
+
+static const struct file_operations fpga_mgr_ops_load = {
+	.open = simple_open,
+	.write = fpga_mgr_debugfs_buf_load,
+	.llseek = default_llseek,
+};
+#endif
 
 /**
  * fpga_mgr_lock - Lock FPGA manager for exclusive use
@@ -698,6 +907,35 @@ int fpga_mgr_register(struct fpga_manager *mgr)
 	if (ret)
 		goto error_device;
 
+#ifdef CONFIG_FPGA_MGR_DEBUG_FS
+	struct dentry *d, *parent;
+
+	mgr->dir = debugfs_create_dir("fpga", NULL);
+	if (!mgr->dir)
+		goto error_device;
+
+	parent = mgr->dir;
+	d = debugfs_create_dir(mgr->dev.kobj.name, parent);
+	if (!d) {
+		debugfs_remove_recursive(parent);
+		goto error_device;
+	}
+
+	parent = d;
+	d = debugfs_create_file("image", 0644, parent, mgr,
+				&fpga_mgr_ops_image);
+	if (!d) {
+		debugfs_remove_recursive(mgr->dir);
+		goto error_device;
+	}
+
+	d = debugfs_create_file("load", 0644, parent, mgr,
+				&fpga_mgr_ops_load);
+	if (!d) {
+		debugfs_remove_recursive(mgr->dir);
+		goto error_device;
+	}
+#endif
 	dev_info(&mgr->dev, "%s registered\n", mgr->name);
 
 	return 0;
@@ -718,6 +956,10 @@ EXPORT_SYMBOL_GPL(fpga_mgr_register);
 void fpga_mgr_unregister(struct fpga_manager *mgr)
 {
 	dev_info(&mgr->dev, "%s %s\n", __func__, mgr->name);
+
+#ifdef CONFIG_FPGA_MGR_DEBUG_FS
+	debugfs_remove_recursive(mgr->dir);
+#endif
 
 	/*
 	 * If the low level driver provides a method for putting fpga into

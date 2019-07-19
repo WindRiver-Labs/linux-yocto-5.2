@@ -481,6 +481,8 @@ struct sdhci_host {
  * block count.
  */
 #define SDHCI_QUIRK2_USE_32BIT_BLK_CNT			(1<<18)
+/* Broken Clock between 19MHz-25MHz */
+#define SDHCI_QUIRK2_CLOCK_STANDARD_25_BROKEN		(1<<19)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */

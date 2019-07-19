@@ -741,7 +741,6 @@ temac_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	skb_frag_t *frag;
 
 	num_frag = skb_shinfo(skb)->nr_frags;
-	frag = &skb_shinfo(skb)->frags[0];
 	start_p = lp->tx_bd_p + sizeof(*lp->tx_bd_v) * lp->tx_bd_tail;
 	cur_p = &lp->tx_bd_v[lp->tx_bd_tail];
 
@@ -770,6 +769,7 @@ temac_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	ptr_to_txbd((void *)skb, cur_p);
 
 	for (ii = 0; ii < num_frag; ii++) {
+		frag = &skb_shinfo(skb)->frags[ii];
 		lp->tx_bd_tail++;
 		if (lp->tx_bd_tail >= TX_BD_NUM)
 			lp->tx_bd_tail = 0;
@@ -782,7 +782,6 @@ temac_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		cur_p->phys = cpu_to_be32(skb_dma_addr);
 		cur_p->len = cpu_to_be32(skb_frag_size(frag));
 		cur_p->app0 = 0;
-		frag++;
 	}
 	cur_p->app0 |= cpu_to_be32(STS_CTRL_APP0_EOP);
 
@@ -1147,9 +1146,11 @@ static int temac_probe(struct platform_device *pdev)
 	lp->temac_features = 0;
 	if (temac_np) {
 		p = (__be32 *)of_get_property(temac_np, "xlnx,txcsum", NULL);
+		dev_info(&op->dev, "TX_CSUM %d\n", be32_to_cpup(p));
 		if (p && be32_to_cpu(*p))
 			lp->temac_features |= TEMAC_FEATURE_TX_CSUM;
 		p = (__be32 *)of_get_property(temac_np, "xlnx,rxcsum", NULL);
+		dev_info(&op->dev, "RX_CSUM %d\n", be32_to_cpup(p));
 		if (p && be32_to_cpu(*p))
 			lp->temac_features |= TEMAC_FEATURE_RX_CSUM;
 	} else if (pdata) {
@@ -1268,14 +1269,15 @@ static int temac_probe(struct platform_device *pdev)
 		temac_init_mac_address(ndev, pdata->mac_addr);
 	}
 
-	rc = temac_mdio_setup(lp, pdev);
-	if (rc)
-		dev_warn(&pdev->dev, "error registering MDIO bus\n");
-
 	if (temac_np) {
 		lp->phy_node = of_parse_phandle(temac_np, "phy-handle", 0);
-		if (lp->phy_node)
+		if (lp->phy_node) {
 			dev_dbg(lp->dev, "using PHY node %pOF\n", temac_np);
+
+			rc = temac_mdio_setup(lp, op->dev.of_node);
+			if (rc)
+				dev_warn(&op->dev, "error registering MDIO bus\n");
+		}
 	} else if (pdata) {
 		snprintf(lp->phy_name, sizeof(lp->phy_name),
 			 PHY_ID_FMT, lp->mii_bus->id, pdata->phy_addr);

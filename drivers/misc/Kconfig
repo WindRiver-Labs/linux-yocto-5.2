@@ -481,6 +481,30 @@ config PCI_ENDPOINT_TEST
            Enable this configuration option to enable the host side test driver
            for PCI Endpoint.
 
+config XILINX_SDFEC
+	tristate "Xilinx SDFEC 16"
+	help
+	  This option enables support for the Xilinx SDFEC (Soft Decision
+	  Forward Error Correction) driver. This enables a char driver
+	  for the SDFEC.
+
+	  You may select this driver if your design instantiates the
+	  SDFEC(16nm) hardened block. To compile this as a module choose M.
+
+	  If unsure, say N.
+
+config XILINX_TRAFGEN
+	tristate "Xilinx Traffic Generator"
+	help
+	  This option enables support for the Xilinx Traffic Generator driver.
+	  It is designed to generate AXI4 traffic which can be used to stress
+	  different modules/interconnect connected in the system. Different
+	  configurable options which are provided through sysfs entries allow
+	  allow the user to generate a wide variety of traffic based on their
+	  their requirements.
+
+	  If unsure, say N
+
 config MISC_RTSX
 	tristate
 	default MISC_RTSX_PCI || MISC_RTSX_USB
@@ -493,6 +517,7 @@ config PVPANIC
 	  a paravirtualized device provided by QEMU; it lets a virtual machine
 	  (guest) communicate panic events to the host.
 
+source "drivers/misc/jesd204b/Kconfig"
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"

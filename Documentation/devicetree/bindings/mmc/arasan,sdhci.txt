@@ -14,6 +14,8 @@ Required Properties:
     - "arasan,sdhci-4.9a": generic Arasan SDHCI 4.9a PHY
     - "arasan,sdhci-5.1": generic Arasan SDHCI 5.1 PHY
     - "rockchip,rk3399-sdhci-5.1", "arasan,sdhci-5.1": rk3399 eMMC PHY
+    - "xlnx,zynqmp-8.9a": Xilinx ZynqMP Arasan SDHCI 8.9a PHY
+    - "xlnx,versal-8.9a": Xilinx Versal Arasan SDHCI 8.9a PHY
       For this device it is strongly suggested to include arasan,soc-ctl-syscon.
     - "ti,am654-sdhci-5.1", "arasan,sdhci-5.1": TI AM654 MMC PHY
 	Note: This binding has been deprecated and moved to [5].
@@ -29,7 +31,13 @@ Required Properties for "arasan,sdhci-5.1":
   - phys: From PHY bindings: Phandle for the Generic PHY for arasan.
   - phy-names:  MUST be "phy_arasan".
 
+Required Properties for "xlnx,zynqmp-8.9a" and "xlnx,versal-8.9a":
+  - xlnx,mio_bank: The value will be 0/1/2 depending on MIO bank selection.
+  - xlnx,device_id: Unique Id of the device, value will be 0/1.
+
 Optional Properties:
+  - broken-mmc-highspeed: Indicates to force
+				the controller to use in standard speed.
   - arasan,soc-ctl-syscon: A phandle to a syscon device (see ../mfd/syscon.txt)
     used to access core corecfg registers.  Offsets of registers in this
     syscon are determined based on the main compatible string for the device.
@@ -44,6 +52,28 @@ Optional Properties:
     properly. Test mode can be used to force the controller to function.
   - xlnx,int-clock-stable-broken: when present, the controller always reports
     that the internal clock is stable even when it is not.
+ - pinctrl-0: pin control group to be used for this controller.
+ - pinctrl-names: must contain a "default" entry.
+
+Optional Properties for "xlnx,zynqmp-8.9a":
+ - nvmem-cells: list of phandle to the nvmem data cells.
+ - nvmem-cell-names: Names for the each nvmem-cells specified.
+ - xlnx,itap-delay-sd-hsd: Input Tap Delay for SD HS.
+ - xlnx,itap-delay-sdr25: Input Tap Delay for SDR25.
+ - xlnx,itap-delay-sdr50: Input Tap Delay for SDR50.
+ - xlnx,itap-delay-sdr104: Input Tap Delay for SDR104.
+ - xlnx,itap-delay-sd-ddr50: Input Tap Delay for SD DDR50.
+ - xlnx,itap-delay-mmc-hsd: Input Tap Delay for MMC HS.
+ - xlnx,itap-delay-mmc-ddr52: Input Tap Delay for MMC DDR52.
+ - xlnx,itap-delay-mmc-hs200: Input Tap Delay for MMC HS200.
+ - xlnx,otap-delay-sd-hsd: Output Tap Delay for SD HS.
+ - xlnx,otap-delay-sdr25: Output Tap Delay for SDR25.
+ - xlnx,otap-delay-sdr50: Output Tap Delay for SDR50.
+ - xlnx,otap-delay-sdr104: Output Tap Delay for SDR104.
+ - xlnx,otap-delay-sd-ddr50: Output Tap Delay for DDR50.
+ - xlnx,otap-delay-mmc-hsd: Output Tap Delay for MMC HS.
+ - xlnx,otap-delay-mmc-ddr52: Output Tap Delay for MMC DDR52.
+ - xlnx,otap-delay-mmc-hs200: Output Tap Delay for MMC HS200.
 
 Example:
 	sdhci@e0100000 {

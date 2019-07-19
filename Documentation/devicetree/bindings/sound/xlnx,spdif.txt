@@ -5,7 +5,8 @@ The IP supports playback and capture of SPDIF audio
 Required properties:
  - compatible: "xlnx,spdif-2.0"
  - clock-names: List of input clocks.
-   Required elements: "s_axi_aclk", "aud_clk_i"
+   Required elements for SPDIF Tx: "aud_clk_i", "s_axi_aclk", "s_axis_aclk".
+   Required elements for SPDIF Rx: "aud_clk_i", "s_axi_aclk", "m_axis_aclk".
  - clocks: Input clock specifier. Refer to common clock bindings.
  - reg: Base address and address length of the IP core instance.
  - interrupts-parent: Phandle for interrupt controller.
@@ -14,10 +15,10 @@ Required properties:
 		    1 :- transmitter mode
  - xlnx,aud_clk_i: input audio clock value.
 
-Example:
+Example - SPDIF Rx:
 	spdif_0: spdif@80010000 {
-		clock-names = "aud_clk_i", "s_axi_aclk";
-		clocks = <&misc_clk_0>, <&clk 71>;
+		clock-names = "aud_clk_i", "s_axi_aclk", "m_axis_aclk";
+		clocks = <&si570_1>, <&clk 71>, <&clk 71>;
 		compatible = "xlnx,spdif-2.0";
 		interrupt-names = "spdif_interrupt";
 		interrupt-parent = <&gic>;

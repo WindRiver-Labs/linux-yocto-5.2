@@ -44,6 +44,7 @@
 #define OV5640_REG_SC_PLL_CTRL1		0x3035
 #define OV5640_REG_SC_PLL_CTRL2		0x3036
 #define OV5640_REG_SC_PLL_CTRL3		0x3037
+#define OV5640_REG_SC_PLLS_CTRL3	0x303d
 #define OV5640_REG_SLAVE_ID		0x3100
 #define OV5640_REG_SCCB_SYS_CTRL1	0x3103
 #define OV5640_REG_SYS_ROOT_DIVIDER	0x3108
@@ -85,6 +86,7 @@
 #define OV5640_REG_POLARITY_CTRL00	0x4740
 #define OV5640_REG_MIPI_CTRL00		0x4800
 #define OV5640_REG_DEBUG_MODE		0x4814
+#define OV5640_REG_PCLK_PERIOD		0x4837
 #define OV5640_REG_ISP_FORMAT_MUX_CTRL	0x501f
 #define OV5640_REG_PRE_ISP_TEST_SET1	0x503d
 #define OV5640_REG_SDE_CTRL0		0x5580
@@ -132,6 +134,8 @@ static const struct ov5640_pixfmt ov5640_formats[] = {
 	{ MEDIA_BUS_FMT_JPEG_1X8, V4L2_COLORSPACE_JPEG, },
 	{ MEDIA_BUS_FMT_UYVY8_2X8, V4L2_COLORSPACE_SRGB, },
 	{ MEDIA_BUS_FMT_YUYV8_2X8, V4L2_COLORSPACE_SRGB, },
+	{ MEDIA_BUS_FMT_UYVY8_1X16, V4L2_COLORSPACE_SRGB, },
+	{ MEDIA_BUS_FMT_YUYV8_1X16, V4L2_COLORSPACE_SRGB, },
 	{ MEDIA_BUS_FMT_RGB565_2X8_LE, V4L2_COLORSPACE_SRGB, },
 	{ MEDIA_BUS_FMT_RGB565_2X8_BE, V4L2_COLORSPACE_SRGB, },
 	{ MEDIA_BUS_FMT_SBGGR8_1X8, V4L2_COLORSPACE_SRGB, },
@@ -183,6 +187,7 @@ struct reg_value {
 struct ov5640_mode_info {
 	enum ov5640_mode_id id;
 	enum ov5640_downsize_mode dn_mode;
+	bool scaler; /* Mode uses ISP scaler (reg 0x5001,BIT(5)=='1') */
 	u32 hact;
 	u32 htot;
 	u32 vact;
@@ -302,7 +307,7 @@ static const struct reg_value ov5640_init_setting_30fps_VGA[] = {
 	{0x302e, 0x08, 0, 0}, {0x4300, 0x3f, 0, 0},
 	{0x501f, 0x00, 0, 0}, {0x4407, 0x04, 0, 0},
 	{0x440e, 0x00, 0, 0}, {0x460b, 0x35, 0, 0}, {0x460c, 0x22, 0, 0},
-	{0x4837, 0x0a, 0, 0}, {0x3824, 0x02, 0, 0},
+	{0x3824, 0x02, 0, 0}, {0x482a, 0x06, 0, 0},
 	{0x5000, 0xa7, 0, 0}, {0x5001, 0xa3, 0, 0}, {0x5180, 0xff, 0, 0},
 	{0x5181, 0xf2, 0, 0}, {0x5182, 0x00, 0, 0}, {0x5183, 0x14, 0, 0},
 	{0x5184, 0x25, 0, 0}, {0x5185, 0x24, 0, 0}, {0x5186, 0x09, 0, 0},
@@ -541,7 +546,7 @@ static const struct reg_value ov5640_setting_QSXGA_2592_1944[] = {
 
 /* power-on sensor init reg table */
 static const struct ov5640_mode_info ov5640_mode_init_data = {
-	0, SUBSAMPLING, 640, 1896, 480, 984,
+	0, SUBSAMPLING, 0, 640, 1896, 480, 984,
 	ov5640_init_setting_30fps_VGA,
 	ARRAY_SIZE(ov5640_init_setting_30fps_VGA),
 };
@@ -1066,6 +1071,222 @@ static int ov5640_set_jpeg_timings(struct ov5640_dev *sensor,
 	return ov5640_write_reg16(sensor, OV5640_REG_VFIFO_VSIZE, mode->vact);
 }
 
+/*
+ *
+ * The current best guess of the clock tree, as reverse engineered by several
+ * people on the media mailing list:
+ *
+ *   +--------------+
+ *   |  Ext. Clock  |
+ *   +------+-------+
+ *          |
+ *   +------+-------+ - reg 0x3037[3:0] for the pre-divider
+ *   | System PLL   | - reg 0x3036 for the multiplier
+ *   +--+-----------+ - reg 0x3035[7:4] for the system divider
+ *      |
+ *      |   +--------------+
+ *      |---+  MIPI Rate   | - reg 0x3035[3:0] for the MIPI root divider
+ *      |   +--------------+
+ *      |
+ *   +--+-----------+
+ *   | PLL Root Div | - (reg 0x3037[4])+1 for the root divider
+ *   +--+-----------+
+ *          |
+ *   +------+-------+
+ *   | MIPI Bit Div | - reg 0x3034[3:0]/4 for divider when in MIPI mode, else 1
+ *   +--+-----------+
+ *      |
+ *      |   +--------------+
+ *      |---+     SCLK     | - log2(reg 0x3108[1:0]) for the root divider
+ *      |   +--------------+
+ *      |
+ *   +--+-----------+ - reg 0x3035[3:0] for the MIPI root divider
+ *   |    PCLK      | - log2(reg 0x3108[5:4]) for the DVP root divider
+ *   +--------------+
+ *
+ * Not all limitations of register values are documented above, see ov5640
+ * datasheet.
+ *
+ * In order for the sensor to operate correctly the ratio of
+ * SCLK:PCLK:MIPI RATE must be 1:2:8 when the scalar in the ISP is not
+ * enabled, and 1:1:4 when it is enabled (MIPI rate doesn't matter in DVP mode).
+ * The ratio of these different clocks is maintained by the constant div values
+ * below, with PCLK div being selected based on if the mode is using the scalar.
+ */
+
+/*
+ * This is supposed to be ranging from 1 to 16, but the value is
+ * always set to either 1 or 2 in the vendor kernels.
+ */
+#define OV5640_SYSDIV_MIN	1
+#define OV5640_SYSDIV_MAX	12
+
+/*
+ * This is supposed to be ranging from 1 to 8, but the value is always
+ * set to 3 in the vendor kernels.
+ */
+#define OV5640_PLL_PREDIV	2
+
+/*
+ *This is supposed to be ranging from 4-252, but must be even when >127
+ */
+#define OV5640_PLL_MULT_MIN	4
+#define OV5640_PLL_MULT_MAX	252
+
+/*
+ * This is supposed to be ranging from 1 to 2, but the value is always
+ * set to 1 in the vendor kernels.
+ */
+#define OV5640_PLL_DVP_ROOT_DIV		1
+#define OV5640_PLL_MIPI_ROOT_DIV	2
+
+/*
+ * This is supposed to be ranging from 1 to 8, but the value is always
+ * set to 2 in the vendor kernels.
+ */
+#define OV5640_SCLK_ROOT_DIV	2
+
+/*
+ * This is equal to the MIPI bit rate divided by 4. Now it is hardcoded to
+ * only work with 8-bit formats, so this value will need to be set in
+ * software if support for 10-bit formats is added. The bit divider is
+ * only active when in MIPI mode (not DVP)
+ */
+#define OV5640_BIT_DIV		2
+
+static unsigned long ov5640_compute_sclk(struct ov5640_dev *sensor,
+					 u8 sys_div, u8 pll_prediv,
+					 u8 pll_mult, u8 pll_div,
+					 u8 sclk_div)
+{
+	unsigned long rate = clk_get_rate(sensor->xclk);
+
+	rate = rate / pll_prediv * pll_mult / sys_div / pll_div;
+	if (sensor->ep.bus_type == V4L2_MBUS_CSI2_DPHY)
+		rate = rate / OV5640_BIT_DIV;
+
+	return rate / sclk_div;
+}
+
+static unsigned long ov5640_calc_sclk(struct ov5640_dev *sensor,
+				      unsigned long rate,
+				      u8 *sysdiv, u8 *prediv, u8 pll_rdiv,
+				      u8 *mult, u8 *sclk_rdiv)
+{
+	unsigned long best = ~0;
+	u8 best_sysdiv = 1, best_mult = 1;
+	u8 _sysdiv, _pll_mult;
+
+	for (_sysdiv = OV5640_SYSDIV_MIN;
+	     _sysdiv <= OV5640_SYSDIV_MAX;
+	     _sysdiv++) {
+		for (_pll_mult = OV5640_PLL_MULT_MIN;
+		     _pll_mult <= OV5640_PLL_MULT_MAX;
+		     _pll_mult++) {
+			unsigned long _rate;
+
+			/*
+			 * The PLL multiplier cannot be odd if above
+			 * 127.
+			 */
+			if (_pll_mult > 127 && (_pll_mult % 2))
+				continue;
+
+			_rate = ov5640_compute_sclk(sensor, _sysdiv,
+						    OV5640_PLL_PREDIV,
+						    _pll_mult,
+						    pll_rdiv,
+						    OV5640_SCLK_ROOT_DIV);
+
+			if (abs(rate - _rate) < abs(rate - best)) {
+				best = _rate;
+				best_sysdiv = _sysdiv;
+				best_mult = _pll_mult;
+			}
+
+			if (_rate == rate)
+				goto out;
+			if (_rate > rate)
+				break;
+		}
+	}
+
+out:
+	*sysdiv = best_sysdiv;
+	*prediv = OV5640_PLL_PREDIV;
+	*mult = best_mult;
+	*sclk_rdiv = OV5640_SCLK_ROOT_DIV;
+	return best;
+}
+
+static int ov5640_set_sclk(struct ov5640_dev *sensor,
+			   const struct ov5640_mode_info *mode)
+{
+	u8 sysdiv, prediv, mult, pll_rdiv, sclk_rdiv, mipi_div, pclk_div;
+	u8 pclk_period;
+	int ret;
+	unsigned long sclk, rate, pclk;
+	unsigned char bpp;
+
+	/*
+	 * All the formats we support have 2 bytes per pixel, except for JPEG
+	 * which is 1 byte per pixel.
+	 */
+	bpp = sensor->fmt.code == MEDIA_BUS_FMT_JPEG_1X8 ? 1 : 2;
+	rate = mode->vtot * mode->htot * bpp;
+	rate *= ov5640_framerates[sensor->current_fr];
+
+	if (sensor->ep.bus_type == V4L2_MBUS_CSI2_DPHY)
+		rate = rate / sensor->ep.bus.mipi_csi2.num_data_lanes;
+
+	pll_rdiv = (sensor->ep.bus_type == V4L2_MBUS_CSI2_DPHY) ?
+		   OV5640_PLL_MIPI_ROOT_DIV : OV5640_PLL_DVP_ROOT_DIV;
+
+	sclk = ov5640_calc_sclk(sensor, rate, &sysdiv, &prediv, pll_rdiv,
+				&mult, &sclk_rdiv);
+
+	if (sensor->ep.bus_type == V4L2_MBUS_CSI2_DPHY) {
+		mipi_div = (sensor->current_mode->scaler) ? 2 : 1;
+		pclk_div = 1;
+
+		/*
+		 * Calculate pclk period * number of CSI2 lanes in ns for MIPI
+		 * timing.
+		 */
+		pclk = sclk * sclk_rdiv / mipi_div;
+		pclk_period = (u8)((1000000000UL + pclk / 2UL) / pclk);
+		pclk_period = pclk_period *
+			      sensor->ep.bus.mipi_csi2.num_data_lanes;
+		ret = ov5640_write_reg(sensor, OV5640_REG_PCLK_PERIOD,
+				       pclk_period);
+		if (ret)
+			return ret;
+	} else {
+		mipi_div = 1;
+		pclk_div = (sensor->current_mode->scaler) ? 2 : 1;
+	}
+
+	ret = ov5640_mod_reg(sensor, OV5640_REG_SC_PLL_CTRL1,
+			     0xff, (sysdiv << 4) | (mipi_div & 0x0f));
+	if (ret)
+		return ret;
+
+	ret = ov5640_mod_reg(sensor, OV5640_REG_SC_PLL_CTRL2,
+			     0xff, mult);
+	if (ret)
+		return ret;
+
+	ret = ov5640_mod_reg(sensor, OV5640_REG_SC_PLL_CTRL3,
+			     0x1f, prediv | ((pll_rdiv - 1) << 4));
+	if (ret)
+		return ret;
+
+	return ov5640_mod_reg(sensor, OV5640_REG_SYS_ROOT_DIVIDER, 0x3F,
+			      (ilog2(pclk_div) << 4) |
+			      (ilog2(sclk_rdiv / 2) << 2) |
+			      ilog2(sclk_rdiv));
+}
+
 /* download ov5640 settings to sensor through i2c */
 static int ov5640_set_timings(struct ov5640_dev *sensor,
 			      const struct ov5640_mode_info *mode)
@@ -1448,6 +1669,7 @@ static int ov5640_get_light_freq(struct ov5640_dev *sensor)
 			light_freq = 50;
 		} else {
 			/* 60Hz */
+			light_freq = 60;
 		}
 	}
 
@@ -1660,6 +1882,11 @@ static int ov5640_set_mode_exposure_calc(struct ov5640_dev *sensor,
 	if (ret < 0)
 		return ret;
 
+	/* Set PLL registers for new mode */
+	ret = ov5640_set_sclk(sensor, mode);
+	if (ret < 0)
+		return ret;
+
 	/* Write capture setting */
 	ret = ov5640_load_regs(sensor, mode);
 	if (ret < 0)
@@ -1781,8 +2008,15 @@ static int ov5640_set_mode_exposure_calc(struct ov5640_dev *sensor,
 static int ov5640_set_mode_direct(struct ov5640_dev *sensor,
 				  const struct ov5640_mode_info *mode)
 {
+	int ret;
+
 	if (!mode->reg_data)
 		return -EINVAL;
+
+	/* Set PLL registers for new mode */
+	ret = ov5640_set_sclk(sensor, mode);
+	if (ret < 0)
+		return ret;
 
 	/* Write capture setting */
 	return ov5640_load_regs(sensor, mode);
@@ -2247,11 +2481,13 @@ static int ov5640_set_framefmt(struct ov5640_dev *sensor,
 
 	switch (format->code) {
 	case MEDIA_BUS_FMT_UYVY8_2X8:
+	case MEDIA_BUS_FMT_UYVY8_1X16:
 		/* YUV422, UYVY */
 		fmt = 0x3f;
 		mux = OV5640_FMT_MUX_YUV422;
 		break;
 	case MEDIA_BUS_FMT_YUYV8_2X8:
+	case MEDIA_BUS_FMT_YUYV8_1X16:
 		/* YUV422, YUYV */
 		fmt = 0x30;
 		mux = OV5640_FMT_MUX_YUV422;
@@ -2566,6 +2802,13 @@ static int ov5640_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 	int val;
 
 	/* v4l2_ctrl_lock() locks our own mutex */
+
+	/*
+	 * If the sensor is not powered up by the host driver, do
+	 * not try to access it to update the volatile controls.
+	 */
+	if (sensor->power_count == 0)
+		return 0;
 
 	switch (ctrl->id) {
 	case V4L2_CID_AUTOGAIN:

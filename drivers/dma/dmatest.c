@@ -44,10 +44,15 @@ module_param(iterations, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(iterations,
 		"Iterations before stopping test (default: infinite)");
 
+static unsigned int sg_buffers = 1;
+module_param(sg_buffers, uint, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(sg_buffers,
+		"Number of scatter gather buffers (default: 1)");
+
 static unsigned int dmatest;
 module_param(dmatest, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(dmatest,
-		"dmatest 0-memcpy 1-memset (default: 0)");
+		"dmatest 0-memcpy 1-slave_sg 2-memset (default: 0)");
 
 static unsigned int xor_sources = 3;
 module_param(xor_sources, uint, S_IRUGO | S_IWUSR);
@@ -596,6 +601,9 @@ static int dmatest_func(void *data)
 						params->alignment;
 		src->cnt = dst->cnt = 1;
 		is_memset = true;
+	} else if (thread->type == DMA_SG) {
+		align = dev->copy_align;
+		src->cnt = dst->cnt = sg_buffers;
 	} else if (thread->type == DMA_XOR) {
 		/* force odd to ensure dst = src */
 		src->cnt = min_odd(params->xor_sources | 1, dev->max_xor);
@@ -660,8 +668,12 @@ static int dmatest_func(void *data)
 		struct dmaengine_unmap_data *um;
 		dma_addr_t *dsts;
 		unsigned int len;
+		struct scatterlist tx_sg[src->cnt];
+		struct scatterlist rx_sg[src->cnt];
 
 		total_tests++;
+
+		align = 3;
 
 		if (params->transfer_size) {
 			if (params->transfer_size >= buf_size) {
@@ -750,6 +762,15 @@ static int dmatest_func(void *data)
 			um->bidi_cnt++;
 		}
 
+		sg_init_table(tx_sg, src->cnt);
+		sg_init_table(rx_sg, src->cnt);
+		for (i = 0; i < src->cnt; i++) {
+			sg_dma_address(&rx_sg[i]) = srcs[i];
+			sg_dma_address(&tx_sg[i]) = dsts[i] + dst->off;
+			sg_dma_len(&tx_sg[i]) = len;
+			sg_dma_len(&rx_sg[i]) = len;
+		}
+
 		if (thread->type == DMA_MEMCPY)
 			tx = dev->device_prep_dma_memcpy(chan,
 							 dsts[0] + dst->off,
@@ -759,6 +780,9 @@ static int dmatest_func(void *data)
 						dsts[0] + dst->off,
 						*(src->aligned[0] + src->off),
 						len, flags);
+		else if (thread->type == DMA_SG)
+			tx = dev->device_prep_dma_sg(chan, tx_sg, src->cnt,
+						     rx_sg, src->cnt, flags);
 		else if (thread->type == DMA_XOR)
 			tx = dev->device_prep_dma_xor(chan,
 						      dsts[0] + dst->off,
@@ -924,6 +948,8 @@ static int dmatest_add_threads(struct dmatest_info *info,
 		op = "copy";
 	else if (type == DMA_MEMSET)
 		op = "set";
+	else if (type == DMA_SG)
+		op = "sg";
 	else if (type == DMA_XOR)
 		op = "xor";
 	else if (type == DMA_PQ)
@@ -987,8 +1013,15 @@ static int dmatest_add_channel(struct dmatest_info *info,
 	}
 
 	if (dma_has_cap(DMA_MEMSET, dma_dev->cap_mask)) {
-		if (dmatest == 1) {
+		if (dmatest == 2) {
 			cnt = dmatest_add_threads(info, dtc, DMA_MEMSET);
+			thread_count += cnt > 0 ? cnt : 0;
+		}
+	}
+
+	if (dma_has_cap(DMA_SG, dma_dev->cap_mask)) {
+		if (dmatest == 1) {
+			cnt = dmatest_add_threads(info, dtc, DMA_SG);
 			thread_count += cnt > 0 ? cnt : 0;
 		}
 	}
@@ -1069,6 +1102,7 @@ static void add_threaded_test(struct dmatest_info *info)
 	request_channels(info, DMA_MEMCPY);
 	request_channels(info, DMA_MEMSET);
 	request_channels(info, DMA_XOR);
+	request_channels(info, DMA_SG);
 	request_channels(info, DMA_PQ);
 }
 

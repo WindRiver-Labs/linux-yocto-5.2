@@ -15,7 +15,7 @@ Required properties:
 - compatible: Should be "xlnx,axi-vdma-1.00.a" or "xlnx,axi-dma-1.00.a" or
 	      "xlnx,axi-cdma-1.00.a""
 - #dma-cells: Should be <1>, see "dmas" property below
-- reg: Should contain VDMA registers location and length.
+- reg: Should contain DMA registers location and length.
 - xlnx,addrwidth: Should be the vdma addressing size in bits(ex: 32 bits).
 - dma-ranges: Should be as the following <dma_addr cpu_addr max_len>.
 - dma-channel child node: Should have at least one channel and can have up to
@@ -38,11 +38,10 @@ Required properties for VDMA:
 - xlnx,num-fstores: Should be the number of framebuffers as configured in h/w.
 
 Optional properties for AXI DMA:
-- xlnx,sg-length-width: Should be set to the width in bits of the length
-	register as configured in h/w. Takes values {8...26}. If the property
-	is missing or invalid then the default value 23 is used. This is the
-	maximum value that is supported by all IP versions.
-- xlnx,mcdma: Tells whether configured for multi-channel mode in the hardware.
+- xlnx,sg-length-width: Should be set to the width of buffer length register as
+	configured in hardware. If this property is missing or has invalid width
+	i.e not in range of 8-26, maximum buffer length width (common to all IP
+	versions) 23 bits is used.
 Optional properties for VDMA:
 - xlnx,flush-fsync: Tells which channel to Flush on Frame sync.
 	It takes following values:
@@ -69,15 +68,13 @@ Optional child node properties for VDMA:
 	enabled/disabled in hardware.
 - xlnx,enable-vert-flip: Tells vertical flip is
 	enabled/disabled in hardware(S2MM path).
-Optional child node properties for AXI DMA:
--dma-channels: Number of dma channels in child node.
 
 Example:
 ++++++++
 
 axi_vdma_0: axivdma@40030000 {
 	compatible = "xlnx,axi-vdma-1.00.a";
-	#dma_cells = <1>;
+	#dma-cells = <1>;
 	reg = < 0x40030000 0x10000 >;
 	dma-ranges = <0x00000000 0x00000000 0x40000000>;
 	xlnx,num-fstores = <0x8>;
@@ -104,7 +101,8 @@ axi_vdma_0: axivdma@40030000 {
 Required properties:
 - dmas: a list of <[Video DMA device phandle] [Channel ID]> pairs,
 	where Channel ID is '0' for write/tx and '1' for read/rx
-	channel.
+	channel if both channels are enabled.
+	If only one channel is enabled either tx or rx the Channel ID is '0'.
 - dma-names: a list of DMA channel names, one per "dmas" entry
 
 Example:

@@ -622,6 +622,8 @@ config XGENE_DMA
 	help
 	  Enable support for the APM X-Gene SoC DMA engine.
 
+source "drivers/dma/xilinx/Kconfig"
+
 config XILINX_DMA
 	tristate "Xilinx AXI DMAS Engine"
 	depends on (ARCH_ZYNQ || MICROBLAZE || ARM64)
@@ -647,6 +649,18 @@ config XILINX_ZYNQMP_DMA
 	select DMA_ENGINE
 	help
 	  Enable support for Xilinx ZynqMP DMA controller.
+
+config XILINX_PS_PCIE_DMA
+	tristate "Xilinx PS PCIe DMA support"
+	depends on (PCI && X86_64 || ARM64)
+	select DMA_ENGINE
+	help
+	  Enable support for the Xilinx PS PCIe DMA engine present
+	  in recent Xilinx ZynqMP chipsets.
+
+	  Say Y here if you have such a chipset.
+
+	  If unsure, say N.
 
 config ZX_DMA
 	tristate "ZTE ZX DMA support"

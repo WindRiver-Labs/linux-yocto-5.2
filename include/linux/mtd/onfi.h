@@ -161,8 +161,10 @@ struct onfi_ext_param_page {
  * @tR: Page read time
  * @tCCS: Change column setup time
  * @async_timing_mode: Supported asynchronous timing mode
+ * @src_sync_timing_mode: Supported synchronous timing mode
  * @vendor_revision: Vendor specific revision number
  * @vendor: Vendor specific data
+ * @jedec_id: Jedec ID of nand flash device
  */
 struct onfi_params {
 	int version;
@@ -171,8 +173,10 @@ struct onfi_params {
 	u16 tR;
 	u16 tCCS;
 	u16 async_timing_mode;
+	u16 src_sync_timing_mode;
 	u16 vendor_revision;
 	u8 vendor[88];
+	u8 jedec_id;
 };
 
 #endif /* __LINUX_MTD_ONFI_H */

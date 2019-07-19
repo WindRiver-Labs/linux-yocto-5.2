@@ -1085,7 +1085,7 @@ config VIPERBOARD_ADC
 
 config XILINX_XADC
 	tristate "Xilinx XADC driver"
-	depends on ARCH_ZYNQ || MICROBLAZE || COMPILE_TEST
+	depends on ARCH_ZYNQ || ARCH_ZYNQMP || MICROBLAZE || COMPILE_TEST
 	depends on HAS_IOMEM
 	select IIO_BUFFER
 	select IIO_TRIGGERED_BUFFER
@@ -1095,5 +1095,15 @@ config XILINX_XADC
 
 	  The driver can also be build as a module. If so, the module will be called
 	  xilinx-xadc.
+
+config XILINX_AMS
+       tristate "Xilinx AMS driver"
+       depends on ARCH_ZYNQMP || COMPILE_TEST
+       depends on HAS_IOMEM
+       help
+         Say yes here to have support for the Xilinx AMS.
+
+         The driver can also be build as a module. If so, the module will be called
+         xilinx-ams.
 
 endmenu
