@@ -12,7 +12,18 @@ Required properties:
   - fsl,s32gen1-flexcan
 
 - reg : Offset and length of the register set for this device
-- interrupts : Interrupt tuple for this device
+- interrupts : Interrupt tuple(s) for this device. If interrupt-names are
+               missing, these should specify, in order:
+               - for S32V234:
+                 1. ERRINT | BOFFINT | BOFFDONEINT | TWRNINT | RWRNINT;
+                 2. MB0-63 interrupts;
+               - for S32GEN1:
+                 1. BOFFINT | BOFFDONEINT | TWRNINT | RWRNINT;
+                 2. ERRINT;
+                 3. MB0-7 interrupts;
+                 4. MB8-127 interrupts;
+               - for all the other SoCs:
+                 1. all interrupts combined.
 
 Optional properties:
 
@@ -42,4 +53,16 @@ Example:
 		interrupts = <48 0x2>;
 		interrupt-parent = <&mpic>;
 		clock-frequency = <200000000>; // filled in by bootloader
+	};
+
+	flexcan@40055000 {
+		compatible = "fsl,s32v234-flexcan";
+		reg = <0x0 0x40055000 0x0 0x1000>;
+		interrupts = <0 41 4>,
+			     <0 42 4>;
+		interrupt-names = "state-berr", "mb";
+		clocks = <&clks S32V234_CLK_CAN0>,
+			 <&clks S32V234_CLK_CAN>;
+		clock-names = "ipg", "per";
+		s32v234-ocotp = <&ocotp>;
 	};
