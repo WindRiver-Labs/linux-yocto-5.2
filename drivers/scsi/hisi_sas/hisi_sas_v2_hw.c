@@ -1,12 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Copyright (c) 2016 Linaro Ltd.
  * Copyright (c) 2016 Hisilicon Limited.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
  */
 
 #include "hisi_sas.h"
@@ -868,12 +863,13 @@ hisi_sas_device *alloc_dev_quirk_v2_hw(struct domain_device *device)
 
 			hisi_hba->devices[i].device_id = i;
 			sas_dev = &hisi_hba->devices[i];
-			sas_dev->dev_status = HISI_SAS_DEV_NORMAL;
+			sas_dev->dev_status = HISI_SAS_DEV_INIT;
 			sas_dev->dev_type = device->dev_type;
 			sas_dev->hisi_hba = hisi_hba;
 			sas_dev->sas_device = device;
 			sas_dev->sata_idx = sata_idx;
 			sas_dev->dq = dq;
+			spin_lock_init(&sas_dev->lock);
 			INIT_LIST_HEAD(&hisi_hba->devices[i].list);
 			break;
 		}
@@ -1545,14 +1541,14 @@ static void phy_hard_reset_v2_hw(struct hisi_hba *hisi_hba, int phy_no)
 	struct hisi_sas_phy *phy = &hisi_hba->phy[phy_no];
 	u32 txid_auto;
 
-	disable_phy_v2_hw(hisi_hba, phy_no);
+	hisi_sas_phy_enable(hisi_hba, phy_no, 0);
 	if (phy->identify.device_type == SAS_END_DEVICE) {
 		txid_auto = hisi_sas_phy_read32(hisi_hba, phy_no, TXID_AUTO);
 		hisi_sas_phy_write32(hisi_hba, phy_no, TXID_AUTO,
 					txid_auto | TX_HARDRST_MSK);
 	}
 	msleep(100);
-	start_phy_v2_hw(hisi_hba, phy_no);
+	hisi_sas_phy_enable(hisi_hba, phy_no, 1);
 }
 
 static void phy_get_events_v2_hw(struct hisi_hba *hisi_hba, int phy_no)
@@ -1585,11 +1581,11 @@ static void phys_init_v2_hw(struct hisi_hba *hisi_hba)
 		if (!sas_phy->phy->enabled)
 			continue;
 
-		start_phy_v2_hw(hisi_hba, i);
+		hisi_sas_phy_enable(hisi_hba, i, 1);
 	}
 }
 
-static void sl_notify_v2_hw(struct hisi_hba *hisi_hba, int phy_no)
+static void sl_notify_ssp_v2_hw(struct hisi_hba *hisi_hba, int phy_no)
 {
 	u32 sl_control;
 
@@ -2422,14 +2418,12 @@ slot_complete_v2_hw(struct hisi_hba *hisi_hba, struct hisi_sas_slot *slot)
 			slot_err_v2_hw(hisi_hba, task, slot, 2);
 
 		if (ts->stat != SAS_DATA_UNDERRUN)
-			dev_info(dev, "erroneous completion iptt=%d task=%p dev id=%d "
-				"CQ hdr: 0x%x 0x%x 0x%x 0x%x "
-				"Error info: 0x%x 0x%x 0x%x 0x%x\n",
-				slot->idx, task, sas_dev->device_id,
-				complete_hdr->dw0, complete_hdr->dw1,
-				complete_hdr->act, complete_hdr->dw3,
-				error_info[0], error_info[1],
-				error_info[2], error_info[3]);
+			dev_info(dev, "erroneous completion iptt=%d task=%p dev id=%d CQ hdr: 0x%x 0x%x 0x%x 0x%x Error info: 0x%x 0x%x 0x%x 0x%x\n",
+				 slot->idx, task, sas_dev->device_id,
+				 complete_hdr->dw0, complete_hdr->dw1,
+				 complete_hdr->act, complete_hdr->dw3,
+				 error_info[0], error_info[1],
+				 error_info[2], error_info[3]);
 
 		if (unlikely(slot->abort))
 			return ts->stat;
@@ -2501,7 +2495,7 @@ out:
 		spin_lock_irqsave(&device->done_lock, flags);
 		if (test_bit(SAS_HA_FROZEN, &ha->state)) {
 			spin_unlock_irqrestore(&device->done_lock, flags);
-			dev_info(dev, "slot complete: task(%p) ignored\n ",
+			dev_info(dev, "slot complete: task(%p) ignored\n",
 				 task);
 			return sts;
 		}
@@ -2677,6 +2671,8 @@ static int phy_up_v2_hw(int phy_no, struct hisi_hba *hisi_hba)
 	if (is_sata_phy_v2_hw(hisi_hba, phy_no))
 		goto end;
 
+	del_timer(&phy->timer);
+
 	if (phy_no == 8) {
 		u32 port_state = hisi_sas_read32(hisi_hba, PORT_STATE);
 
@@ -2756,6 +2752,7 @@ static int phy_down_v2_hw(int phy_no, struct hisi_hba *hisi_hba)
 	struct hisi_sas_port *port = phy->port;
 	struct device *dev = hisi_hba->dev;
 
+	del_timer(&phy->timer);
 	hisi_sas_phy_write32(hisi_hba, phy_no, PHYCTRL_NOT_RDY_MSK, 1);
 
 	phy_state = hisi_sas_read32(hisi_hba, PHY_STATE);
@@ -2931,7 +2928,7 @@ static irqreturn_t int_chnl_int_v2_hw(int irq_no, void *p)
 
 			if (irq_value2 & BIT(CHL_INT2_SL_IDAF_TOUT_CONF_OFF)) {
 				dev_warn(dev, "phy%d identify timeout\n",
-						phy_no);
+					 phy_no);
 				hisi_sas_notify_phy_event(phy,
 						HISI_PHYE_LINK_RESET);
 			}
@@ -2943,6 +2940,9 @@ static irqreturn_t int_chnl_int_v2_hw(int irq_no, void *p)
 		if ((irq_msk & (1 << phy_no)) && irq_value0) {
 			if (irq_value0 & CHL_INT0_SL_RX_BCST_ACK_MSK)
 				phy_bcast_v2_hw(phy_no, hisi_hba);
+
+			if (irq_value0 & CHL_INT0_PHY_RDY_MSK)
+				hisi_sas_phy_oob_ready(hisi_hba, phy_no);
 
 			hisi_sas_phy_write32(hisi_hba, phy_no,
 					CHL_INT0, irq_value0
@@ -3029,7 +3029,7 @@ static const struct hisi_sas_hw_error axi_error[] = {
 	{ .msk = BIT(5), .msg = "SATA_AXI_R_ERR" },
 	{ .msk = BIT(6), .msg = "DQE_AXI_R_ERR" },
 	{ .msk = BIT(7), .msg = "CQE_AXI_W_ERR" },
-	{},
+	{}
 };
 
 static const struct hisi_sas_hw_error fifo_error[] = {
@@ -3038,7 +3038,7 @@ static const struct hisi_sas_hw_error fifo_error[] = {
 	{ .msk = BIT(10), .msg = "GETDQE_FIFO" },
 	{ .msk = BIT(11), .msg = "CMDP_FIFO" },
 	{ .msk = BIT(12), .msg = "AWTCTRL_FIFO" },
-	{},
+	{}
 };
 
 static const struct hisi_sas_hw_error fatal_axi_errors[] = {
@@ -3102,12 +3102,12 @@ static irqreturn_t fatal_axi_int_v2_hw(int irq_no, void *p)
 				if (!(err_value & sub->msk))
 					continue;
 				dev_err(dev, "%s (0x%x) found!\n",
-					 sub->msg, irq_value);
+					sub->msg, irq_value);
 				queue_work(hisi_hba->wq, &hisi_hba->rst_work);
 			}
 		} else {
 			dev_err(dev, "%s (0x%x) found!\n",
-				 axi_error->msg, irq_value);
+				axi_error->msg, irq_value);
 			queue_work(hisi_hba->wq, &hisi_hba->rst_work);
 		}
 	}
@@ -3227,6 +3227,8 @@ static irqreturn_t sata_int_v2_hw(int irq_no, void *p)
 	unsigned long flags;
 	int phy_no, offset;
 
+	del_timer(&phy->timer);
+
 	phy_no = sas_phy->id;
 	initial_fis = &hisi_hba->initial_fis[phy_no];
 	fis = &initial_fis->fis;
@@ -3249,7 +3251,7 @@ static irqreturn_t sata_int_v2_hw(int irq_no, void *p)
 	/* check ERR bit of Status Register */
 	if (fis->status & ATA_ERR) {
 		dev_warn(dev, "sata int: phy%d FIS status: 0x%x\n", phy_no,
-				fis->status);
+			 fis->status);
 		hisi_sas_notify_phy_event(phy, HISI_PHYE_LINK_RESET);
 		res = IRQ_NONE;
 		goto end;
@@ -3340,8 +3342,7 @@ static int interrupt_init_v2_hw(struct hisi_hba *hisi_hba)
 		rc = devm_request_irq(dev, irq, phy_interrupts[i], 0,
 				      DRV_NAME " phy", hisi_hba);
 		if (rc) {
-			dev_err(dev, "irq init: could not request "
-				"phy interrupt %d, rc=%d\n",
+			dev_err(dev, "irq init: could not request phy interrupt %d, rc=%d\n",
 				irq, rc);
 			rc = -ENOENT;
 			goto free_phy_int_irqs;
@@ -3355,8 +3356,7 @@ static int interrupt_init_v2_hw(struct hisi_hba *hisi_hba)
 		rc = devm_request_irq(dev, irq, sata_int_v2_hw, 0,
 				      DRV_NAME " sata", phy);
 		if (rc) {
-			dev_err(dev, "irq init: could not request "
-				"sata interrupt %d, rc=%d\n",
+			dev_err(dev, "irq init: could not request sata interrupt %d, rc=%d\n",
 				irq, rc);
 			rc = -ENOENT;
 			goto free_sata_int_irqs;
@@ -3368,8 +3368,7 @@ static int interrupt_init_v2_hw(struct hisi_hba *hisi_hba)
 		rc = devm_request_irq(dev, irq, fatal_interrupts[fatal_no], 0,
 				      DRV_NAME " fatal", hisi_hba);
 		if (rc) {
-			dev_err(dev,
-				"irq init: could not request fatal interrupt %d, rc=%d\n",
+			dev_err(dev, "irq init: could not request fatal interrupt %d, rc=%d\n",
 				irq, rc);
 			rc = -ENOENT;
 			goto free_fatal_int_irqs;
@@ -3384,14 +3383,15 @@ static int interrupt_init_v2_hw(struct hisi_hba *hisi_hba)
 		rc = devm_request_irq(dev, irq, cq_interrupt_v2_hw, 0,
 				      DRV_NAME " cq", cq);
 		if (rc) {
-			dev_err(dev,
-				"irq init: could not request cq interrupt %d, rc=%d\n",
+			dev_err(dev, "irq init: could not request cq interrupt %d, rc=%d\n",
 				irq, rc);
 			rc = -ENOENT;
 			goto free_cq_int_irqs;
 		}
 		tasklet_init(t, cq_tasklet_v2_hw, (unsigned long)cq);
 	}
+
+	hisi_hba->cq_nvecs = hisi_hba->queue_count;
 
 	return 0;
 
@@ -3535,15 +3535,15 @@ static int write_gpio_v2_hw(struct hisi_hba *hisi_hba, u8 reg_type,
 		break;
 	default:
 		dev_err(dev, "write gpio: unsupported or bad reg type %d\n",
-				reg_type);
+			reg_type);
 		return -EINVAL;
 	}
 
 	return 0;
 }
 
-static void wait_cmds_complete_timeout_v2_hw(struct hisi_hba *hisi_hba,
-					     int delay_ms, int timeout_ms)
+static int wait_cmds_complete_timeout_v2_hw(struct hisi_hba *hisi_hba,
+					    int delay_ms, int timeout_ms)
 {
 	struct device *dev = hisi_hba->dev;
 	int entries, entries_old = 0, time;
@@ -3557,7 +3557,12 @@ static void wait_cmds_complete_timeout_v2_hw(struct hisi_hba *hisi_hba,
 		msleep(delay_ms);
 	}
 
+	if (time >= timeout_ms)
+		return -ETIMEDOUT;
+
 	dev_dbg(dev, "wait commands complete %dms\n", time);
+
+	return 0;
 }
 
 static struct device_attribute *host_attrs_v2_hw[] = {
@@ -3583,6 +3588,7 @@ static struct scsi_host_template sht_v2_hw = {
 	.target_destroy		= sas_target_destroy,
 	.ioctl			= sas_ioctl,
 	.shost_attrs		= host_attrs_v2_hw,
+	.host_reset		= hisi_sas_host_reset,
 };
 
 static const struct hisi_sas_hw hisi_sas_v2_hw = {
@@ -3590,7 +3596,7 @@ static const struct hisi_sas_hw hisi_sas_v2_hw = {
 	.setup_itct = setup_itct_v2_hw,
 	.slot_index_alloc = slot_index_alloc_quirk_v2_hw,
 	.alloc_dev = alloc_dev_quirk_v2_hw,
-	.sl_notify = sl_notify_v2_hw,
+	.sl_notify_ssp = sl_notify_ssp_v2_hw,
 	.get_wideport_bitmap = get_wideport_bitmap_v2_hw,
 	.clear_itct = clear_itct_v2_hw,
 	.free_device = free_device_v2_hw,

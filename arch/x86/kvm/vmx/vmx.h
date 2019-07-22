@@ -142,8 +142,11 @@ struct nested_vmx {
 	 * pointers, so we must keep them pinned while L2 runs.
 	 */
 	struct page *apic_access_page;
-	struct page *virtual_apic_page;
-	struct page *pi_desc_page;
+	struct kvm_host_map virtual_apic_map;
+	struct kvm_host_map pi_desc_map;
+
+	struct kvm_host_map msr_bitmap_map;
+
 	struct pi_desc *pi_desc;
 	bool pi_pending;
 	u16 posted_intr_nv;
@@ -169,13 +172,12 @@ struct nested_vmx {
 	} smm;
 
 	gpa_t hv_evmcs_vmptr;
-	struct page *hv_evmcs_page;
+	struct kvm_host_map hv_evmcs_map;
 	struct hv_enlightened_vmcs *hv_evmcs;
 };
 
 struct vcpu_vmx {
 	struct kvm_vcpu       vcpu;
-	unsigned long         host_rsp;
 	u8                    fail;
 	u8		      msr_bitmap_mode;
 	u32                   exit_intr_info;
@@ -191,7 +193,6 @@ struct vcpu_vmx {
 	u64		      msr_guest_kernel_gs_base;
 #endif
 
-	u64		      arch_capabilities;
 	u64		      spec_ctrl;
 
 	u32 vm_entry_controls_shadow;
@@ -209,7 +210,7 @@ struct vcpu_vmx {
 	struct loaded_vmcs    vmcs01;
 	struct loaded_vmcs   *loaded_vmcs;
 	struct loaded_vmcs   *loaded_cpu_state;
-	bool                  __launched; /* temporary, used in vmx_vcpu_run */
+
 	struct msr_autoload {
 		struct vmx_msrs guest;
 		struct vmx_msrs host;
@@ -258,6 +259,8 @@ struct vcpu_vmx {
 	u32 host_pkru;
 
 	unsigned long host_debugctlmsr;
+
+	u64 msr_ia32_power_ctl;
 
 	/*
 	 * Only bits masked by msr_ia32_feature_control_valid_bits can be set in
@@ -316,6 +319,7 @@ void vmx_set_nmi_mask(struct kvm_vcpu *vcpu, bool masked);
 void vmx_set_virtual_apic_mode(struct kvm_vcpu *vcpu);
 struct shared_msr_entry *find_msr_entry(struct vcpu_vmx *vmx, u32 msr);
 void pt_update_intercept_for_msr(struct vcpu_vmx *vmx);
+void vmx_update_host_rsp(struct vcpu_vmx *vmx, unsigned long host_rsp);
 
 #define POSTED_INTR_ON  0
 #define POSTED_INTR_SN  1
@@ -339,8 +343,8 @@ static inline int pi_test_and_set_pir(int vector, struct pi_desc *pi_desc)
 
 static inline void pi_set_sn(struct pi_desc *pi_desc)
 {
-	return set_bit(POSTED_INTR_SN,
-			(unsigned long *)&pi_desc->control);
+	set_bit(POSTED_INTR_SN,
+		(unsigned long *)&pi_desc->control);
 }
 
 static inline void pi_set_on(struct pi_desc *pi_desc)
@@ -445,7 +449,8 @@ static inline u32 vmx_vmentry_ctrl(void)
 {
 	u32 vmentry_ctrl = vmcs_config.vmentry_ctrl;
 	if (pt_mode == PT_MODE_SYSTEM)
-		vmentry_ctrl &= ~(VM_EXIT_PT_CONCEAL_PIP | VM_EXIT_CLEAR_IA32_RTIT_CTL);
+		vmentry_ctrl &= ~(VM_ENTRY_PT_CONCEAL_PIP |
+				  VM_ENTRY_LOAD_IA32_RTIT_CTL);
 	/* Loading of EFER and PERF_GLOBAL_CTRL are toggled dynamically */
 	return vmentry_ctrl &
 		~(VM_ENTRY_LOAD_IA32_PERF_GLOBAL_CTRL | VM_ENTRY_LOAD_IA32_EFER);
@@ -455,9 +460,10 @@ static inline u32 vmx_vmexit_ctrl(void)
 {
 	u32 vmexit_ctrl = vmcs_config.vmexit_ctrl;
 	if (pt_mode == PT_MODE_SYSTEM)
-		vmexit_ctrl &= ~(VM_ENTRY_PT_CONCEAL_PIP | VM_ENTRY_LOAD_IA32_RTIT_CTL);
+		vmexit_ctrl &= ~(VM_EXIT_PT_CONCEAL_PIP |
+				 VM_EXIT_CLEAR_IA32_RTIT_CTL);
 	/* Loading of EFER and PERF_GLOBAL_CTRL are toggled dynamically */
-	return vmcs_config.vmexit_ctrl &
+	return vmexit_ctrl &
 		~(VM_EXIT_LOAD_IA32_PERF_GLOBAL_CTRL | VM_EXIT_LOAD_IA32_EFER);
 }
 
@@ -478,7 +484,7 @@ static inline struct pi_desc *vcpu_to_pi_desc(struct kvm_vcpu *vcpu)
 	return &(to_vmx(vcpu)->pi_desc);
 }
 
-struct vmcs *alloc_vmcs_cpu(bool shadow, int cpu);
+struct vmcs *alloc_vmcs_cpu(bool shadow, int cpu, gfp_t flags);
 void free_vmcs(struct vmcs *vmcs);
 int alloc_loaded_vmcs(struct loaded_vmcs *loaded_vmcs);
 void free_loaded_vmcs(struct loaded_vmcs *loaded_vmcs);
@@ -487,7 +493,8 @@ void loaded_vmcs_clear(struct loaded_vmcs *loaded_vmcs);
 
 static inline struct vmcs *alloc_vmcs(bool shadow)
 {
-	return alloc_vmcs_cpu(shadow, raw_smp_processor_id());
+	return alloc_vmcs_cpu(shadow, raw_smp_processor_id(),
+			      GFP_KERNEL_ACCOUNT);
 }
 
 u64 construct_eptp(struct kvm_vcpu *vcpu, unsigned long root_hpa);
@@ -515,5 +522,7 @@ static inline void decache_tsc_multiplier(struct vcpu_vmx *vmx)
 	vmx->current_tsc_ratio = vmx->vcpu.arch.tsc_scaling_ratio;
 	vmcs_write64(TSC_MULTIPLIER, vmx->current_tsc_ratio);
 }
+
+void dump_vmcs(void);
 
 #endif /* __KVM_X86_VMX_H */

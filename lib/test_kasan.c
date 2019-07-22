@@ -1,12 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  *
  * Copyright (c) 2014 Samsung Electronics Co., Ltd.
  * Author: Andrey Ryabinin <a.ryabinin@samsung.com>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
  */
 
 #define pr_fmt(fmt) "kasan test: %s " fmt, __func__
@@ -480,29 +476,6 @@ static noinline void __init copy_user_test(void)
 	kfree(kmem);
 }
 
-static noinline void __init use_after_scope_test(void)
-{
-	volatile char *volatile p;
-
-	pr_info("use-after-scope on int\n");
-	{
-		int local = 0;
-
-		p = (char *)&local;
-	}
-	p[0] = 1;
-	p[3] = 1;
-
-	pr_info("use-after-scope on array\n");
-	{
-		char local[1024] = {0};
-
-		p = local;
-	}
-	p[0] = 1;
-	p[1023] = 1;
-}
-
 static noinline void __init kasan_alloca_oob_left(void)
 {
 	volatile int i = 10;
@@ -682,7 +655,6 @@ static int __init kmalloc_tests_init(void)
 	kasan_alloca_oob_right();
 	ksize_unpoisons_memory();
 	copy_user_test();
-	use_after_scope_test();
 	kmem_cache_double_free();
 	kmem_cache_invalid_free();
 	kasan_memchr();

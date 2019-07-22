@@ -35,7 +35,7 @@ static struct dyn_event_operations trace_kprobe_ops = {
 	.match = trace_kprobe_match,
 };
 
-/**
+/*
  * Kprobe event core functions
  */
 struct trace_kprobe {
@@ -221,7 +221,7 @@ static struct trace_kprobe *alloc_trace_kprobe(const char *group,
 
 	tk->rp.maxactive = maxactive;
 
-	if (!event || !is_good_name(event)) {
+	if (!event || !group) {
 		ret = -EINVAL;
 		goto error;
 	}
@@ -230,11 +230,6 @@ static struct trace_kprobe *alloc_trace_kprobe(const char *group,
 	tk->tp.call.name = kstrdup(event, GFP_KERNEL);
 	if (!tk->tp.call.name)
 		goto error;
-
-	if (!group || !is_good_name(group)) {
-		ret = -EINVAL;
-		goto error;
-	}
 
 	tk->tp.class.system = kstrdup(group, GFP_KERNEL);
 	if (!tk->tp.class.system)
@@ -446,13 +441,8 @@ static int __register_trace_kprobe(struct trace_kprobe *tk)
 	else
 		ret = register_kprobe(&tk->rp.kp);
 
-	if (ret == 0) {
+	if (ret == 0)
 		tk->tp.flags |= TP_FLAG_REGISTERED;
-	} else if (ret == -EILSEQ) {
-		pr_warn("Probing address(0x%p) is not an instruction boundary.\n",
-			tk->rp.kp.addr);
-		ret = -EINVAL;
-	}
 	return ret;
 }
 
@@ -596,7 +586,7 @@ static int trace_kprobe_create(int argc, const char *argv[])
 	 * Type of args:
 	 *  FETCHARG:TYPE : use TYPE instead of unsigned long.
 	 */
-	struct trace_kprobe *tk;
+	struct trace_kprobe *tk = NULL;
 	int i, len, ret = 0;
 	bool is_return = false;
 	char *symbol = NULL, *tmp = NULL;
@@ -620,40 +610,50 @@ static int trace_kprobe_create(int argc, const char *argv[])
 	if (argc < 2)
 		return -ECANCELED;
 
+	trace_probe_log_init("trace_kprobe", argc, argv);
+
 	event = strchr(&argv[0][1], ':');
 	if (event)
 		event++;
 
-	if (is_return && isdigit(argv[0][1])) {
+	if (isdigit(argv[0][1])) {
+		if (!is_return) {
+			trace_probe_log_err(1, MAXACT_NO_KPROBE);
+			goto parse_error;
+		}
 		if (event)
 			len = event - &argv[0][1] - 1;
 		else
 			len = strlen(&argv[0][1]);
-		if (len > MAX_EVENT_NAME_LEN - 1)
-			return -E2BIG;
+		if (len > MAX_EVENT_NAME_LEN - 1) {
+			trace_probe_log_err(1, BAD_MAXACT);
+			goto parse_error;
+		}
 		memcpy(buf, &argv[0][1], len);
 		buf[len] = '\0';
 		ret = kstrtouint(buf, 0, &maxactive);
-		if (ret) {
-			pr_info("Failed to parse maxactive.\n");
-			return ret;
+		if (ret || !maxactive) {
+			trace_probe_log_err(1, BAD_MAXACT);
+			goto parse_error;
 		}
 		/* kretprobes instances are iterated over via a list. The
 		 * maximum should stay reasonable.
 		 */
 		if (maxactive > KRETPROBE_MAXACTIVE_MAX) {
-			pr_info("Maxactive is too big (%d > %d).\n",
-				maxactive, KRETPROBE_MAXACTIVE_MAX);
-			return -E2BIG;
+			trace_probe_log_err(1, MAXACT_TOO_BIG);
+			goto parse_error;
 		}
 	}
 
 	/* try to parse an address. if that fails, try to read the
 	 * input as a symbol. */
 	if (kstrtoul(argv[1], 0, (unsigned long *)&addr)) {
+		trace_probe_log_set_index(1);
 		/* Check whether uprobe event specified */
-		if (strchr(argv[1], '/') && strchr(argv[1], ':'))
-			return -ECANCELED;
+		if (strchr(argv[1], '/') && strchr(argv[1], ':')) {
+			ret = -ECANCELED;
+			goto error;
+		}
 		/* a symbol specified */
 		symbol = kstrdup(argv[1], GFP_KERNEL);
 		if (!symbol)
@@ -661,23 +661,23 @@ static int trace_kprobe_create(int argc, const char *argv[])
 		/* TODO: support .init module functions */
 		ret = traceprobe_split_symbol_offset(symbol, &offset);
 		if (ret || offset < 0 || offset > UINT_MAX) {
-			pr_info("Failed to parse either an address or a symbol.\n");
-			goto out;
+			trace_probe_log_err(0, BAD_PROBE_ADDR);
+			goto parse_error;
 		}
 		if (kprobe_on_func_entry(NULL, symbol, offset))
 			flags |= TPARG_FL_FENTRY;
 		if (offset && is_return && !(flags & TPARG_FL_FENTRY)) {
-			pr_info("Given offset is not valid for return probe.\n");
-			ret = -EINVAL;
-			goto out;
+			trace_probe_log_err(0, BAD_RETPROBE);
+			goto parse_error;
 		}
 	}
-	argc -= 2; argv += 2;
 
+	trace_probe_log_set_index(0);
 	if (event) {
-		ret = traceprobe_parse_event_name(&event, &group, buf);
+		ret = traceprobe_parse_event_name(&event, &group, buf,
+						  event - argv[0]);
 		if (ret)
-			goto out;
+			goto parse_error;
 	} else {
 		/* Make a new event name */
 		if (symbol)
@@ -692,13 +692,14 @@ static int trace_kprobe_create(int argc, const char *argv[])
 
 	/* setup a probe */
 	tk = alloc_trace_kprobe(group, event, addr, symbol, offset, maxactive,
-			       argc, is_return);
+			       argc - 2, is_return);
 	if (IS_ERR(tk)) {
-		pr_info("Failed to allocate trace_probe.(%d)\n",
-			(int)PTR_ERR(tk));
 		ret = PTR_ERR(tk);
-		goto out;
+		/* This must return -ENOMEM, else there is a bug */
+		WARN_ON_ONCE(ret != -ENOMEM);
+		goto out;	/* We know tk is not allocated */
 	}
+	argc -= 2; argv += 2;
 
 	/* parse arguments */
 	for (i = 0; i < argc && i < MAX_TRACE_ARGS; i++) {
@@ -708,19 +709,32 @@ static int trace_kprobe_create(int argc, const char *argv[])
 			goto error;
 		}
 
+		trace_probe_log_set_index(i + 2);
 		ret = traceprobe_parse_probe_arg(&tk->tp, i, tmp, flags);
 		kfree(tmp);
 		if (ret)
-			goto error;
+			goto error;	/* This can be -ENOMEM */
 	}
 
 	ret = register_trace_kprobe(tk);
-	if (ret)
+	if (ret) {
+		trace_probe_log_set_index(1);
+		if (ret == -EILSEQ)
+			trace_probe_log_err(0, BAD_INSN_BNDRY);
+		else if (ret == -ENOENT)
+			trace_probe_log_err(0, BAD_PROBE_ADDR);
+		else if (ret != -ENOMEM)
+			trace_probe_log_err(0, FAIL_REG_PROBE);
 		goto error;
+	}
+
 out:
+	trace_probe_log_clear();
 	kfree(symbol);
 	return ret;
 
+parse_error:
+	ret = -EINVAL;
 error:
 	free_trace_kprobe(tk);
 	goto out;
@@ -865,7 +879,7 @@ fetch_store_strlen(unsigned long addr)
 	u8 c;
 
 	do {
-		ret = probe_mem_read(&c, (u8 *)addr + len, 1);
+		ret = probe_kernel_read(&c, (u8 *)addr + len, 1);
 		len++;
 	} while (c && ret == 0 && len < MAX_STRING_SIZE);
 

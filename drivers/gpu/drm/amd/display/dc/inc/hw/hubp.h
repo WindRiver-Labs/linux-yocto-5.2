@@ -78,7 +78,8 @@ struct hubp_funcs {
 	bool (*hubp_program_surface_flip_and_addr)(
 		struct hubp *hubp,
 		const struct dc_plane_address *address,
-		bool flip_immediate);
+		bool flip_immediate,
+		uint8_t vmid);
 
 	void (*hubp_program_pte_vm)(
 		struct hubp *hubp,
@@ -129,6 +130,7 @@ struct hubp_funcs {
 	void (*hubp_clear_underflow)(struct hubp *hubp);
 	void (*hubp_disable_control)(struct hubp *hubp, bool disable_hubp);
 	unsigned int (*hubp_get_underflow_status)(struct hubp *hubp);
+	void (*hubp_init)(struct hubp *hubp);
 
 };
 

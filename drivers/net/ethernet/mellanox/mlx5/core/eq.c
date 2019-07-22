@@ -34,6 +34,7 @@
 #include <linux/notifier.h>
 #include <linux/module.h>
 #include <linux/mlx5/driver.h>
+#include <linux/mlx5/vport.h>
 #include <linux/mlx5/eq.h>
 #include <linux/mlx5/cmd.h>
 #ifdef CONFIG_RFS_ACCEL
@@ -114,11 +115,11 @@ static struct mlx5_core_cq *mlx5_eq_cq_get(struct mlx5_eq *eq, u32 cqn)
 	struct mlx5_cq_table *table = &eq->cq_table;
 	struct mlx5_core_cq *cq = NULL;
 
-	spin_lock(&table->lock);
+	rcu_read_lock();
 	cq = radix_tree_lookup(&table->tree, cqn);
 	if (likely(cq))
 		mlx5_cq_hold(cq);
-	spin_unlock(&table->lock);
+	rcu_read_unlock();
 
 	return cq;
 }
@@ -290,6 +291,9 @@ create_map_eq(struct mlx5_core_dev *dev, struct mlx5_eq *eq, const char *name,
 	mlx5_fill_page_array(&eq->buf, pas);
 
 	MLX5_SET(create_eq_in, in, opcode, MLX5_CMD_OP_CREATE_EQ);
+	if (!param->mask && MLX5_CAP_GEN(dev, log_max_uctx))
+		MLX5_SET(create_eq_in, in, uid, MLX5_SHARED_RESOURCE_UID);
+
 	MLX5_SET64(create_eq_in, in, event_bitmask, param->mask);
 
 	eqc = MLX5_ADDR_OF(create_eq_in, in, eq_context_entry);
@@ -371,9 +375,9 @@ int mlx5_eq_add_cq(struct mlx5_eq *eq, struct mlx5_core_cq *cq)
 	struct mlx5_cq_table *table = &eq->cq_table;
 	int err;
 
-	spin_lock_irq(&table->lock);
+	spin_lock(&table->lock);
 	err = radix_tree_insert(&table->tree, cq->cqn, cq);
-	spin_unlock_irq(&table->lock);
+	spin_unlock(&table->lock);
 
 	return err;
 }
@@ -383,9 +387,9 @@ int mlx5_eq_del_cq(struct mlx5_eq *eq, struct mlx5_core_cq *cq)
 	struct mlx5_cq_table *table = &eq->cq_table;
 	struct mlx5_core_cq *tmp;
 
-	spin_lock_irq(&table->lock);
+	spin_lock(&table->lock);
 	tmp = radix_tree_delete(&table->tree, cq->cqn);
-	spin_unlock_irq(&table->lock);
+	spin_unlock(&table->lock);
 
 	if (!tmp) {
 		mlx5_core_warn(eq->dev, "cq 0x%x not found in eq 0x%x tree\n", eq->eqn, cq->cqn);
@@ -503,8 +507,7 @@ static u64 gather_async_events_mask(struct mlx5_core_dev *dev)
 	if (MLX5_VPORT_MANAGER(dev))
 		async_event_mask |= (1ull << MLX5_EVENT_TYPE_NIC_VPORT_CHANGE);
 
-	if (MLX5_CAP_GEN(dev, port_type) == MLX5_CAP_PORT_TYPE_ETH &&
-	    MLX5_CAP_GEN(dev, general_notification_event))
+	if (MLX5_CAP_GEN(dev, general_notification_event))
 		async_event_mask |= (1ull << MLX5_EVENT_TYPE_GENERAL_EVENT);
 
 	if (MLX5_CAP_GEN(dev, port_module_event))
@@ -529,6 +532,9 @@ static u64 gather_async_events_mask(struct mlx5_core_dev *dev)
 
 	if (MLX5_CAP_GEN(dev, max_num_of_monitor_counters))
 		async_event_mask |= (1ull << MLX5_EVENT_TYPE_MONITOR_COUNTER);
+
+	if (mlx5_core_is_ecpf_esw_manager(dev))
+		async_event_mask |= (1ull << MLX5_EVENT_TYPE_HOST_PARAMS_CHANGE);
 
 	return async_event_mask;
 }
@@ -703,7 +709,7 @@ void mlx5_eq_update_ci(struct mlx5_eq *eq, u32 cc, bool arm)
 
 	__raw_writel((__force u32)cpu_to_be32(val), addr);
 	/* We still want ordering, just not swabbing, so add a barrier */
-	mb();
+	wmb();
 }
 EXPORT_SYMBOL(mlx5_eq_update_ci);
 
@@ -896,14 +902,12 @@ mlx5_comp_irq_get_affinity_mask(struct mlx5_core_dev *dev, int vector)
 }
 EXPORT_SYMBOL(mlx5_comp_irq_get_affinity_mask);
 
+#ifdef CONFIG_RFS_ACCEL
 struct cpu_rmap *mlx5_eq_table_get_rmap(struct mlx5_core_dev *dev)
 {
-#ifdef CONFIG_RFS_ACCEL
 	return dev->priv.eq_table->rmap;
-#else
-	return NULL;
-#endif
 }
+#endif
 
 struct mlx5_eq_comp *mlx5_eqn2comp_eq(struct mlx5_core_dev *dev, int eqn)
 {

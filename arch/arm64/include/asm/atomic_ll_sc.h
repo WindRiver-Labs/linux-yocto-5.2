@@ -1,21 +1,10 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Based on arch/arm/include/asm/atomic.h
  *
  * Copyright (C) 1996 Russell King.
  * Copyright (C) 2002 Deep Blue Solutions Ltd.
  * Copyright (C) 2012 ARM Ltd.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef __ASM_ATOMIC_LL_SC_H
@@ -39,7 +28,7 @@
 
 #define ATOMIC_OP(op, asm_op)						\
 __LL_SC_INLINE void							\
-__LL_SC_PREFIX(atomic_##op(int i, atomic_t *v))				\
+__LL_SC_PREFIX(arch_atomic_##op(int i, atomic_t *v))			\
 {									\
 	unsigned long tmp;						\
 	int result;							\
@@ -53,11 +42,11 @@ __LL_SC_PREFIX(atomic_##op(int i, atomic_t *v))				\
 	: "=&r" (result), "=&r" (tmp), "+Q" (v->counter)		\
 	: "Ir" (i));							\
 }									\
-__LL_SC_EXPORT(atomic_##op);
+__LL_SC_EXPORT(arch_atomic_##op);
 
 #define ATOMIC_OP_RETURN(name, mb, acq, rel, cl, op, asm_op)		\
 __LL_SC_INLINE int							\
-__LL_SC_PREFIX(atomic_##op##_return##name(int i, atomic_t *v))		\
+__LL_SC_PREFIX(arch_atomic_##op##_return##name(int i, atomic_t *v))	\
 {									\
 	unsigned long tmp;						\
 	int result;							\
@@ -75,11 +64,11 @@ __LL_SC_PREFIX(atomic_##op##_return##name(int i, atomic_t *v))		\
 									\
 	return result;							\
 }									\
-__LL_SC_EXPORT(atomic_##op##_return##name);
+__LL_SC_EXPORT(arch_atomic_##op##_return##name);
 
 #define ATOMIC_FETCH_OP(name, mb, acq, rel, cl, op, asm_op)		\
 __LL_SC_INLINE int							\
-__LL_SC_PREFIX(atomic_fetch_##op##name(int i, atomic_t *v))		\
+__LL_SC_PREFIX(arch_atomic_fetch_##op##name(int i, atomic_t *v))	\
 {									\
 	unsigned long tmp;						\
 	int val, result;						\
@@ -97,7 +86,7 @@ __LL_SC_PREFIX(atomic_fetch_##op##name(int i, atomic_t *v))		\
 									\
 	return result;							\
 }									\
-__LL_SC_EXPORT(atomic_fetch_##op##name);
+__LL_SC_EXPORT(arch_atomic_fetch_##op##name);
 
 #define ATOMIC_OPS(...)							\
 	ATOMIC_OP(__VA_ARGS__)						\
@@ -133,7 +122,7 @@ ATOMIC_OPS(xor, eor)
 
 #define ATOMIC64_OP(op, asm_op)						\
 __LL_SC_INLINE void							\
-__LL_SC_PREFIX(atomic64_##op(long i, atomic64_t *v))			\
+__LL_SC_PREFIX(arch_atomic64_##op(long i, atomic64_t *v))		\
 {									\
 	long result;							\
 	unsigned long tmp;						\
@@ -147,11 +136,11 @@ __LL_SC_PREFIX(atomic64_##op(long i, atomic64_t *v))			\
 	: "=&r" (result), "=&r" (tmp), "+Q" (v->counter)		\
 	: "Ir" (i));							\
 }									\
-__LL_SC_EXPORT(atomic64_##op);
+__LL_SC_EXPORT(arch_atomic64_##op);
 
 #define ATOMIC64_OP_RETURN(name, mb, acq, rel, cl, op, asm_op)		\
 __LL_SC_INLINE long							\
-__LL_SC_PREFIX(atomic64_##op##_return##name(long i, atomic64_t *v))	\
+__LL_SC_PREFIX(arch_atomic64_##op##_return##name(long i, atomic64_t *v))\
 {									\
 	long result;							\
 	unsigned long tmp;						\
@@ -169,11 +158,11 @@ __LL_SC_PREFIX(atomic64_##op##_return##name(long i, atomic64_t *v))	\
 									\
 	return result;							\
 }									\
-__LL_SC_EXPORT(atomic64_##op##_return##name);
+__LL_SC_EXPORT(arch_atomic64_##op##_return##name);
 
 #define ATOMIC64_FETCH_OP(name, mb, acq, rel, cl, op, asm_op)		\
 __LL_SC_INLINE long							\
-__LL_SC_PREFIX(atomic64_fetch_##op##name(long i, atomic64_t *v))	\
+__LL_SC_PREFIX(arch_atomic64_fetch_##op##name(long i, atomic64_t *v))	\
 {									\
 	long result, val;						\
 	unsigned long tmp;						\
@@ -191,7 +180,7 @@ __LL_SC_PREFIX(atomic64_fetch_##op##name(long i, atomic64_t *v))	\
 									\
 	return result;							\
 }									\
-__LL_SC_EXPORT(atomic64_fetch_##op##name);
+__LL_SC_EXPORT(arch_atomic64_fetch_##op##name);
 
 #define ATOMIC64_OPS(...)						\
 	ATOMIC64_OP(__VA_ARGS__)					\
@@ -226,7 +215,7 @@ ATOMIC64_OPS(xor, eor)
 #undef ATOMIC64_OP
 
 __LL_SC_INLINE long
-__LL_SC_PREFIX(atomic64_dec_if_positive(atomic64_t *v))
+__LL_SC_PREFIX(arch_atomic64_dec_if_positive(atomic64_t *v))
 {
 	long result;
 	unsigned long tmp;
@@ -246,7 +235,7 @@ __LL_SC_PREFIX(atomic64_dec_if_positive(atomic64_t *v))
 
 	return result;
 }
-__LL_SC_EXPORT(atomic64_dec_if_positive);
+__LL_SC_EXPORT(arch_atomic64_dec_if_positive);
 
 #define __CMPXCHG_CASE(w, sfx, name, sz, mb, acq, rel, cl)		\
 __LL_SC_INLINE u##sz							\

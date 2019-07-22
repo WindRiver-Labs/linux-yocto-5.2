@@ -1,13 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /* Copyright (c) 2014-2018, The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  */
 
 #if !defined(_DPU_TRACE_H_) || defined(TRACE_HEADER_MULTI_READ)
@@ -831,48 +823,42 @@ TRACE_EVENT(dpu_plane_disable,
 );
 
 DECLARE_EVENT_CLASS(dpu_rm_iter_template,
-	TP_PROTO(uint32_t id, enum dpu_hw_blk_type type, uint32_t enc_id),
-	TP_ARGS(id, type, enc_id),
+	TP_PROTO(uint32_t id, uint32_t enc_id),
+	TP_ARGS(id, enc_id),
 	TP_STRUCT__entry(
 		__field(	uint32_t,		id	)
-		__field(	enum dpu_hw_blk_type,	type	)
 		__field(	uint32_t,		enc_id	)
 	),
 	TP_fast_assign(
 		__entry->id = id;
-		__entry->type = type;
 		__entry->enc_id = enc_id;
 	),
-	TP_printk("id:%d type:%d enc_id:%u", __entry->id, __entry->type,
-		  __entry->enc_id)
+	TP_printk("id:%d enc_id:%u", __entry->id, __entry->enc_id)
 );
 DEFINE_EVENT(dpu_rm_iter_template, dpu_rm_reserve_intf,
-	TP_PROTO(uint32_t id, enum dpu_hw_blk_type type, uint32_t enc_id),
-	TP_ARGS(id, type, enc_id)
+	TP_PROTO(uint32_t id, uint32_t enc_id),
+	TP_ARGS(id, enc_id)
 );
 DEFINE_EVENT(dpu_rm_iter_template, dpu_rm_reserve_ctls,
-	TP_PROTO(uint32_t id, enum dpu_hw_blk_type type, uint32_t enc_id),
-	TP_ARGS(id, type, enc_id)
+	TP_PROTO(uint32_t id, uint32_t enc_id),
+	TP_ARGS(id, enc_id)
 );
 
 TRACE_EVENT(dpu_rm_reserve_lms,
-	TP_PROTO(uint32_t id, enum dpu_hw_blk_type type, uint32_t enc_id,
-		 uint32_t pp_id),
-	TP_ARGS(id, type, enc_id, pp_id),
+	TP_PROTO(uint32_t id, uint32_t enc_id, uint32_t pp_id),
+	TP_ARGS(id, enc_id, pp_id),
 	TP_STRUCT__entry(
 		__field(	uint32_t,		id	)
-		__field(	enum dpu_hw_blk_type,	type	)
 		__field(	uint32_t,		enc_id	)
 		__field(	uint32_t,		pp_id	)
 	),
 	TP_fast_assign(
 		__entry->id = id;
-		__entry->type = type;
 		__entry->enc_id = enc_id;
 		__entry->pp_id = pp_id;
 	),
-	TP_printk("id:%d type:%d enc_id:%u pp_id:%u", __entry->id,
-		  __entry->type, __entry->enc_id, __entry->pp_id)
+	TP_printk("id:%d enc_id:%u pp_id:%u", __entry->id,
+		  __entry->enc_id, __entry->pp_id)
 );
 
 TRACE_EVENT(dpu_vbif_wait_xin_halt_fail,

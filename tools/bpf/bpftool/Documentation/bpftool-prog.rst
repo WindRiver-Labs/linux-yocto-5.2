@@ -18,14 +18,14 @@ SYNOPSIS
 	{ **show** | **list** | **dump xlated** | **dump jited** | **pin** | **load**
 	| **loadall** | **help** }
 
-MAP COMMANDS
+PROG COMMANDS
 =============
 
 |	**bpftool** **prog { show | list }** [*PROG*]
 |	**bpftool** **prog dump xlated** *PROG* [{**file** *FILE* | **opcodes** | **visual** | **linum**}]
 |	**bpftool** **prog dump jited**  *PROG* [{**file** *FILE* | **opcodes** | **linum**}]
 |	**bpftool** **prog pin** *PROG* *FILE*
-|	**bpftool** **prog { load | loadall }** *OBJ* *PATH* [**type** *TYPE*] [**map** {**idx** *IDX* | **name** *NAME*} *MAP*] [**dev** *NAME*]
+|	**bpftool** **prog { load | loadall }** *OBJ* *PATH* [**type** *TYPE*] [**map** {**idx** *IDX* | **name** *NAME*} *MAP*] [**dev** *NAME*] [**pinmaps** *MAP_DIR*]
 |	**bpftool** **prog attach** *PROG* *ATTACH_TYPE* [*MAP*]
 |	**bpftool** **prog detach** *PROG* *ATTACH_TYPE* [*MAP*]
 |	**bpftool** **prog tracelog**
@@ -39,10 +39,11 @@ MAP COMMANDS
 |		**cgroup/sock** | **cgroup/dev** | **lwt_in** | **lwt_out** | **lwt_xmit** |
 |		**lwt_seg6local** | **sockops** | **sk_skb** | **sk_msg** | **lirc_mode2** |
 |		**cgroup/bind4** | **cgroup/bind6** | **cgroup/post_bind4** | **cgroup/post_bind6** |
-|		**cgroup/connect4** | **cgroup/connect6** | **cgroup/sendmsg4** | **cgroup/sendmsg6**
+|		**cgroup/connect4** | **cgroup/connect6** | **cgroup/sendmsg4** | **cgroup/sendmsg6** |
+|		**cgroup/recvmsg4** | **cgroup/recvmsg6** | **cgroup/sysctl**
 |	}
 |       *ATTACH_TYPE* := {
-|		**msg_verdict** | **skb_verdict** | **skb_parse** | **flow_dissector**
+|		**msg_verdict** | **stream_verdict** | **stream_parser** | **flow_dissector**
 |	}
 
 
@@ -55,6 +56,14 @@ DESCRIPTION
 
 		  Output will start with program ID followed by program type and
 		  zero or more named attributes (depending on kernel version).
+
+		  Since Linux 5.1 the kernel can collect statistics on BPF
+		  programs (such as the total time spent running the program,
+		  and the number of times it was run). If available, bpftool
+		  shows such statistics. However, the kernel does not collect
+		  them by defaults, as it slightly impacts performance on each
+		  program run. Activation or deactivation of the feature is
+		  performed via the **kernel.bpf_stats_enabled** sysctl knob.
 
 	**bpftool prog dump xlated** *PROG* [{ **file** *FILE* | **opcodes** | **visual** | **linum** }]
 		  Dump eBPF instructions of the program from the kernel. By
@@ -144,7 +153,7 @@ OPTIONS
 	-h, --help
 		  Print short generic help message (similar to **bpftool help**).
 
-	-v, --version
+	-V, --version
 		  Print version number (similar to **bpftool version**).
 
 	-j, --json
@@ -171,7 +180,7 @@ EXAMPLES
 
 ::
 
-    10: xdp  name some_prog  tag 005a3d2123620c8b  gpl
+    10: xdp  name some_prog  tag 005a3d2123620c8b  gpl run_time_ns 81632 run_cnt 10
             loaded_at 2017-09-29T20:11:00+0000  uid 0
             xlated 528B  jited 370B  memlock 4096B  map_ids 10
 
@@ -184,6 +193,8 @@ EXAMPLES
             "type": "xdp",
             "tag": "005a3d2123620c8b",
             "gpl_compatible": true,
+            "run_time_ns": 81632,
+            "run_cnt": 10,
             "loaded_at": 1506715860,
             "uid": 0,
             "bytes_xlated": 528,
@@ -258,5 +269,7 @@ SEE ALSO
 	**bpftool**\ (8),
 	**bpftool-map**\ (8),
 	**bpftool-cgroup**\ (8),
+	**bpftool-feature**\ (8),
 	**bpftool-net**\ (8),
-	**bpftool-perf**\ (8)
+	**bpftool-perf**\ (8),
+	**bpftool-btf**\ (8)

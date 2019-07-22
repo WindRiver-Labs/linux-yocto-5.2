@@ -36,6 +36,15 @@ static int net_msg_warn;	/* Unused, but still a sysctl */
 int sysctl_fb_tunnels_only_for_init_net __read_mostly = 0;
 EXPORT_SYMBOL(sysctl_fb_tunnels_only_for_init_net);
 
+/* 0 - Keep current behavior:
+ *     IPv4: inherit all current settings from init_net
+ *     IPv6: reset all settings to default
+ * 1 - Both inherit all current settings from init_net
+ * 2 - Both reset all settings to default
+ */
+int sysctl_devconf_inherit_init_net __read_mostly;
+EXPORT_SYMBOL(sysctl_devconf_inherit_init_net);
+
 #ifdef CONFIG_RPS
 static int rps_sock_flow_sysctl(struct ctl_table *table, int write,
 				void __user *buffer, size_t *lenp, loff_t *ppos)
@@ -86,12 +95,12 @@ static int rps_sock_flow_sysctl(struct ctl_table *table, int write,
 		if (sock_table != orig_sock_table) {
 			rcu_assign_pointer(rps_sock_flow_table, sock_table);
 			if (sock_table) {
-				static_key_slow_inc(&rps_needed);
-				static_key_slow_inc(&rfs_needed);
+				static_branch_inc(&rps_needed);
+				static_branch_inc(&rfs_needed);
 			}
 			if (orig_sock_table) {
-				static_key_slow_dec(&rps_needed);
-				static_key_slow_dec(&rfs_needed);
+				static_branch_dec(&rps_needed);
+				static_branch_dec(&rfs_needed);
 				synchronize_rcu();
 				vfree(orig_sock_table);
 			}
@@ -543,6 +552,22 @@ static struct ctl_table net_core_table[] = {
 		.proc_handler	= proc_dointvec_minmax,
 		.extra1		= &zero,
 		.extra2		= &one,
+	},
+	{
+		.procname	= "devconf_inherit_init_net",
+		.data		= &sysctl_devconf_inherit_init_net,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &zero,
+		.extra2		= &two,
+	},
+	{
+		.procname	= "high_order_alloc_disable",
+		.data		= &net_high_order_alloc_disable_key.key,
+		.maxlen         = sizeof(net_high_order_alloc_disable_key),
+		.mode		= 0644,
+		.proc_handler	= proc_do_static_key,
 	},
 	{ }
 };

@@ -30,6 +30,7 @@
 #include "grph_object_defs.h"
 
 struct dc_link_status {
+	bool link_active;
 	struct dpcd_caps *dpcd_caps;
 };
 
@@ -110,6 +111,7 @@ struct dc_link {
 	union ddi_channel_mapping ddi_channel_mapping;
 	struct connector_device_tag_info device_tag;
 	struct dpcd_caps dpcd_caps;
+	uint32_t dongle_max_pix_clk;
 	unsigned short chip_caps;
 	unsigned int dpcd_sink_count;
 	enum edp_revision edp_revision;
@@ -118,12 +120,14 @@ struct dc_link {
 	/* MST record stream using this link */
 	struct link_flags {
 		bool dp_keep_receiver_powered;
+		bool dp_skip_DID2;
 	} wa_flags;
 	struct link_mst_stream_allocation_table mst_stream_alloc_table;
 
 	struct dc_link_status link_status;
 
 	struct link_trace link_trace;
+	struct gpio *hpd_gpio;
 };
 
 const struct dc_link_status *dc_link_get_status(const struct dc_link *dc_link);
@@ -243,10 +247,18 @@ void dc_link_set_test_pattern(struct dc_link *link,
 			const struct link_training_settings *p_link_settings,
 			const unsigned char *p_custom_pattern,
 			unsigned int cust_pattern_size);
+uint32_t dc_link_bandwidth_kbps(
+	const struct dc_link *link,
+	const struct dc_link_settings *link_setting);
+
+const struct dc_link_settings *dc_link_get_link_cap(
+		const struct dc_link *link);
 
 bool dc_submit_i2c(
 		struct dc *dc,
 		uint32_t link_index,
 		struct i2c_command *cmd);
 
+uint32_t dc_bandwidth_in_kbps_from_timing(
+	const struct dc_crtc_timing *timing);
 #endif /* DC_LINK_H_ */

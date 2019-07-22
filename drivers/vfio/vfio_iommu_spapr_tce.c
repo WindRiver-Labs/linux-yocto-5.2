@@ -1,12 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * VFIO: IOMMU DMA mapping support for TCE on POWER
  *
  * Copyright (C) 2013 IBM Corp.  All rights reserved.
  *     Author: Alexey Kardashevskiy <aik@ozlabs.ru>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
  *
  * Derived from original vfio_iommu_type1.c:
  * Copyright (C) 2012 Red Hat, Inc.  All rights reserved.
@@ -532,7 +529,8 @@ static int tce_iommu_use_page(unsigned long tce, unsigned long *hpa)
 	enum dma_data_direction direction = iommu_tce_direction(tce);
 
 	if (get_user_pages_fast(tce & PAGE_MASK, 1,
-			direction != DMA_TO_DEVICE, &page) != 1)
+			direction != DMA_TO_DEVICE ? FOLL_WRITE : 0,
+			&page) != 1)
 		return -EFAULT;
 
 	*hpa = __pa((unsigned long) page_address(page));
@@ -1235,7 +1233,8 @@ static void tce_iommu_release_ownership_ddw(struct tce_container *container,
 	}
 
 	for (i = 0; i < IOMMU_TABLE_GROUP_MAX_TABLES; ++i)
-		table_group->ops->unset_window(table_group, i);
+		if (container->tables[i])
+			table_group->ops->unset_window(table_group, i);
 
 	table_group->ops->release_ownership(table_group);
 }
@@ -1397,7 +1396,7 @@ unlock_exit:
 	mutex_unlock(&container->lock);
 }
 
-const struct vfio_iommu_driver_ops tce_iommu_driver_ops = {
+static const struct vfio_iommu_driver_ops tce_iommu_driver_ops = {
 	.name		= "iommu-vfio-powerpc",
 	.owner		= THIS_MODULE,
 	.open		= tce_iommu_open,

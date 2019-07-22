@@ -11,7 +11,7 @@
 
 static inline bool is_wilc1000(u32 id)
 {
-	return ((id & 0xfffff000) == 0x100000 ? true : false);
+	return (id & 0xfffff000) == 0x100000;
 }
 
 static inline void acquire_bus(struct wilc *wilc, enum bus_acquire acquire)
@@ -274,7 +274,8 @@ static int wilc_wlan_txq_add_cfg_pkt(struct wilc_vif *vif, u8 *buffer,
 }
 
 int wilc_wlan_txq_add_net_pkt(struct net_device *dev, void *priv, u8 *buffer,
-			      u32 buffer_size, wilc_tx_complete_func_t func)
+			      u32 buffer_size,
+			      void (*tx_complete_fn)(void *, int))
 {
 	struct txq_entry_t *tqe;
 	struct wilc_vif *vif = netdev_priv(dev);
@@ -292,7 +293,7 @@ int wilc_wlan_txq_add_net_pkt(struct net_device *dev, void *priv, u8 *buffer,
 	tqe->type = WILC_NET_PKT;
 	tqe->buffer = buffer;
 	tqe->buffer_size = buffer_size;
-	tqe->tx_complete_func = func;
+	tqe->tx_complete_func = tx_complete_fn;
 	tqe->priv = priv;
 
 	tqe->ack_idx = NOT_TCP_ACK;
@@ -303,7 +304,8 @@ int wilc_wlan_txq_add_net_pkt(struct net_device *dev, void *priv, u8 *buffer,
 }
 
 int wilc_wlan_txq_add_mgmt_pkt(struct net_device *dev, void *priv, u8 *buffer,
-			       u32 buffer_size, wilc_tx_complete_func_t func)
+			       u32 buffer_size,
+			       void (*tx_complete_fn)(void *, int))
 {
 	struct txq_entry_t *tqe;
 	struct wilc_vif *vif = netdev_priv(dev);
@@ -314,14 +316,14 @@ int wilc_wlan_txq_add_mgmt_pkt(struct net_device *dev, void *priv, u8 *buffer,
 	if (wilc->quit)
 		return 0;
 
-	tqe = kmalloc(sizeof(*tqe), GFP_KERNEL);
+	tqe = kmalloc(sizeof(*tqe), GFP_ATOMIC);
 
 	if (!tqe)
 		return 0;
 	tqe->type = WILC_MGMT_PKT;
 	tqe->buffer = buffer;
 	tqe->buffer_size = buffer_size;
-	tqe->tx_complete_func = func;
+	tqe->tx_complete_func = tx_complete_fn;
 	tqe->priv = priv;
 	tqe->ack_idx = NOT_TCP_ACK;
 	wilc_wlan_txq_add_to_tail(dev, tqe);
@@ -406,7 +408,7 @@ void chip_wakeup(struct wilc *wilc)
 			wilc->hif_func->hif_write_reg(wilc, 1, reg & ~BIT(1));
 
 			do {
-				usleep_range(2 * 1000, 2 * 1000);
+				usleep_range(2000, 2500);
 				wilc_get_chipid(wilc, true);
 			} while (wilc_get_chipid(wilc, true) == 0);
 		} while (wilc_get_chipid(wilc, true) == 0);
@@ -421,7 +423,7 @@ void chip_wakeup(struct wilc *wilc)
 						     &clk_status_reg);
 
 			while ((clk_status_reg & 0x1) == 0) {
-				usleep_range(2 * 1000, 2 * 1000);
+				usleep_range(2000, 2500);
 
 				wilc->hif_func->hif_read_reg(wilc, 0xf1,
 							     &clk_status_reg);
@@ -521,7 +523,7 @@ int wilc_wlan_handle_txq(struct net_device *dev, u32 *txq_count)
 			if (vmm_sz & 0x3)
 				vmm_sz = (vmm_sz + 4) & ~0x3;
 
-			if ((sum + vmm_sz) > LINUX_TX_SIZE)
+			if ((sum + vmm_sz) > WILC_TX_BUFF_SIZE)
 				break;
 
 			vmm_table[i] = vmm_sz / 4;
@@ -715,9 +717,8 @@ static void wilc_wlan_handle_rx_buff(struct wilc *wilc, u8 *buffer, int size)
 		} else {
 			if (!is_cfg_packet) {
 				if (pkt_len > 0) {
-					wilc_frmw_to_linux(wilc, buff_ptr,
-							   pkt_len,
-							   pkt_offset);
+					wilc_frmw_to_host(wilc, buff_ptr,
+							  pkt_len, pkt_offset);
 				}
 			} else {
 				struct wilc_cfg_rsp rsp;
@@ -809,7 +810,7 @@ static void wilc_wlan_handle_isr_ext(struct wilc *wilc, u32 int_status)
 	if (size <= 0)
 		return;
 
-	if (LINUX_RX_SIZE - offset < size)
+	if (WILC_RX_BUFF_SIZE - offset < size)
 		offset = 0;
 
 	buffer = &wilc->rx_buffer[offset];
@@ -1075,13 +1076,17 @@ void wilc_wlan_cleanup(struct net_device *dev)
 	acquire_bus(wilc, WILC_BUS_ACQUIRE_AND_WAKEUP);
 
 	ret = wilc->hif_func->hif_read_reg(wilc, WILC_GP_REG_0, &reg);
-	if (!ret)
+	if (!ret) {
 		release_bus(wilc, WILC_BUS_RELEASE_ALLOW_SLEEP);
+		return;
+	}
 
 	ret = wilc->hif_func->hif_write_reg(wilc, WILC_GP_REG_0,
 					(reg | ABORT_INT));
-	if (!ret)
+	if (!ret) {
 		release_bus(wilc, WILC_BUS_RELEASE_ALLOW_SLEEP);
+		return;
+	}
 
 	release_bus(wilc, WILC_BUS_RELEASE_ALLOW_SLEEP);
 	wilc->hif_func->hif_deinit(NULL);
@@ -1092,24 +1097,19 @@ static int wilc_wlan_cfg_commit(struct wilc_vif *vif, int type,
 {
 	struct wilc *wilc = vif->wilc;
 	struct wilc_cfg_frame *cfg = &wilc->cfg_frame;
-	int total_len = wilc->cfg_frame_offset + 4 + DRIVER_HANDLER_SIZE;
-	int seq_no = wilc->cfg_seq_no % 256;
-	int driver_handler = (u32)drv_handler;
+	int t_len = wilc->cfg_frame_offset + sizeof(struct wilc_cfg_cmd_hdr);
 
 	if (type == WILC_CFG_SET)
-		cfg->wid_header[0] = 'W';
+		cfg->hdr.cmd_type = 'W';
 	else
-		cfg->wid_header[0] = 'Q';
-	cfg->wid_header[1] = seq_no;
-	cfg->wid_header[2] = (u8)total_len;
-	cfg->wid_header[3] = (u8)(total_len >> 8);
-	cfg->wid_header[4] = (u8)driver_handler;
-	cfg->wid_header[5] = (u8)(driver_handler >> 8);
-	cfg->wid_header[6] = (u8)(driver_handler >> 16);
-	cfg->wid_header[7] = (u8)(driver_handler >> 24);
-	wilc->cfg_seq_no = seq_no;
+		cfg->hdr.cmd_type = 'Q';
 
-	if (!wilc_wlan_txq_add_cfg_pkt(vif, &cfg->wid_header[0], total_len))
+	cfg->hdr.seq_no = wilc->cfg_seq_no % 256;
+	cfg->hdr.total_len = cpu_to_le16(t_len);
+	cfg->hdr.driver_handler = cpu_to_le32(drv_handler);
+	wilc->cfg_seq_no = cfg->hdr.seq_no;
+
+	if (!wilc_wlan_txq_add_cfg_pkt(vif, (u8 *)&cfg->hdr, t_len))
 		return -1;
 
 	return 0;
@@ -1144,7 +1144,7 @@ int wilc_wlan_cfg_set(struct wilc_vif *vif, int start, u16 wid, u8 *buffer,
 		ret_size = 0;
 
 	if (!wait_for_completion_timeout(&wilc->cfg_event,
-					 msecs_to_jiffies(CFG_PKTS_TIMEOUT))) {
+					 WILC_CFG_PKTS_TIMEOUT)) {
 		netdev_dbg(vif->ndev, "%s: Timed Out\n", __func__);
 		ret_size = 0;
 	}
@@ -1182,7 +1182,7 @@ int wilc_wlan_cfg_get(struct wilc_vif *vif, int start, u16 wid, int commit,
 		ret_size = 0;
 
 	if (!wait_for_completion_timeout(&wilc->cfg_event,
-					 msecs_to_jiffies(CFG_PKTS_TIMEOUT))) {
+					 WILC_CFG_PKTS_TIMEOUT)) {
 		netdev_dbg(vif->ndev, "%s: Timed Out\n", __func__);
 		ret_size = 0;
 	}
@@ -1317,7 +1317,7 @@ int wilc_wlan_init(struct net_device *dev)
 	}
 
 	if (!wilc->tx_buffer)
-		wilc->tx_buffer = kmalloc(LINUX_TX_SIZE, GFP_KERNEL);
+		wilc->tx_buffer = kmalloc(WILC_TX_BUFF_SIZE, GFP_KERNEL);
 
 	if (!wilc->tx_buffer) {
 		ret = -ENOBUFS;
@@ -1325,7 +1325,7 @@ int wilc_wlan_init(struct net_device *dev)
 	}
 
 	if (!wilc->rx_buffer)
-		wilc->rx_buffer = kmalloc(LINUX_RX_SIZE, GFP_KERNEL);
+		wilc->rx_buffer = kmalloc(WILC_RX_BUFF_SIZE, GFP_KERNEL);
 
 	if (!wilc->rx_buffer) {
 		ret = -ENOBUFS;

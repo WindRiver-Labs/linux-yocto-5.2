@@ -814,7 +814,7 @@ static int wilc_spi_read(struct wilc *wilc, u32 addr, u8 *buf, u32 size)
  *
  ********************************************/
 
-static int _wilc_spi_deinit(struct wilc *wilc)
+static int wilc_spi_deinit(struct wilc *wilc)
 {
 	/*
 	 * TODO:
@@ -933,11 +933,9 @@ static int wilc_spi_read_int(struct wilc *wilc, u32 *int_status)
 	u32 irq_flags;
 	int k = IRG_FLAGS_OFFSET + 5;
 
-	if (spi_priv->has_thrpt_enh) {
-		ret = spi_internal_read(wilc, 0xe840 - WILC_SPI_REG_BASE,
-					int_status);
-		return ret;
-	}
+	if (spi_priv->has_thrpt_enh)
+		return spi_internal_read(wilc, 0xe840 - WILC_SPI_REG_BASE,
+					 int_status);
 	ret = wilc_spi_read_reg(wilc, WILC_VMM_TO_HOST_SIZE, &byte_cnt);
 	if (!ret) {
 		dev_err(&spi->dev,
@@ -982,9 +980,8 @@ static int wilc_spi_clear_int_ext(struct wilc *wilc, u32 val)
 	u32 tbl_ctl;
 
 	if (spi_priv->has_thrpt_enh) {
-		ret = spi_internal_write(wilc, 0xe844 - WILC_SPI_REG_BASE,
-					 val);
-		return ret;
+		return spi_internal_write(wilc, 0xe844 - WILC_SPI_REG_BASE,
+					  val);
 	}
 
 	flags = val & (BIT(MAX_NUM_INT) - 1);
@@ -1122,7 +1119,7 @@ static int wilc_spi_sync_ext(struct wilc *wilc, int nint)
 /* Global spi HIF function table */
 static const struct wilc_hif_func wilc_hif_spi = {
 	.hif_init = wilc_spi_init,
-	.hif_deinit = _wilc_spi_deinit,
+	.hif_deinit = wilc_spi_deinit,
 	.hif_read_reg = wilc_spi_read_reg,
 	.hif_write_reg = wilc_spi_write_reg,
 	.hif_block_rx = wilc_spi_read,

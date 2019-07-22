@@ -81,6 +81,7 @@ struct hdac_device {
 	atomic_t in_pm;		/* suspend/resume being performed */
 
 	/* sysfs */
+	struct mutex widget_lock;
 	struct hdac_widget_tree *widgets;
 
 	/* regmap */
@@ -297,7 +298,7 @@ struct hdac_rb {
  * @num_streams: streams supported
  * @idx: HDA link index
  * @hlink_list: link list of HDA links
- * @lock: lock for link mgmt
+ * @lock: lock for link and display power mgmt
  * @cmd_dma_state: state of cmd DMAs: CORB and RIRB
  */
 struct hdac_bus {
@@ -363,21 +364,20 @@ struct hdac_bus {
 	/* locks */
 	spinlock_t reg_lock;
 	struct mutex cmd_mutex;
+	struct mutex lock;
 
 	/* DRM component interface */
 	struct drm_audio_component *audio_component;
 	long display_power_status;
-	bool display_power_active;
+	unsigned long display_power_active;
 
 	/* parameters required for enhanced capabilities */
 	int num_streams;
 	int idx;
 
+	/* link management */
 	struct list_head hlink_list;
-
-	struct mutex lock;
 	bool cmd_dma_state;
-
 };
 
 int snd_hdac_bus_init(struct hdac_bus *bus, struct device *dev,
@@ -539,6 +539,9 @@ void snd_hdac_stream_sync(struct hdac_stream *azx_dev, bool start,
 			  unsigned int streams);
 void snd_hdac_stream_timecounter_init(struct hdac_stream *azx_dev,
 				      unsigned int streams);
+int snd_hdac_get_stream_stripe_ctl(struct hdac_bus *bus,
+				struct snd_pcm_substream *substream);
+
 /*
  * macros for easy use
  */

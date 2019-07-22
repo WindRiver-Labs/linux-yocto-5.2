@@ -45,8 +45,11 @@
 #define HCLGE_TM_QCN_MEM_ERR_INT_EN	0xFFFFFF
 #define HCLGE_NCSI_ERR_INT_EN	0x3
 #define HCLGE_NCSI_ERR_INT_TYPE	0x9
-#define HCLGE_MAC_COMMON_ERR_INT_EN		GENMASK(7, 0)
-#define HCLGE_MAC_COMMON_ERR_INT_EN_MASK	GENMASK(7, 0)
+#define HCLGE_MAC_COMMON_ERR_INT_EN		0x107FF
+#define HCLGE_MAC_COMMON_ERR_INT_EN_MASK	0x107FF
+#define HCLGE_MAC_TNL_INT_EN			GENMASK(7, 0)
+#define HCLGE_MAC_TNL_INT_EN_MASK		GENMASK(7, 0)
+#define HCLGE_MAC_TNL_INT_CLR			GENMASK(7, 0)
 #define HCLGE_PPU_MPF_ABNORMAL_INT0_EN		GENMASK(31, 0)
 #define HCLGE_PPU_MPF_ABNORMAL_INT0_EN_MASK	GENMASK(31, 0)
 #define HCLGE_PPU_MPF_ABNORMAL_INT1_EN		GENMASK(31, 0)
@@ -79,6 +82,7 @@
 #define HCLGE_PPP_MPF_INT_ST3_MASK	GENMASK(5, 0)
 #define HCLGE_PPU_MPF_INT_ST3_MASK	GENMASK(7, 0)
 #define HCLGE_PPU_MPF_INT_ST2_MSIX_MASK	GENMASK(29, 28)
+#define HCLGE_PPU_PF_INT_RAS_MASK	0x18
 #define HCLGE_PPU_PF_INT_MSIX_MASK	0x27
 #define HCLGE_QCN_FIFO_INT_MASK		GENMASK(17, 0)
 #define HCLGE_QCN_ECC_INT_MASK		GENMASK(21, 0)
@@ -111,8 +115,10 @@ struct hclge_hw_blk {
 struct hclge_hw_error {
 	u32 int_msk;
 	const char *msg;
+	enum hnae3_reset_type reset_level;
 };
 
+int hclge_config_mac_tnl_int(struct hclge_dev *hdev, bool en);
 int hclge_hw_error_set_state(struct hclge_dev *hdev, bool state);
 pci_ers_result_t hclge_handle_hw_ras_error(struct hnae3_ae_dev *ae_dev);
 int hclge_handle_hw_msix_error(struct hclge_dev *hdev,

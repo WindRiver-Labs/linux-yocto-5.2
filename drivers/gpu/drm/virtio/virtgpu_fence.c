@@ -36,7 +36,7 @@ static const char *virtio_get_timeline_name(struct dma_fence *f)
 	return "controlq";
 }
 
-static bool virtio_signaled(struct dma_fence *f)
+bool virtio_fence_signaled(struct dma_fence *f)
 {
 	struct virtio_gpu_fence *fence = to_virtio_fence(f);
 
@@ -62,7 +62,7 @@ static void virtio_timeline_value_str(struct dma_fence *f, char *str, int size)
 static const struct dma_fence_ops virtio_fence_ops = {
 	.get_driver_name     = virtio_get_driver_name,
 	.get_timeline_name   = virtio_get_timeline_name,
-	.signaled            = virtio_signaled,
+	.signaled            = virtio_fence_signaled,
 	.fence_value_str     = virtio_fence_value_str,
 	.timeline_value_str  = virtio_timeline_value_str,
 };
@@ -79,14 +79,6 @@ struct virtio_gpu_fence *virtio_gpu_fence_alloc(struct virtio_gpu_device *vgdev)
 	dma_fence_init(&fence->f, &virtio_fence_ops, &drv->lock, drv->context, 0);
 
 	return fence;
-}
-
-void virtio_gpu_fence_cleanup(struct virtio_gpu_fence *fence)
-{
-	if (!fence)
-		return;
-
-	dma_fence_put(&fence->f);
 }
 
 int virtio_gpu_fence_emit(struct virtio_gpu_device *vgdev,

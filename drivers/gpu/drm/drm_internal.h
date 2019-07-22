@@ -26,6 +26,8 @@
 #define DRM_IF_MAJOR 1
 #define DRM_IF_MINOR 4
 
+#define DRM_IF_VERSION(maj, min) (maj << 16 | min)
+
 struct drm_prime_file_private;
 struct dma_buf;
 
@@ -69,8 +71,10 @@ int drm_legacy_modeset_ctl_ioctl(struct drm_device *dev, void *data,
 /* drm_irq.c */
 
 /* IOCTLS */
+#if IS_ENABLED(CONFIG_DRM_LEGACY)
 int drm_legacy_irq_control(struct drm_device *dev, void *data,
 			   struct drm_file *file_priv);
+#endif
 
 int drm_crtc_get_sequence_ioctl(struct drm_device *dev, void *data,
 				struct drm_file *filp);
@@ -178,12 +182,20 @@ int drm_syncobj_handle_to_fd_ioctl(struct drm_device *dev, void *data,
 				   struct drm_file *file_private);
 int drm_syncobj_fd_to_handle_ioctl(struct drm_device *dev, void *data,
 				   struct drm_file *file_private);
+int drm_syncobj_transfer_ioctl(struct drm_device *dev, void *data,
+			       struct drm_file *file_private);
 int drm_syncobj_wait_ioctl(struct drm_device *dev, void *data,
 			   struct drm_file *file_private);
+int drm_syncobj_timeline_wait_ioctl(struct drm_device *dev, void *data,
+				    struct drm_file *file_private);
 int drm_syncobj_reset_ioctl(struct drm_device *dev, void *data,
 			    struct drm_file *file_private);
 int drm_syncobj_signal_ioctl(struct drm_device *dev, void *data,
 			     struct drm_file *file_private);
+int drm_syncobj_timeline_signal_ioctl(struct drm_device *dev, void *data,
+				      struct drm_file *file_private);
+int drm_syncobj_query_ioctl(struct drm_device *dev, void *data,
+			    struct drm_file *file_private);
 
 /* drm_framebuffer.c */
 void drm_framebuffer_print_info(struct drm_printer *p, unsigned int indent,

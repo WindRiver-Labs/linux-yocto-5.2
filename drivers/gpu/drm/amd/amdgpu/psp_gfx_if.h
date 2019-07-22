@@ -43,6 +43,7 @@ enum psp_gfx_crtl_cmd_id
     GFX_CTRL_CMD_ID_ENABLE_INT      = 0x00050000,   /* enable PSP-to-Gfx interrupt */
     GFX_CTRL_CMD_ID_DISABLE_INT     = 0x00060000,   /* disable PSP-to-Gfx interrupt */
     GFX_CTRL_CMD_ID_MODE1_RST       = 0x00070000,   /* trigger the Mode 1 reset */
+    GFX_CTRL_CMD_ID_GBR_IH_SET      = 0x00080000,   /* set Gbr IH_RB_CNTL registers */
     GFX_CTRL_CMD_ID_CONSUME_CMD     = 0x000A0000,   /* send interrupt to psp for updating write pointer of vf */
     GFX_CTRL_CMD_ID_DESTROY_GPCOM_RING = 0x000C0000, /* destroy GPCOM ring */
 
@@ -191,7 +192,7 @@ enum psp_gfx_fw_type
     GFX_FW_TYPE_MMSCH       = 19,
     GFX_FW_TYPE_RLC_RESTORE_LIST_GPM_MEM        = 20,
     GFX_FW_TYPE_RLC_RESTORE_LIST_SRM_MEM        = 21,
-    GFX_FW_TYPE_RLC_RESTORE_LIST_CNTL           = 22,
+    GFX_FW_TYPE_RLC_RESTORE_LIST_SRM_CNTL       = 22,
     GFX_FW_TYPE_UVD1        = 23,
     GFX_FW_TYPE_MAX         = 24
 };

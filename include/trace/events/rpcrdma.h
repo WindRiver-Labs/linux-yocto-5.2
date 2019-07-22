@@ -511,6 +511,33 @@ TRACE_EVENT(xprtrdma_marshal,
 	)
 );
 
+TRACE_EVENT(xprtrdma_marshal_failed,
+	TP_PROTO(const struct rpc_rqst *rqst,
+		 int ret
+	),
+
+	TP_ARGS(rqst, ret),
+
+	TP_STRUCT__entry(
+		__field(unsigned int, task_id)
+		__field(unsigned int, client_id)
+		__field(u32, xid)
+		__field(int, ret)
+	),
+
+	TP_fast_assign(
+		__entry->task_id = rqst->rq_task->tk_pid;
+		__entry->client_id = rqst->rq_task->tk_client->cl_clid;
+		__entry->xid = be32_to_cpu(rqst->rq_xid);
+		__entry->ret = ret;
+	),
+
+	TP_printk("task:%u@%u xid=0x%08x: ret=%d",
+		__entry->task_id, __entry->client_id, __entry->xid,
+		__entry->ret
+	)
+);
+
 TRACE_EVENT(xprtrdma_post_send,
 	TP_PROTO(
 		const struct rpcrdma_req *req,
@@ -521,12 +548,18 @@ TRACE_EVENT(xprtrdma_post_send,
 
 	TP_STRUCT__entry(
 		__field(const void *, req)
+		__field(unsigned int, task_id)
+		__field(unsigned int, client_id)
 		__field(int, num_sge)
 		__field(int, signaled)
 		__field(int, status)
 	),
 
 	TP_fast_assign(
+		const struct rpc_rqst *rqst = &req->rl_slot;
+
+		__entry->task_id = rqst->rq_task->tk_pid;
+		__entry->client_id = rqst->rq_task->tk_client->cl_clid;
 		__entry->req = req;
 		__entry->num_sge = req->rl_sendctx->sc_wr.num_sge;
 		__entry->signaled = req->rl_sendctx->sc_wr.send_flags &
@@ -534,9 +567,11 @@ TRACE_EVENT(xprtrdma_post_send,
 		__entry->status = status;
 	),
 
-	TP_printk("req=%p, %d SGEs%s, status=%d",
+	TP_printk("task:%u@%u req=%p (%d SGE%s) %sstatus=%d",
+		__entry->task_id, __entry->client_id,
 		__entry->req, __entry->num_sge,
-		(__entry->signaled ? ", signaled" : ""),
+		(__entry->num_sge == 1 ? "" : "s"),
+		(__entry->signaled ? "signaled " : ""),
 		__entry->status
 	)
 );

@@ -1,9 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * ff-pcm.c - a part of driver for RME Fireface series
  *
  * Copyright (c) 2015-2017 Takashi Sakamoto
- *
- * Licensed under the terms of the GNU General Public License, version 2.
  */
 
 #include "ff.h"
@@ -152,7 +151,7 @@ static int pcm_open(struct snd_pcm_substream *substream)
 	if (err < 0)
 		goto release_lock;
 
-	err = snd_ff_transaction_get_clock(ff, &rate, &src);
+	err = ff->spec->protocol->get_clock(ff, &rate, &src);
 	if (err < 0)
 		goto release_lock;
 

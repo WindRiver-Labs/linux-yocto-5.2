@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Virtio SCSI HBA driver
  *
@@ -7,10 +8,6 @@
  * Authors:
  *  Stefan Hajnoczi   <stefanha@linux.vnet.ibm.com>
  *  Paolo Bonzini   <pbonzini@redhat.com>
- *
- * This work is licensed under the terms of the GNU GPL, version 2 or later.
- * See the COPYING file in the top-level directory.
- *
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -100,16 +97,8 @@ static inline struct Scsi_Host *virtio_scsi_host(struct virtio_device *vdev)
 
 static void virtscsi_compute_resid(struct scsi_cmnd *sc, u32 resid)
 {
-	if (!resid)
-		return;
-
-	if (!scsi_bidi_cmnd(sc)) {
+	if (resid)
 		scsi_set_resid(sc, resid);
-		return;
-	}
-
-	scsi_in(sc)->resid = min(resid, scsi_in(sc)->length);
-	scsi_out(sc)->resid = resid - scsi_in(sc)->resid;
 }
 
 /**
@@ -403,9 +392,9 @@ static int virtscsi_add_cmd(struct virtqueue *vq,
 
 	if (sc && sc->sc_data_direction != DMA_NONE) {
 		if (sc->sc_data_direction != DMA_FROM_DEVICE)
-			out = &scsi_out(sc)->table;
+			out = &sc->sdb.table;
 		if (sc->sc_data_direction != DMA_TO_DEVICE)
-			in = &scsi_in(sc)->table;
+			in = &sc->sdb.table;
 	}
 
 	/* Request header.  */
@@ -594,7 +583,6 @@ static int virtscsi_device_reset(struct scsi_cmnd *sc)
 		return FAILED;
 
 	memset(cmd, 0, sizeof(*cmd));
-	cmd->sc = sc;
 	cmd->req.tmf = (struct virtio_scsi_ctrl_tmf_req){
 		.type = VIRTIO_SCSI_T_TMF,
 		.subtype = cpu_to_virtio32(vscsi->vdev,
@@ -653,7 +641,6 @@ static int virtscsi_abort(struct scsi_cmnd *sc)
 		return FAILED;
 
 	memset(cmd, 0, sizeof(*cmd));
-	cmd->sc = sc;
 	cmd->req.tmf = (struct virtio_scsi_ctrl_tmf_req){
 		.type = VIRTIO_SCSI_T_TMF,
 		.subtype = VIRTIO_SCSI_T_TMF_ABORT_TASK,
@@ -669,7 +656,7 @@ static int virtscsi_abort(struct scsi_cmnd *sc)
 static int virtscsi_map_queues(struct Scsi_Host *shost)
 {
 	struct virtio_scsi *vscsi = shost_priv(shost);
-	struct blk_mq_queue_map *qmap = &shost->tag_set.map[0];
+	struct blk_mq_queue_map *qmap = &shost->tag_set.map[HCTX_TYPE_DEFAULT];
 
 	return blk_mq_virtio_map_queues(qmap, vscsi->vdev, 2);
 }
@@ -803,6 +790,7 @@ static int virtscsi_probe(struct virtio_device *vdev)
 
 	/* We need to know how many queues before we allocate. */
 	num_queues = virtscsi_config_get(vdev, num_queues) ? : 1;
+	num_queues = min_t(unsigned int, nr_cpu_ids, num_queues);
 
 	num_targets = virtscsi_config_get(vdev, max_target) + 1;
 

@@ -1,21 +1,10 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Based on arch/arm/include/asm/atomic.h
  *
  * Copyright (C) 1996 Russell King.
  * Copyright (C) 2002 Deep Blue Solutions Ltd.
  * Copyright (C) 2012 ARM Ltd.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef __ASM_ATOMIC_LSE_H
@@ -25,9 +14,9 @@
 #error "please don't include this file directly"
 #endif
 
-#define __LL_SC_ATOMIC(op)	__LL_SC_CALL(atomic_##op)
+#define __LL_SC_ATOMIC(op)	__LL_SC_CALL(arch_atomic_##op)
 #define ATOMIC_OP(op, asm_op)						\
-static inline void atomic_##op(int i, atomic_t *v)			\
+static inline void arch_atomic_##op(int i, atomic_t *v)			\
 {									\
 	register int w0 asm ("w0") = i;					\
 	register atomic_t *x1 asm ("x1") = v;				\
@@ -47,7 +36,7 @@ ATOMIC_OP(add, stadd)
 #undef ATOMIC_OP
 
 #define ATOMIC_FETCH_OP(name, mb, op, asm_op, cl...)			\
-static inline int atomic_fetch_##op##name(int i, atomic_t *v)		\
+static inline int arch_atomic_fetch_##op##name(int i, atomic_t *v)	\
 {									\
 	register int w0 asm ("w0") = i;					\
 	register atomic_t *x1 asm ("x1") = v;				\
@@ -79,7 +68,7 @@ ATOMIC_FETCH_OPS(add, ldadd)
 #undef ATOMIC_FETCH_OPS
 
 #define ATOMIC_OP_ADD_RETURN(name, mb, cl...)				\
-static inline int atomic_add_return##name(int i, atomic_t *v)		\
+static inline int arch_atomic_add_return##name(int i, atomic_t *v)	\
 {									\
 	register int w0 asm ("w0") = i;					\
 	register atomic_t *x1 asm ("x1") = v;				\
@@ -105,7 +94,7 @@ ATOMIC_OP_ADD_RETURN(        , al, "memory")
 
 #undef ATOMIC_OP_ADD_RETURN
 
-static inline void atomic_and(int i, atomic_t *v)
+static inline void arch_atomic_and(int i, atomic_t *v)
 {
 	register int w0 asm ("w0") = i;
 	register atomic_t *x1 asm ("x1") = v;
@@ -123,7 +112,7 @@ static inline void atomic_and(int i, atomic_t *v)
 }
 
 #define ATOMIC_FETCH_OP_AND(name, mb, cl...)				\
-static inline int atomic_fetch_and##name(int i, atomic_t *v)		\
+static inline int arch_atomic_fetch_and##name(int i, atomic_t *v)	\
 {									\
 	register int w0 asm ("w0") = i;					\
 	register atomic_t *x1 asm ("x1") = v;				\
@@ -149,7 +138,7 @@ ATOMIC_FETCH_OP_AND(        , al, "memory")
 
 #undef ATOMIC_FETCH_OP_AND
 
-static inline void atomic_sub(int i, atomic_t *v)
+static inline void arch_atomic_sub(int i, atomic_t *v)
 {
 	register int w0 asm ("w0") = i;
 	register atomic_t *x1 asm ("x1") = v;
@@ -167,7 +156,7 @@ static inline void atomic_sub(int i, atomic_t *v)
 }
 
 #define ATOMIC_OP_SUB_RETURN(name, mb, cl...)				\
-static inline int atomic_sub_return##name(int i, atomic_t *v)		\
+static inline int arch_atomic_sub_return##name(int i, atomic_t *v)	\
 {									\
 	register int w0 asm ("w0") = i;					\
 	register atomic_t *x1 asm ("x1") = v;				\
@@ -195,7 +184,7 @@ ATOMIC_OP_SUB_RETURN(        , al, "memory")
 #undef ATOMIC_OP_SUB_RETURN
 
 #define ATOMIC_FETCH_OP_SUB(name, mb, cl...)				\
-static inline int atomic_fetch_sub##name(int i, atomic_t *v)		\
+static inline int arch_atomic_fetch_sub##name(int i, atomic_t *v)	\
 {									\
 	register int w0 asm ("w0") = i;					\
 	register atomic_t *x1 asm ("x1") = v;				\
@@ -222,9 +211,9 @@ ATOMIC_FETCH_OP_SUB(        , al, "memory")
 #undef ATOMIC_FETCH_OP_SUB
 #undef __LL_SC_ATOMIC
 
-#define __LL_SC_ATOMIC64(op)	__LL_SC_CALL(atomic64_##op)
+#define __LL_SC_ATOMIC64(op)	__LL_SC_CALL(arch_atomic64_##op)
 #define ATOMIC64_OP(op, asm_op)						\
-static inline void atomic64_##op(long i, atomic64_t *v)			\
+static inline void arch_atomic64_##op(long i, atomic64_t *v)		\
 {									\
 	register long x0 asm ("x0") = i;				\
 	register atomic64_t *x1 asm ("x1") = v;				\
@@ -244,7 +233,7 @@ ATOMIC64_OP(add, stadd)
 #undef ATOMIC64_OP
 
 #define ATOMIC64_FETCH_OP(name, mb, op, asm_op, cl...)			\
-static inline long atomic64_fetch_##op##name(long i, atomic64_t *v)	\
+static inline long arch_atomic64_fetch_##op##name(long i, atomic64_t *v)\
 {									\
 	register long x0 asm ("x0") = i;				\
 	register atomic64_t *x1 asm ("x1") = v;				\
@@ -276,7 +265,7 @@ ATOMIC64_FETCH_OPS(add, ldadd)
 #undef ATOMIC64_FETCH_OPS
 
 #define ATOMIC64_OP_ADD_RETURN(name, mb, cl...)				\
-static inline long atomic64_add_return##name(long i, atomic64_t *v)	\
+static inline long arch_atomic64_add_return##name(long i, atomic64_t *v)\
 {									\
 	register long x0 asm ("x0") = i;				\
 	register atomic64_t *x1 asm ("x1") = v;				\
@@ -302,7 +291,7 @@ ATOMIC64_OP_ADD_RETURN(        , al, "memory")
 
 #undef ATOMIC64_OP_ADD_RETURN
 
-static inline void atomic64_and(long i, atomic64_t *v)
+static inline void arch_atomic64_and(long i, atomic64_t *v)
 {
 	register long x0 asm ("x0") = i;
 	register atomic64_t *x1 asm ("x1") = v;
@@ -320,7 +309,7 @@ static inline void atomic64_and(long i, atomic64_t *v)
 }
 
 #define ATOMIC64_FETCH_OP_AND(name, mb, cl...)				\
-static inline long atomic64_fetch_and##name(long i, atomic64_t *v)	\
+static inline long arch_atomic64_fetch_and##name(long i, atomic64_t *v)	\
 {									\
 	register long x0 asm ("x0") = i;				\
 	register atomic64_t *x1 asm ("x1") = v;				\
@@ -346,7 +335,7 @@ ATOMIC64_FETCH_OP_AND(        , al, "memory")
 
 #undef ATOMIC64_FETCH_OP_AND
 
-static inline void atomic64_sub(long i, atomic64_t *v)
+static inline void arch_atomic64_sub(long i, atomic64_t *v)
 {
 	register long x0 asm ("x0") = i;
 	register atomic64_t *x1 asm ("x1") = v;
@@ -364,7 +353,7 @@ static inline void atomic64_sub(long i, atomic64_t *v)
 }
 
 #define ATOMIC64_OP_SUB_RETURN(name, mb, cl...)				\
-static inline long atomic64_sub_return##name(long i, atomic64_t *v)	\
+static inline long arch_atomic64_sub_return##name(long i, atomic64_t *v)\
 {									\
 	register long x0 asm ("x0") = i;				\
 	register atomic64_t *x1 asm ("x1") = v;				\
@@ -392,7 +381,7 @@ ATOMIC64_OP_SUB_RETURN(        , al, "memory")
 #undef ATOMIC64_OP_SUB_RETURN
 
 #define ATOMIC64_FETCH_OP_SUB(name, mb, cl...)				\
-static inline long atomic64_fetch_sub##name(long i, atomic64_t *v)	\
+static inline long arch_atomic64_fetch_sub##name(long i, atomic64_t *v)	\
 {									\
 	register long x0 asm ("x0") = i;				\
 	register atomic64_t *x1 asm ("x1") = v;				\
@@ -418,7 +407,7 @@ ATOMIC64_FETCH_OP_SUB(        , al, "memory")
 
 #undef ATOMIC64_FETCH_OP_SUB
 
-static inline long atomic64_dec_if_positive(atomic64_t *v)
+static inline long arch_atomic64_dec_if_positive(atomic64_t *v)
 {
 	register long x0 asm ("x0") = (long)v;
 

@@ -76,7 +76,7 @@ int phm_set_power_state(struct pp_hwmgr *hwmgr,
 int phm_enable_dynamic_state_management(struct pp_hwmgr *hwmgr)
 {
 	struct amdgpu_device *adev = NULL;
-	int ret = -EINVAL;;
+	int ret = -EINVAL;
 	PHM_FUNC_CHECK(hwmgr);
 	adev = hwmgr->adev;
 
@@ -154,15 +154,6 @@ int phm_powerdown_uvd(struct pp_hwmgr *hwmgr)
 	return 0;
 }
 
-int phm_enable_clock_power_gatings(struct pp_hwmgr *hwmgr)
-{
-	PHM_FUNC_CHECK(hwmgr);
-
-	if (NULL != hwmgr->hwmgr_func->enable_clock_power_gating)
-		return hwmgr->hwmgr_func->enable_clock_power_gating(hwmgr);
-
-	return 0;
-}
 
 int phm_disable_clock_power_gatings(struct pp_hwmgr *hwmgr)
 {

@@ -1,16 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Huawei HiNIC PCI Express Linux driver
  * Copyright(c) 2017 Huawei Technologies Co., Ltd
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
- *
- * This program is distributed in the hope it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- * for more details.
- *
  */
 
 #include <linux/kernel.h>
@@ -51,9 +42,10 @@ static unsigned int rx_weight = 64;
 module_param(rx_weight, uint, 0644);
 MODULE_PARM_DESC(rx_weight, "Number Rx packets for NAPI budget (default=64)");
 
-#define HINIC_DEV_ID_QUAD_PORT_25GE     0x1822
-#define HINIC_DEV_ID_DUAL_PORT_25GE     0x0200
-#define HINIC_DEV_ID_DUAL_PORT_100GE    0x0201
+#define HINIC_DEV_ID_QUAD_PORT_25GE         0x1822
+#define HINIC_DEV_ID_DUAL_PORT_100GE        0x0200
+#define HINIC_DEV_ID_DUAL_PORT_100GE_MEZZ   0x0205
+#define HINIC_DEV_ID_QUAD_PORT_25GE_MEZZ    0x0210
 
 #define HINIC_WQ_NAME                   "hinic_dev"
 
@@ -1113,8 +1105,9 @@ static void hinic_shutdown(struct pci_dev *pdev)
 
 static const struct pci_device_id hinic_pci_table[] = {
 	{ PCI_VDEVICE(HUAWEI, HINIC_DEV_ID_QUAD_PORT_25GE), 0},
-	{ PCI_VDEVICE(HUAWEI, HINIC_DEV_ID_DUAL_PORT_25GE), 0},
 	{ PCI_VDEVICE(HUAWEI, HINIC_DEV_ID_DUAL_PORT_100GE), 0},
+	{ PCI_VDEVICE(HUAWEI, HINIC_DEV_ID_DUAL_PORT_100GE_MEZZ), 0},
+	{ PCI_VDEVICE(HUAWEI, HINIC_DEV_ID_QUAD_PORT_25GE_MEZZ), 0},
 	{ 0, 0}
 };
 MODULE_DEVICE_TABLE(pci, hinic_pci_table);

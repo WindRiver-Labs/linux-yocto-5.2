@@ -303,6 +303,7 @@ cifs_alloc_inode(struct super_block *sb)
 	cifs_inode->uniqueid = 0;
 	cifs_inode->createtime = 0;
 	cifs_inode->epoch = 0;
+	spin_lock_init(&cifs_inode->open_file_lock);
 	generate_random_uuid(cifs_inode->lease_key);
 
 	/*
@@ -315,16 +316,10 @@ cifs_alloc_inode(struct super_block *sb)
 	return &cifs_inode->vfs_inode;
 }
 
-static void cifs_i_callback(struct rcu_head *head)
-{
-	struct inode *inode = container_of(head, struct inode, i_rcu);
-	kmem_cache_free(cifs_inode_cachep, CIFS_I(inode));
-}
-
 static void
-cifs_destroy_inode(struct inode *inode)
+cifs_free_inode(struct inode *inode)
 {
-	call_rcu(&inode->i_rcu, cifs_i_callback);
+	kmem_cache_free(cifs_inode_cachep, CIFS_I(inode));
 }
 
 static void
@@ -381,7 +376,7 @@ cifs_show_security(struct seq_file *s, struct cifs_ses *ses)
 		seq_puts(s, "ntlm");
 		break;
 	case Kerberos:
-		seq_puts(s, "krb5");
+		seq_printf(s, "krb5,cruid=%u", from_kuid_munged(&init_user_ns,ses->cred_uid));
 		break;
 	case RawNTLMSSP:
 		seq_puts(s, "ntlmssp");
@@ -489,6 +484,8 @@ cifs_show_options(struct seq_file *s, struct dentry *root)
 		seq_puts(s, ",seal");
 	if (tcon->nocase)
 		seq_puts(s, ",nocase");
+	if (tcon->local_lease)
+		seq_puts(s, ",locallease");
 	if (tcon->retry)
 		seq_puts(s, ",hard");
 	else
@@ -554,10 +551,13 @@ cifs_show_options(struct seq_file *s, struct dentry *root)
 
 	seq_printf(s, ",rsize=%u", cifs_sb->rsize);
 	seq_printf(s, ",wsize=%u", cifs_sb->wsize);
+	seq_printf(s, ",bsize=%u", cifs_sb->bsize);
 	seq_printf(s, ",echo_interval=%lu",
 			tcon->ses->server->echo_interval / HZ);
 	if (tcon->snapshot_time)
 		seq_printf(s, ",snapshot=%llu", tcon->snapshot_time);
+	if (tcon->handle_timeout)
+		seq_printf(s, ",handletimeout=%u", tcon->handle_timeout);
 	/* convert actimeo and display it in seconds */
 	seq_printf(s, ",actimeo=%lu", cifs_sb->actimeo / HZ);
 
@@ -627,7 +627,7 @@ static int cifs_drop_inode(struct inode *inode)
 static const struct super_operations cifs_super_ops = {
 	.statfs = cifs_statfs,
 	.alloc_inode = cifs_alloc_inode,
-	.destroy_inode = cifs_destroy_inode,
+	.free_inode = cifs_free_inode,
 	.drop_inode	= cifs_drop_inode,
 	.evict_inode	= cifs_evict_inode,
 /*	.delete_inode	= cifs_delete_inode,  */  /* Do not need above
@@ -879,6 +879,9 @@ out:
 
 static loff_t cifs_llseek(struct file *file, loff_t offset, int whence)
 {
+	struct cifsFileInfo *cfile = file->private_data;
+	struct cifs_tcon *tcon;
+
 	/*
 	 * whence == SEEK_END || SEEK_DATA || SEEK_HOLE => we must revalidate
 	 * the cached file length
@@ -909,6 +912,12 @@ static loff_t cifs_llseek(struct file *file, loff_t offset, int whence)
 		rc = cifs_revalidate_file_attr(file);
 		if (rc < 0)
 			return (loff_t)rc;
+	}
+	if (cfile && cfile->tlink) {
+		tcon = tlink_tcon(cfile->tlink);
+		if (tcon->ses->server->ops->llseek)
+			return tcon->ses->server->ops->llseek(file, tcon,
+							      offset, whence);
 	}
 	return generic_file_llseek(file, offset, whence);
 }
@@ -987,6 +996,7 @@ const struct inode_operations cifs_file_inode_ops = {
 	.getattr = cifs_getattr,
 	.permission = cifs_permission,
 	.listxattr = cifs_listxattr,
+	.fiemap = cifs_fiemap,
 };
 
 const struct inode_operations cifs_symlink_inode_ops = {
@@ -1007,7 +1017,7 @@ static loff_t cifs_remap_file_range(struct file *src_file, loff_t off,
 	unsigned int xid;
 	int rc;
 
-	if (remap_flags & ~REMAP_FILE_ADVISORY)
+	if (remap_flags & ~(REMAP_FILE_DEDUP | REMAP_FILE_ADVISORY))
 		return -EINVAL;
 
 	cifs_dbg(FYI, "clone range\n");
@@ -1069,11 +1079,6 @@ ssize_t cifs_file_copychunk_range(unsigned int xid,
 	ssize_t rc;
 
 	cifs_dbg(FYI, "copychunk range\n");
-
-	if (src_inode == target_inode) {
-		rc = -EINVAL;
-		goto out;
-	}
 
 	if (!src_file->private_data || !dst_file->private_data) {
 		rc = -EBADF;

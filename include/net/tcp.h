@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * INET		An implementation of the TCP/IP protocol suite for the LINUX
  *		operating system.  INET is implemented using the  BSD Socket
@@ -9,11 +10,6 @@
  *
  * Authors:	Ross Biro
  *		Fred N. van Kempen, <waltje@uWalt.NL.Mugnet.ORG>
- *
- *		This program is free software; you can redistribute it and/or
- *		modify it under the terms of the GNU General Public License
- *		as published by the Free Software Foundation; either version
- *		2 of the License, or (at your option) any later version.
  */
 #ifndef _TCP_H
 #define _TCP_H
@@ -55,6 +51,8 @@ void tcp_time_wait(struct sock *sk, int state, int timeo);
 
 #define MAX_TCP_HEADER	(128 + MAX_HEADER)
 #define MAX_TCP_OPTION_SPACE 40
+#define TCP_MIN_SND_MSS		48
+#define TCP_MIN_GSO_SIZE	(TCP_MIN_SND_MSS - MAX_TCP_OPTION_SPACE)
 
 /*
  * Never offer a window over 32767 without using window scaling. Some
@@ -406,8 +404,10 @@ int tcp_recvmsg(struct sock *sk, struct msghdr *msg, size_t len, int nonblock,
 		int flags, int *addr_len);
 int tcp_set_rcvlowat(struct sock *sk, int val);
 void tcp_data_ready(struct sock *sk);
+#ifdef CONFIG_MMU
 int tcp_mmap(struct file *file, struct socket *sock,
 	     struct vm_area_struct *vma);
+#endif
 void tcp_parse_options(const struct net *net, const struct sk_buff *skb,
 		       struct tcp_options_received *opt_rx,
 		       int estab, struct tcp_fastopen_cookie *foc);
@@ -1312,7 +1312,7 @@ static inline void tcp_update_wl(struct tcp_sock *tp, u32 seq)
 static inline __sum16 tcp_v4_check(int len, __be32 saddr,
 				   __be32 daddr, __wsum base)
 {
-	return csum_tcpudp_magic(saddr,daddr,len,IPPROTO_TCP,base);
+	return csum_tcpudp_magic(saddr, daddr, len, IPPROTO_TCP, base);
 }
 
 static inline bool tcp_checksum_complete(struct sk_buff *skb)
@@ -1556,7 +1556,7 @@ struct tcp_md5sig_key *tcp_v4_md5_lookup(const struct sock *sk,
 
 #ifdef CONFIG_TCP_MD5SIG
 #include <linux/jump_label.h>
-extern struct static_key tcp_md5_needed;
+extern struct static_key_false tcp_md5_needed;
 struct tcp_md5sig_key *__tcp_md5_do_lookup(const struct sock *sk,
 					   const union tcp_md5_addr *addr,
 					   int family);
@@ -1565,7 +1565,7 @@ tcp_md5_do_lookup(const struct sock *sk,
 		  const union tcp_md5_addr *addr,
 		  int family)
 {
-	if (!static_key_false(&tcp_md5_needed))
+	if (!static_branch_unlikely(&tcp_md5_needed))
 		return NULL;
 	return __tcp_md5_do_lookup(sk, addr, family);
 }
@@ -1606,6 +1606,7 @@ struct tcp_fastopen_request {
 	struct msghdr			*data;  /* data in MSG_FASTOPEN */
 	size_t				size;
 	int				copied;	/* queued in tcp_connect() */
+	struct ubuf_info		*uarg;
 };
 void tcp_free_fastopen_req(struct tcp_sock *tp);
 void tcp_fastopen_destroy_cipher(struct sock *sk);
@@ -1713,20 +1714,9 @@ static inline bool tcp_rtx_and_write_queues_empty(const struct sock *sk)
 	return tcp_rtx_queue_empty(sk) && tcp_write_queue_empty(sk);
 }
 
-static inline void tcp_check_send_head(struct sock *sk, struct sk_buff *skb_unlinked)
-{
-	if (tcp_write_queue_empty(sk))
-		tcp_chrono_stop(sk, TCP_CHRONO_BUSY);
-}
-
-static inline void __tcp_add_write_queue_tail(struct sock *sk, struct sk_buff *skb)
-{
-	__skb_queue_tail(&sk->sk_write_queue, skb);
-}
-
 static inline void tcp_add_write_queue_tail(struct sock *sk, struct sk_buff *skb)
 {
-	__tcp_add_write_queue_tail(sk, skb);
+	__skb_queue_tail(&sk->sk_write_queue, skb);
 
 	/* Queue it, remembering where we must start sending. */
 	if (sk->sk_write_queue.next == skb)
@@ -2206,7 +2196,7 @@ extern struct static_key_false tcp_have_smc;
 void clean_acked_data_enable(struct inet_connection_sock *icsk,
 			     void (*cad)(struct sock *sk, u32 ack_seq));
 void clean_acked_data_disable(struct inet_connection_sock *icsk);
-
+void clean_acked_data_flush(void);
 #endif
 
 #endif	/* _TCP_H */

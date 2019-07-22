@@ -22,6 +22,7 @@ available subsections can be seen below.
    device_connection
    dma-buf
    device_link
+   component
    message-based
    sound
    frame-buffer
@@ -55,6 +56,8 @@ available subsections can be seen below.
    slimbus
    soundwire/index
    fpga/index
+   acpi/index
+   generic-counter
 
 .. only::  subproject and html
 

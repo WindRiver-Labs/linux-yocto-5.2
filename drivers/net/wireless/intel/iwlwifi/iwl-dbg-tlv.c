@@ -5,7 +5,7 @@
  *
  * GPL LICENSE SUMMARY
  *
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018 - 2019 Intel Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -28,7 +28,7 @@
  *
  * BSD LICENSE
  *
- * Copyright (C) 2018 Intel Corporation
+ * Copyright (C) 2018 - 2019 Intel Corporation
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -71,6 +71,10 @@ void iwl_fw_dbg_copy_tlv(struct iwl_trans *trans, struct iwl_ucode_tlv *tlv,
 	u32 apply_point = le32_to_cpu(header->apply_point);
 
 	int copy_size = le32_to_cpu(tlv->length) + sizeof(*tlv);
+	int offset_size = copy_size;
+
+	if (le32_to_cpu(header->tlv_version) != 1)
+		return;
 
 	if (WARN_ONCE(apply_point >= IWL_FW_INI_APPLY_NUM,
 		      "Invalid apply point id %d\n", apply_point))
@@ -81,17 +85,25 @@ void iwl_fw_dbg_copy_tlv(struct iwl_trans *trans, struct iwl_ucode_tlv *tlv,
 	else
 		data = &trans->apply_points[apply_point];
 
+	/* add room for is_alloc field in &iwl_fw_ini_allocation_data struct */
+	if (le32_to_cpu(tlv->type) == IWL_UCODE_TLV_TYPE_BUFFER_ALLOCATION) {
+		struct iwl_fw_ini_allocation_data *buf_alloc =
+			(void *)tlv->data;
+
+		offset_size += sizeof(buf_alloc->is_alloc);
+	}
+
 	/*
 	 * Make sure we still have room to copy this TLV. Offset points to the
 	 * location the last copy ended.
 	 */
-	if (WARN_ONCE(data->offset + copy_size > data->size,
+	if (WARN_ONCE(data->offset + offset_size > data->size,
 		      "Not enough memory for apply point %d\n",
 		      apply_point))
 		return;
 
 	memcpy(data->data + data->offset, (void *)tlv, copy_size);
-	data->offset += copy_size;
+	data->offset += offset_size;
 }
 
 void iwl_alloc_dbg_tlv(struct iwl_trans *trans, size_t len, const u8 *data,
@@ -117,17 +129,31 @@ void iwl_alloc_dbg_tlv(struct iwl_trans *trans, size_t len, const u8 *data,
 		len -= ALIGN(tlv_len, 4);
 		data += sizeof(*tlv) + ALIGN(tlv_len, 4);
 
-		if (!(tlv_type & IWL_UCODE_INI_TLV_GROUP))
+		if (tlv_type < IWL_UCODE_TLV_DEBUG_BASE ||
+		    tlv_type > IWL_UCODE_TLV_DEBUG_MAX)
 			continue;
 
 		hdr = (void *)&tlv->data[0];
 		apply = le32_to_cpu(hdr->apply_point);
 
-		IWL_DEBUG_FW(trans, "Read TLV %x, apply point %d\n",
+		if (le32_to_cpu(hdr->tlv_version) != 1)
+			continue;
+
+		IWL_DEBUG_FW(trans, "WRT: read TLV 0x%x, apply point %d\n",
 			     le32_to_cpu(tlv->type), apply);
 
 		if (WARN_ON(apply >= IWL_FW_INI_APPLY_NUM))
 			continue;
+
+		/* add room for is_alloc field in &iwl_fw_ini_allocation_data
+		 * struct
+		 */
+		if (tlv_type == IWL_UCODE_TLV_TYPE_BUFFER_ALLOCATION) {
+			struct iwl_fw_ini_allocation_data *buf_alloc =
+				(void *)tlv->data;
+
+			size[apply] += sizeof(buf_alloc->is_alloc);
+		}
 
 		size[apply] += sizeof(*tlv) + tlv_len;
 	}

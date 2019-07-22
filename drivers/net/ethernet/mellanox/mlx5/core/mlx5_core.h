@@ -41,6 +41,7 @@
 #include <linux/ptp_clock_kernel.h>
 #include <linux/mlx5/cq.h>
 #include <linux/mlx5/fs.h>
+#include <linux/mlx5/driver.h>
 
 #define DRIVER_NAME "mlx5_core"
 #define DRIVER_VERSION "5.0-0"
@@ -48,44 +49,57 @@
 extern uint mlx5_core_debug_mask;
 
 #define mlx5_core_dbg(__dev, format, ...)				\
-	dev_dbg(&(__dev)->pdev->dev, "%s:%d:(pid %d): " format,		\
+	dev_dbg((__dev)->device, "%s:%d:(pid %d): " format,		\
 		 __func__, __LINE__, current->pid,			\
 		 ##__VA_ARGS__)
 
-#define mlx5_core_dbg_once(__dev, format, ...)				\
-	dev_dbg_once(&(__dev)->pdev->dev, "%s:%d:(pid %d): " format,	\
-		     __func__, __LINE__, current->pid,			\
+#define mlx5_core_dbg_once(__dev, format, ...)		\
+	dev_dbg_once((__dev)->device,		\
+		     "%s:%d:(pid %d): " format,		\
+		     __func__, __LINE__, current->pid,	\
 		     ##__VA_ARGS__)
 
-#define mlx5_core_dbg_mask(__dev, mask, format, ...)			\
-do {									\
-	if ((mask) & mlx5_core_debug_mask)				\
-		mlx5_core_dbg(__dev, format, ##__VA_ARGS__);		\
+#define mlx5_core_dbg_mask(__dev, mask, format, ...)		\
+do {								\
+	if ((mask) & mlx5_core_debug_mask)			\
+		mlx5_core_dbg(__dev, format, ##__VA_ARGS__);	\
 } while (0)
 
-#define mlx5_core_err(__dev, format, ...)				\
-	dev_err(&(__dev)->pdev->dev, "%s:%d:(pid %d): " format,	\
-		__func__, __LINE__, current->pid,	\
+#define mlx5_core_err(__dev, format, ...)			\
+	dev_err((__dev)->device, "%s:%d:(pid %d): " format,	\
+		__func__, __LINE__, current->pid,		\
 	       ##__VA_ARGS__)
 
-#define mlx5_core_err_rl(__dev, format, ...)				\
-	dev_err_ratelimited(&(__dev)->pdev->dev,			\
-			   "%s:%d:(pid %d): " format,			\
-			   __func__, __LINE__, current->pid,		\
-			   ##__VA_ARGS__)
+#define mlx5_core_err_rl(__dev, format, ...)			\
+	dev_err_ratelimited((__dev)->device,			\
+			    "%s:%d:(pid %d): " format,		\
+			    __func__, __LINE__, current->pid,	\
+			    ##__VA_ARGS__)
 
-#define mlx5_core_warn(__dev, format, ...)				\
-	dev_warn(&(__dev)->pdev->dev, "%s:%d:(pid %d): " format,	\
-		 __func__, __LINE__, current->pid,			\
-		##__VA_ARGS__)
+#define mlx5_core_warn(__dev, format, ...)			\
+	dev_warn((__dev)->device, "%s:%d:(pid %d): " format,	\
+		 __func__, __LINE__, current->pid,		\
+		 ##__VA_ARGS__)
 
 #define mlx5_core_warn_once(__dev, format, ...)				\
-	dev_warn_once(&(__dev)->pdev->dev, "%s:%d:(pid %d): " format,	\
+	dev_warn_once((__dev)->device, "%s:%d:(pid %d): " format,	\
 		      __func__, __LINE__, current->pid,			\
 		      ##__VA_ARGS__)
 
-#define mlx5_core_info(__dev, format, ...)				\
-	dev_info(&(__dev)->pdev->dev, format, ##__VA_ARGS__)
+#define mlx5_core_warn_rl(__dev, format, ...)			\
+	dev_warn_ratelimited((__dev)->device,			\
+			     "%s:%d:(pid %d): " format,		\
+			     __func__, __LINE__, current->pid,	\
+			     ##__VA_ARGS__)
+
+#define mlx5_core_info(__dev, format, ...)		\
+	dev_info((__dev)->device, format, ##__VA_ARGS__)
+
+#define mlx5_core_info_rl(__dev, format, ...)			\
+	dev_info_ratelimited((__dev)->device,			\
+			     "%s:%d:(pid %d): " format,		\
+			     __func__, __LINE__, current->pid,	\
+			     ##__VA_ARGS__)
 
 enum {
 	MLX5_CMD_DATA, /* print command payload only */
@@ -111,7 +125,6 @@ void mlx5_sriov_cleanup(struct mlx5_core_dev *dev);
 int mlx5_sriov_attach(struct mlx5_core_dev *dev);
 void mlx5_sriov_detach(struct mlx5_core_dev *dev);
 int mlx5_core_sriov_configure(struct pci_dev *dev, int num_vfs);
-bool mlx5_sriov_is_enabled(struct mlx5_core_dev *dev);
 int mlx5_core_enable_hca(struct mlx5_core_dev *dev, u16 func_id);
 int mlx5_core_disable_hca(struct mlx5_core_dev *dev, u16 func_id);
 int mlx5_create_scheduling_element_cmd(struct mlx5_core_dev *dev, u8 hierarchy,
@@ -121,7 +134,7 @@ int mlx5_modify_scheduling_element_cmd(struct mlx5_core_dev *dev, u8 hierarchy,
 				       u32 modify_bitmask);
 int mlx5_destroy_scheduling_element_cmd(struct mlx5_core_dev *dev, u8 hierarchy,
 					u32 element_id);
-int mlx5_wait_for_vf_pages(struct mlx5_core_dev *dev);
+int mlx5_wait_for_pages(struct mlx5_core_dev *dev, int *pages);
 u64 mlx5_read_internal_timer(struct mlx5_core_dev *dev,
 			     struct ptp_system_timestamp *sts);
 
@@ -176,6 +189,11 @@ int mlx5_firmware_flash(struct mlx5_core_dev *dev, const struct firmware *fw);
 void mlx5e_init(void);
 void mlx5e_cleanup(void);
 
+static inline bool mlx5_sriov_is_enabled(struct mlx5_core_dev *dev)
+{
+	return pci_num_vf(dev->pdev) ? true : false;
+}
+
 static inline int mlx5_lag_is_lacp_owner(struct mlx5_core_dev *dev)
 {
 	/* LACP owner conditions:
@@ -187,8 +205,6 @@ static inline int mlx5_lag_is_lacp_owner(struct mlx5_core_dev *dev)
 		   (MLX5_CAP_GEN(dev, num_lag_ports) > 1) &&
 		    MLX5_CAP_GEN(dev, lag_master);
 }
-
-int mlx5_lag_get_pf_num(struct mlx5_core_dev *dev, int *pf_num);
 
 void mlx5_reload_interface(struct mlx5_core_dev *mdev, int protocol);
 void mlx5_lag_update(struct mlx5_core_dev *dev);

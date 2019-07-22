@@ -33,7 +33,6 @@
 #include "amdgpu_sync.h"
 #include "amdgpu_vm.h"
 
-extern const struct kgd2kfd_calls *kgd2kfd;
 extern uint64_t amdgpu_amdkfd_total_mem_size;
 
 struct amdgpu_device;
@@ -80,6 +79,18 @@ struct amdgpu_amdkfd_fence {
 struct amdgpu_kfd_dev {
 	struct kfd_dev *dev;
 	uint64_t vram_used;
+};
+
+enum kgd_engine_type {
+	KGD_ENGINE_PFP = 1,
+	KGD_ENGINE_ME,
+	KGD_ENGINE_CE,
+	KGD_ENGINE_MEC1,
+	KGD_ENGINE_MEC2,
+	KGD_ENGINE_RLC,
+	KGD_ENGINE_SDMA1,
+	KGD_ENGINE_SDMA2,
+	KGD_ENGINE_MAX
 };
 
 struct amdgpu_amdkfd_fence *amdgpu_amdkfd_fence_create(u64 context,
@@ -143,6 +154,8 @@ int amdgpu_amdkfd_alloc_gtt_mem(struct kgd_dev *kgd, size_t size,
 				void **mem_obj, uint64_t *gpu_addr,
 				void **cpu_ptr, bool mqd_gfx9);
 void amdgpu_amdkfd_free_gtt_mem(struct kgd_dev *kgd, void *mem_obj);
+uint32_t amdgpu_amdkfd_get_fw_version(struct kgd_dev *kgd,
+				      enum kgd_engine_type type);
 void amdgpu_amdkfd_get_local_mem_info(struct kgd_dev *kgd,
 				      struct kfd_local_mem_info *mem_info);
 uint64_t amdgpu_amdkfd_get_gpu_clock_counter(struct kgd_dev *kgd);
@@ -213,5 +226,24 @@ int amdgpu_amdkfd_gpuvm_import_dmabuf(struct kgd_dev *kgd,
 
 void amdgpu_amdkfd_gpuvm_init_mem_limits(void);
 void amdgpu_amdkfd_unreserve_memory_limit(struct amdgpu_bo *bo);
+
+/* KGD2KFD callbacks */
+int kgd2kfd_init(void);
+void kgd2kfd_exit(void);
+struct kfd_dev *kgd2kfd_probe(struct kgd_dev *kgd, struct pci_dev *pdev,
+			      const struct kfd2kgd_calls *f2g);
+bool kgd2kfd_device_init(struct kfd_dev *kfd,
+			 const struct kgd2kfd_shared_resources *gpu_resources);
+void kgd2kfd_device_exit(struct kfd_dev *kfd);
+void kgd2kfd_suspend(struct kfd_dev *kfd);
+int kgd2kfd_resume(struct kfd_dev *kfd);
+int kgd2kfd_pre_reset(struct kfd_dev *kfd);
+int kgd2kfd_post_reset(struct kfd_dev *kfd);
+void kgd2kfd_interrupt(struct kfd_dev *kfd, const void *ih_ring_entry);
+int kgd2kfd_quiesce_mm(struct mm_struct *mm);
+int kgd2kfd_resume_mm(struct mm_struct *mm);
+int kgd2kfd_schedule_evict_and_restore_process(struct mm_struct *mm,
+					       struct dma_fence *fence);
+void kgd2kfd_set_sram_ecc_flag(struct kfd_dev *kfd);
 
 #endif /* AMDGPU_AMDKFD_H_INCLUDED */

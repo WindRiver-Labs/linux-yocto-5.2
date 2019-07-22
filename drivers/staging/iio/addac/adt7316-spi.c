@@ -1,10 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
  * API bus driver for ADT7316/7/8 ADT7516/7/9 digital temperature
  * sensor, ADC and DAC
  *
  * Copyright 2010 Analog Devices Inc.
- *
- * Licensed under the GPL-2 or later.
  */
 
 #include <linux/device.h>
@@ -27,7 +26,7 @@ static int adt7316_spi_multi_read(void *client, u8 reg, u8 count, u8 *data)
 {
 	struct spi_device *spi_dev = client;
 	u8 cmd[2];
-	int ret = 0;
+	int ret;
 
 	if (count > ADT7316_REG_MAX_ADDR)
 		count = ADT7316_REG_MAX_ADDR;
@@ -56,7 +55,7 @@ static int adt7316_spi_multi_write(void *client, u8 reg, u8 count, u8 *data)
 {
 	struct spi_device *spi_dev = client;
 	u8 buf[ADT7316_REG_MAX_ADDR + 2];
-	int i, ret = 0;
+	int i, ret;
 
 	if (count > ADT7316_REG_MAX_ADDR)
 		count = ADT7316_REG_MAX_ADDR;
