@@ -21,6 +21,8 @@
 #include <linux/pci.h>
 #include <linux/platform_device.h>
 #include <linux/irqchip/chained_irq.h>
+#include <linux/gpio.h>
+#include <linux/of_gpio.h>
 
 #include "../pci.h"
 
@@ -830,6 +832,31 @@ static const struct of_device_id nwl_pcie_of_match[] = {
 	{}
 };
 
+static int nwl_pcie_reset_ep_device(struct platform_device *pdev)
+{
+	struct device_node *node = pdev->dev.of_node;
+	int gpio;
+	int err;
+
+	gpio = of_get_named_gpio(node, "reset-gpio", 0);
+	if (!gpio_is_valid(gpio)) {
+		dev_err(&pdev->dev, "failed to parse reset gpio\n");
+		return gpio;
+	}
+
+	err = devm_gpio_request_one(&pdev->dev, gpio, GPIOF_OUT_INIT_HIGH,
+					"pcie reset gpio");
+	if (err)
+		return err;
+
+	udelay(2);
+	gpio_set_value(gpio, 0);
+	udelay(10);
+	gpio_set_value(gpio, 1);
+
+	return err;
+}
+
 static int nwl_pcie_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -840,6 +867,14 @@ static int nwl_pcie_probe(struct platform_device *pdev)
 	int err;
 	resource_size_t iobase = 0;
 	LIST_HEAD(res);
+
+	err = nwl_pcie_reset_ep_device(pdev);
+	if (err) {
+		dev_err(dev, "fail to reset pcie device\n");
+		return err;
+	}
+	/* wait for ep device reset finished */
+	mdelay(100);
 
 	bridge = devm_pci_alloc_host_bridge(dev, sizeof(*pcie));
 	if (!bridge)
