@@ -118,9 +118,6 @@ struct imx_pcie {
 #define PCIE_PL_PFLR_LINK_STATE_MASK		(0x3f << 16)
 #define PCIE_PL_PFLR_FORCE_LINK			(1 << 15)
 #define PCIE_PORT_LINK_CONTROL		0x710
-#define PORT_LINK_MODE_MASK		(0x3f << 16)
-#define PORT_LINK_MODE_1_LANES		(0x1 << 16)
-#define PORT_LINK_MODE_2_LANES		(0x3 << 16)
 
 #define PCIE_PHY_DEBUG_R0 (PL_OFFSET + 0x28)
 #define PCIE_PHY_DEBUG_R1 (PL_OFFSET + 0x2c)
@@ -138,10 +135,6 @@ struct imx_pcie {
 #define PCIE_PHY_STAT_ACK_LOC 16
 
 #define PCIE_LINK_WIDTH_SPEED_CONTROL	0x80C
-#define PORT_LOGIC_SPEED_CHANGE		(0x1 << 17)
-#define PORT_LOGIC_LINK_WIDTH_MASK	(0x1f << 8)
-#define PORT_LOGIC_LINK_WIDTH_1_LANES	(0x1 << 8)
-#define PORT_LOGIC_LINK_WIDTH_2_LANES	(0x2 << 8)
 
 #define PCIE_MISC_CTRL			(PL_OFFSET + 0x1BC)
 #define PCIE_MISC_DBI_RO_WR_EN		BIT(0)
@@ -1949,6 +1942,20 @@ static void imx_pcie_setup_ep(struct dw_pcie *pci)
 	writel(0, pci->dbi_base + (1 << 12) + PCI_BASE_ADDRESS_5);
 }
 
+static void pci_imx_set_msi_en(struct pcie_port *pp)
+{
+	u16 val;
+	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
+
+	if (pci_msi_enabled()) {
+		val = dw_pcie_readw_dbi(pci, PCIE_RC_IMX6_MSI_CAP +
+					PCI_MSI_FLAGS);
+		val |= PCI_MSI_FLAGS_ENABLE;
+		dw_pcie_writew_dbi(pci, PCIE_RC_IMX6_MSI_CAP + PCI_MSI_FLAGS,
+				   val);
+	}
+}
+
 #ifdef CONFIG_PM_SLEEP
 /* PM_TURN_OFF */
 static void pci_imx_pm_turn_off(struct imx_pcie *imx_pcie)
@@ -2097,20 +2104,6 @@ static void pci_imx_ltssm_disable(struct device *dev)
 				val + IMX8QM_CSR_PCIE_CTRL2_OFFSET,
 				IMX8QM_CTRL_READY_ENTR_L23, 0);
 		break;
-	}
-}
-
-static void pci_imx_set_msi_en(struct pcie_port *pp)
-{
-	u16 val;
-	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
-
-	if (pci_msi_enabled()) {
-		val = dw_pcie_readw_dbi(pci, PCIE_RC_IMX6_MSI_CAP +
-					PCI_MSI_FLAGS);
-		val |= PCI_MSI_FLAGS_ENABLE;
-		dw_pcie_writew_dbi(pci, PCIE_RC_IMX6_MSI_CAP + PCI_MSI_FLAGS,
-				   val);
 	}
 }
 
@@ -2274,6 +2267,7 @@ static int imx_pcie_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct device_node *reserved_node, *node = dev->of_node;
 	struct regmap_config regconfig = imx_pcie_regconfig;
+	struct timespec ts;
 
 	imx_pcie = devm_kzalloc(dev, sizeof(*imx_pcie), GFP_KERNEL);
 	if (!imx_pcie)
@@ -2707,7 +2701,9 @@ static int imx_pcie_probe(struct platform_device *pdev)
 
 		/* PCIe EP start the data transfer after link up */
 		dev_info(dev, "pcie ep: Starting data transfer...\n");
-		do_gettimeofday(&tv1s);
+		ktime_get_ts(&ts);
+		tv1s.tv_sec = ts.tv_sec;
+		tv1s.tv_usec = ts.tv_nsec / NSEC_PER_USEC;
 
 		/* EP write the test region to remote RC's DDR memory */
 		if (dma_en) {
@@ -2728,9 +2724,14 @@ static int imx_pcie_probe(struct platform_device *pdev)
 					test_region_size);
 		}
 
-		do_gettimeofday(&tv1e);
+		ktime_get_ts(&ts);
+		tv1e.tv_sec = ts.tv_sec;
+		tv1e.tv_usec = ts.tv_nsec / NSEC_PER_USEC;
 
-		do_gettimeofday(&tv2s);
+		ktime_get_ts(&ts);
+		tv2s.tv_sec = ts.tv_sec;
+		tv2s.tv_usec = ts.tv_nsec / NSEC_PER_USEC;
+
 		/* EP read the test region back from remote RC's DDR memory */
 		if (dma_en) {
 			imx_pcie_local_dma_start(pp, 1, 0,
@@ -2750,7 +2751,9 @@ static int imx_pcie_probe(struct platform_device *pdev)
 					test_region_size);
 		}
 
-		do_gettimeofday(&tv2e);
+		ktime_get_ts(&ts);
+		tv2e.tv_sec = ts.tv_sec;
+		tv2e.tv_usec = ts.tv_nsec / NSEC_PER_USEC;
 		if (memcmp(test_reg2, test_reg1, test_region_size) == 0) {
 			tv_count1 = (tv1e.tv_sec - tv1s.tv_sec)
 				* USEC_PER_SEC
