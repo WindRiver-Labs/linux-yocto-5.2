@@ -335,33 +335,33 @@ static int dp83867_config_init(struct phy_device *phydev)
 			phy_write_mmd(phydev, DP83867_DEVADDR, DP83867_CFG4,
 				      val);
 		}
-
-		/* Set up RGMII delays */
-		val = phy_read_mmd(phydev, DP83867_DEVADDR, DP83867_RGMIICTL);
-
-		if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID)
-			val |= (DP83867_RGMII_TX_CLK_DELAY_EN | DP83867_RGMII_RX_CLK_DELAY_EN);
-
-		if (phydev->interface == PHY_INTERFACE_MODE_RGMII_TXID)
-			val |= DP83867_RGMII_TX_CLK_DELAY_EN;
-
-		if (phydev->interface == PHY_INTERFACE_MODE_RGMII_RXID)
-			val |= DP83867_RGMII_RX_CLK_DELAY_EN;
-
-		phy_write_mmd(phydev, DP83867_DEVADDR, DP83867_RGMIICTL, val);
-
-		delay = (dp83867->rx_id_delay |
-			(dp83867->tx_id_delay << DP83867_RGMII_TX_CLK_DELAY_SHIFT));
-
-		phy_write_mmd(phydev, DP83867_DEVADDR, DP83867_RGMIIDCTL,
-			      delay);
-
-		if (dp83867->io_impedance >= 0)
-			phy_modify_mmd(phydev, DP83867_DEVADDR, DP83867_IO_MUX_CFG,
-				       DP83867_IO_MUX_CFG_IO_IMPEDANCE_CTRL,
-				       dp83867->io_impedance &
-				       DP83867_IO_MUX_CFG_IO_IMPEDANCE_CTRL);
 	}
+
+	/* Set up RGMII delays */
+	val = phy_read_mmd(phydev, DP83867_DEVADDR, DP83867_RGMIICTL);
+
+	if (phydev->interface == PHY_INTERFACE_MODE_RGMII_ID)
+		val |= (DP83867_RGMII_TX_CLK_DELAY_EN | DP83867_RGMII_RX_CLK_DELAY_EN);
+
+	if (phydev->interface == PHY_INTERFACE_MODE_RGMII_TXID)
+		val |= DP83867_RGMII_TX_CLK_DELAY_EN;
+
+	if (phydev->interface == PHY_INTERFACE_MODE_RGMII_RXID)
+		val |= DP83867_RGMII_RX_CLK_DELAY_EN;
+
+	phy_write_mmd(phydev, DP83867_DEVADDR, DP83867_RGMIICTL, val);
+
+	delay = (dp83867->rx_id_delay |
+		(dp83867->tx_id_delay << DP83867_RGMII_TX_CLK_DELAY_SHIFT));
+
+	phy_write_mmd(phydev, DP83867_DEVADDR, DP83867_RGMIIDCTL,
+			  delay);
+
+	if (dp83867->io_impedance >= 0)
+		phy_modify_mmd(phydev, DP83867_DEVADDR, DP83867_IO_MUX_CFG,
+				   DP83867_IO_MUX_CFG_IO_IMPEDANCE_CTRL,
+				   dp83867->io_impedance &
+				   DP83867_IO_MUX_CFG_IO_IMPEDANCE_CTRL);
 
 	if (phydev->interface == PHY_INTERFACE_MODE_SGMII) {
 		/* For support SPEED_10 in SGMII mode
