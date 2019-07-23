@@ -885,9 +885,9 @@ static int pfuze_reg_save_restore(struct pfuze_chip *pfuze_chip, int start,
 	return index + i;
 }
 
-static int pfuze_suspend(struct device *dev)
+static int __maybe_unused pfuze_suspend(struct device *dev)
 {
-struct pfuze_chip *pfuze_chip = i2c_get_clientdata(to_i2c_client(dev));
+	struct pfuze_chip *pfuze_chip = i2c_get_clientdata(to_i2c_client(dev));
 	int index = 0;
 
 	if (pfuze_chip->need_restore) {
@@ -911,7 +911,7 @@ err_ret:
 	return index;
 }
 
-static int pfuze_resume(struct device *dev)
+static int __maybe_unused pfuze_resume(struct device *dev)
 {
 	struct pfuze_chip *pfuze_chip = i2c_get_clientdata(to_i2c_client(dev));
 	int index = 0;
