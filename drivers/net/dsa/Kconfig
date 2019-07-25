@@ -110,4 +110,12 @@ config NET_DSA_VITESSE_VSC73XX
 	  This enables support for the Vitesse VSC7385, VSC7388,
 	  VSC7395 and VSC7398 SparX integrated ethernet switches.
 
+config NET_DSA_MVMDIO
+	tristate "Sysfs for soho switch register access"
+	depends on NET_DSA && MVMDIO
+	---help---
+	  This option adds the ability to read or write switch registers.
+	  The files read,write,dump in /sys/devices/platform/dsa_mvmdio provides
+	  register access to switch registers, internal phy registers.
+
 endmenu

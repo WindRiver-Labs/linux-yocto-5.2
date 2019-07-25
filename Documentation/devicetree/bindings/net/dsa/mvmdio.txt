@@ -1,0 +1,69 @@
+Marvell SOHU Switch sysfs Device Tree Bindings
+----------------------------------------------
+
+The Sysfs driver (also referred to as the dsa_mvmdio driver) is designed to provide access to the SMI/XSMI bus from the user space. This driver is available from the LSP 17.08 release onwards.
+
+Sysfs Interface
+Sysfs is available for accessing SOHO switch registers from the user space. The following are Sysfs paths:
+Read register - /sys/devices/platform/dsa_mvmdio/read
+Write register - /sys/devices/platform/dsa_mvmdio/write
+Dump registers - /sys/devices/platform/dsa_mvmdio/dump
+Print help - /sys/devices/platform/dsa_mvmdio/help
+Updating values in these files from the user space reads or modifies the switch internal register values. The purpose of this is to debug switch functionality by reading/writing of registers.
+
+Compilation
+To enable this driver, set the compilation flag CONFIG_MV_DSA_MVMVDIO
+
+DTS Configuration Example
+This is an example configuration for a Marvell board.
+The customer should remove one the "mii-bus" or "xmii-bus" parameters as needed.
+{
+	cpn-110-master {
+		config-space {
+			mdio: mdio@12a200 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
+			xmdio: mdio@15b000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
+			dsa_mvmdio {
+				compatible = "marvell,dsa-mvmdio";
+				status = "okay";
+				mii-bus = <&mdio>; /* remove if using only xmii */
+				xmii-bus = <&xmdio>; /* remove if using only mii */
+				sw-smi-addr = <3>;
+			};
+		};
+	};
+}
+
+Usage
+help Displays all available switch commands and their syntax. # cd /sys/devices/platform/dsa_mvmdio
+   cat help
+read - Reads a register
+   echo [type] [port] [xdev] [reg] > read
+write - Writes to a register
+   echo [type] [port] [xdev] [reg] [val] > write
+dump - Dumps 0 to 32 registers
+   echo [type] [port] [xdev] > dump
+
+The following parameters are in hexadecimal:
+type
+   0 - Switch registers
+   1 - Switch internal PHY registers
+   2 - Switch external PHY registers
+   3 - Regular Gigabit PHY
+   4 - Extended PHY i.e. 100G phy
+port
+   PHY ID for PHYs.
+   Port address for switches. The port address equals the port number for the Peridot family; otherwise the port address is 0x10 + port number.
+   For global 1 and global 2 registers of the switch, this parameter is the device address, ie. 0X1b and 0x1c respectively.
+xdev
+   Device address for extended PHY, i.e. type = 4.
+   0 otherwise.
+reg - Register address
+val - Value
+
+

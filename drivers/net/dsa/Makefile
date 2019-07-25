@@ -19,3 +19,4 @@ obj-y				+= b53/
 obj-y				+= microchip/
 obj-y				+= mv88e6xxx/
 obj-y				+= sja1105/
+obj-$(CONFIG_NET_DSA_MVMDIO)    += dsa_mvmdio.o
