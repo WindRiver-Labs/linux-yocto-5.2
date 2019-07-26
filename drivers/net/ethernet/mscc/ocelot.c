@@ -1740,8 +1740,35 @@ err_register_netdev:
 }
 EXPORT_SYMBOL(ocelot_probe_port);
 
+static struct ocelot_ace_rule *ocelot_ace_ptp_rule(struct ocelot *ocelot)
+{
+	struct ocelot_ace_rule *rule;
+
+	rule = kzalloc(sizeof(*rule), GFP_KERNEL);
+	if (!rule)
+		return rule;
+
+	/* Entry for PTP over Ethernet (etype 0x88f7)
+	 * Action: trap to CPU port
+	 */
+	rule->ocelot = ocelot;
+	rule->prio = 1;
+	rule->type = OCELOT_ACE_TYPE_ETYPE;
+	/* Available on all ingress port except CPU port */
+	rule->ingress_port = ~BIT(ocelot->num_phys_ports);
+	rule->dmac_mc= OCELOT_VCAP_BIT_1;
+	rule->frame.etype.etype.value[0] = 0x88;
+	rule->frame.etype.etype.value[1] = 0xf7;
+	rule->frame.etype.etype.mask[0] = 0xff;
+	rule->frame.etype.etype.mask[1] = 0xff;
+	rule->action = OCELOT_ACL_ACTION_TRAP;
+
+	return rule;
+}
+
 int ocelot_init(struct ocelot *ocelot)
 {
+	struct ocelot_ace_rule *ptp_rule;
 	u32 port;
 	int i, cpu = ocelot->num_phys_ports;
 	char queue_name[32];
