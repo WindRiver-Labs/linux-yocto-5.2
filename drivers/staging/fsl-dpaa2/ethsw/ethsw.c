@@ -1178,6 +1178,7 @@ static void ethsw_switchdev_event_work(struct work_struct *work)
 		container_of(work, struct ethsw_switchdev_event_work, work);
 	struct net_device *dev = switchdev_work->dev;
 	struct switchdev_notifier_fdb_info *fdb_info;
+	int err;
 
 	rtnl_lock();
 	fdb_info = &switchdev_work->fdb_info;
