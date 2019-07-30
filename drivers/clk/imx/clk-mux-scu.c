@@ -150,7 +150,7 @@ static int clk_mux_prepare_scu(struct clk_hw *hw)
 		spin_lock_irqsave(mux->lock, flags);
 
 	if (mux->update) {
-		clk_writel(mux->val, mux->reg);
+		writel(mux->val, mux->reg);
 		mux->update = 0;
 	}
 
@@ -189,7 +189,7 @@ static int clk_mux_set_parent_scu(struct clk_hw *hw, u8 index)
 	mux->update = (ret != 0);
 
 	if (ret == 0)
-		clk_writel(mux->val, mux->reg);
+		writel(mux->val, mux->reg);
 
 	if (mux->lock)
 		spin_unlock_irqrestore(mux->lock, flags);
@@ -239,7 +239,7 @@ struct clk *clk_register_mux_table_scu(struct device *dev, const char *name,
 		init.ops = &clk_mux_ro_scu_ops;
 	else
 		init.ops = &clk_mux_scu_ops;
-	init.flags = flags | CLK_IS_BASIC;
+	init.flags = flags;
 	init.parent_names = parent_names;
 	init.num_parents = num_parents;
 
@@ -354,7 +354,7 @@ struct clk *clk_register_mux_gpr_scu(struct device *dev, const char *name,
 	init.ops = &clk_mux_gpr_scu_ops;
 	init.parent_names = parents;
 	init.num_parents = num_parents;
-	init.flags |= CLK_SET_PARENT_NOCACHE;
+	init.flags = CLK_SET_PARENT_NOCACHE;
 
 	gpr_scu_mux->hw.init = &init;
 	gpr_scu_mux->rsrc_id = rsrc_id;
