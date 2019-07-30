@@ -1187,6 +1187,7 @@ static int fsl_edma_probe(struct platform_device *pdev)
 	struct resource *res;
 	int len, chans;
 	int ret, i;
+	unsigned int ch;
 
 	ret = of_property_read_u32(np, "dma-channels", &chans);
 	if (ret) {
@@ -1259,7 +1260,12 @@ static int fsl_edma_probe(struct platform_device *pdev)
 		fsl_edma_chan_mux(fsl_chan, 0, false);
 	}
 
-	edma_writel(fsl_edma, ~0, regs->intl);
+	if (is_s32gen1_edma(fsl_edma))
+		for (ch = 0; ch < fsl_edma->n_chans; ch++)
+			edma_writel(fsl_edma, ~0, fsl_edma->membase + EDMA3_CHn_INT(ch));
+	else
+		edma_writel(fsl_edma, ~0, fsl_edma->membase + EDMA_INTR);
+
 	ret = fsl_edma_irq_init(pdev, fsl_edma);
 	if (ret)
 		return ret;
