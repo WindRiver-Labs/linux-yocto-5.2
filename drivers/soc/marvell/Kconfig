@@ -75,4 +75,11 @@ config OCTEONTX2_DPI_PF
 	  DPI (DMA packet interface) provides DMA support for MAC.
 	  This driver intializes dpi PF device and enables VF's for supporting
 	  different types of DMA transfers.
+
+config MDIO_DEBUGFS
+       tristate "Stub driver for debugfs support for mdio commands "
+	depends on OCTEONTX2_AF
+	help
+	provides debugfs support to initiate mdio commands via smc call
+	to the atf.
 endmenu
