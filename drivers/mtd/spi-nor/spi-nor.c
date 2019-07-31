@@ -3749,8 +3749,6 @@ static int spi_nor_init_params(struct spi_nor *nor,
 		default:
 			/* Kept only for backward compatibility purpose. */
 			params->quad_enable = spansion_quad_enable;
-			if (nor->clear_sr_bp)
-				nor->clear_sr_bp = spi_nor_spansion_clear_sr_bp;
 			break;
 		}
 
@@ -4004,6 +4002,9 @@ static int spi_nor_init(struct spi_nor *nor)
 	int err;
 
 	if (nor->clear_sr_bp) {
+		if (nor->quad_enable == spansion_quad_enable)
+			nor->clear_sr_bp = spi_nor_spansion_clear_sr_bp;
+
 		err = nor->clear_sr_bp(nor);
 		if (err) {
 			dev_err(nor->dev,
