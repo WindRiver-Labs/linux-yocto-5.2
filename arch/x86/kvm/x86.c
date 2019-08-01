@@ -7055,7 +7055,7 @@ static void kvm_set_mmio_spte_mask(void)
 	if (shadow_phys_bits == 52)
 		mask &= ~1ull;
 
-	kvm_mmu_set_mmio_spte_mask(mask, mask);
+	kvm_mmu_set_mmio_spte_mask(mask, mask, ACC_WRITE_MASK | ACC_USER_MASK);
 }
 
 #ifdef CONFIG_X86_64
