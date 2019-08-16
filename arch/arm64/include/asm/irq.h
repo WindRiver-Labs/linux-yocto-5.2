@@ -6,6 +6,15 @@
 
 #include <asm-generic/irq.h>
 
+/* Platforms with multiple SR-IOV capable PCI devices will
+ * need large number of MSIX vectors, hence keep this number
+ * fairly high.
+ */
+#ifdef CONFIG_PCI_MSI
+#undef  NR_IRQS
+#define NR_IRQS        65536
+#endif
+
 struct pt_regs;
 
 static inline int nr_legacy_irqs(void)
