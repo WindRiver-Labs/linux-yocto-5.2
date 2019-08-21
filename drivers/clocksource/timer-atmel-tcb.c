@@ -265,9 +265,11 @@ static irqreturn_t ch2_irq(int irq, void *handle)
 	return IRQ_NONE;
 }
 
+static const u8 atmel_tcb_divisors[5] = { 2, 8, 32, 128, 0, };
+
 static int __init setup_clkevents(struct atmel_tc *tc, int divisor_idx)
 {
-	unsigned divisor = atmel_tc_divisors[divisor_idx];
+	unsigned divisor = atmel_tcb_divisors[divisor_idx];
 	int ret;
 	struct clk *t2_clk = tc->clk[2];
 	int irq = tc->irq[2];
@@ -359,8 +361,6 @@ static void __init tcb_setup_single_chan(struct atmel_tc *tc, int mck_divisor_id
 	/* then reset all the timers */
 	writel(ATMEL_TC_SYNC, tcaddr + ATMEL_TC_BCR);
 }
-
-static const u8 atmel_tcb_divisors[5] = { 2, 8, 32, 128, 0, };
 
 static const struct of_device_id atmel_tcb_of_match[] = {
 	{ .compatible = "atmel,at91rm9200-tcb", .data = (void *)16, },
@@ -482,7 +482,7 @@ static int __init tcb_clksrc_init(struct device_node *node)
 #ifdef CONFIG_ATMEL_TCB_CLKSRC_USE_SLOW_CLOCK
 	ret = setup_clkevents(&tc, clk32k_divisor_idx);
 #else
-	ret = setup_clkevents(tc, best_divisor_idx);
+	ret = setup_clkevents(&tc, best_divisor_idx);
 #endif
 	if (ret)
 		goto err_unregister_clksrc;
