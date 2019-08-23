@@ -1344,7 +1344,7 @@ config RTC_DRV_MESON
 
 config RTC_DRV_FSL_FTM_ALARM
         tristate "Freescale FlexTimer alarm timer"
-        depends on ARCH_LAYERSCAPE
+        depends on ARCH_LAYERSCAPE || SOC_LS1021A
         select FSL_RCPM
         default y
         help
