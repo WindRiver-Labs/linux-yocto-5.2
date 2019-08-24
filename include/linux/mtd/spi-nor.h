@@ -483,6 +483,7 @@ struct spi_nor;
  * @erase_map:		the erase map parsed from the SFDP Sector Map Parameter
  *                      Table.
  * @quad_enable:	enables SPI NOR quad mode.
+ * @set_4byte:		puts the SPI NOR in 4 byte addressing mode.
  */
 struct spi_nor_flash_parameter {
 	u64				size;
@@ -495,6 +496,7 @@ struct spi_nor_flash_parameter {
 	struct spi_nor_erase_map        erase_map;
 
 	int (*quad_enable)(struct spi_nor *nor);
+	int (*set_4byte)(struct spi_nor *nor, bool enable);
 };
 
 /**
