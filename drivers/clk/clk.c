@@ -2882,9 +2882,6 @@ static struct hlist_head *orphan_list[] = {
 static void clk_summary_show_one(struct seq_file *s, struct clk_core *c,
 				 int level)
 {
-	if (!c)
-		return;
-
 	seq_printf(s, "%*s%-*s %7d %8d %8d %11lu %10lu %5d %6d\n",
 		   level * 3 + 1, "",
 		   30 - level * 3, c->name,
@@ -2898,9 +2895,6 @@ static void clk_summary_show_subtree(struct seq_file *s, struct clk_core *c,
 				     int level)
 {
 	struct clk_core *child;
-
-	if (!c)
-		return;
 
 	clk_summary_show_one(s, c, level);
 
@@ -2933,9 +2927,6 @@ static void clk_dump_one(struct seq_file *s, struct clk_core *c, int level)
 {
 	unsigned long min_rate, max_rate;
 
-	if (!c)
-		return;
-
 	clk_core_get_boundaries(c, &min_rate, &max_rate);
 
 	/* This should be JSON format, i.e. elements separated with a comma */
@@ -2955,9 +2946,6 @@ static void clk_dump_one(struct seq_file *s, struct clk_core *c, int level)
 static void clk_dump_subtree(struct seq_file *s, struct clk_core *c, int level)
 {
 	struct clk_core *child;
-
-	if (!c)
-		return;
 
 	clk_dump_one(s, c, level);
 
