@@ -510,6 +510,7 @@ struct ocelot_port {
 	struct net_device *dev;
 	struct ocelot *ocelot;
 	struct phy_device *phy;
+	struct device_node *portnp;
 	void __iomem *regs;
 	u8 chip_port;
 
