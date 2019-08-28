@@ -494,6 +494,8 @@ static const struct amba_id tmc_ids[] = {
 	CS_AMBA_ID(0x000bb9e9),
 	/* Coresight SoC 600 TMC-ETF */
 	CS_AMBA_ID(0x000bb9ea),
+	/* Marvell OcteonTx CN9xxx */
+	CS_AMBA_ID_DATA(OCTEONTX_CN9XXX_ETR, (unsigned long)OCTEONTX_CN9XXX_ETR_CAPS),
 	{ 0, 0},
 };
 
