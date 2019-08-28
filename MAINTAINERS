@@ -16069,6 +16069,12 @@ F:	sound/soc/codecs/tscs*.c
 F:	sound/soc/codecs/tscs*.h
 F:	Documentation/devicetree/bindings/sound/tscs*.txt
 
+TSN NETLINK INTERFACE DRVIER
+M:	Po Liu <Po.Liu@nxp.com>
+F:	net/tsn/genl_tsn.c
+F:	include/net/tsn.h
+F:	include/uapi/linux/tsn.h
+
 TTY LAYER
 M:	Greg Kroah-Hartman <gregkh@linuxfoundation.org>
 M:	Jiri Slaby <jslaby@suse.com>
