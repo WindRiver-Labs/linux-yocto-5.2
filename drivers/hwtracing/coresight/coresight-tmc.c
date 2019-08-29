@@ -151,6 +151,10 @@ static ssize_t tmc_read(struct file *file, char __user *data, size_t len,
 	if (actual <= 0)
 		return 0;
 
+	if ((drvdata->etr_options & CORESIGHT_OPTS_SECURE_BUFF) &&
+		tmc_copy_secure_buffer(drvdata, bufp, len))
+		return -EFAULT;
+
 	if (copy_to_user(data, bufp, actual)) {
 		dev_dbg(drvdata->dev, "%s: copy_to_user failed\n", __func__);
 		return -EFAULT;
@@ -419,11 +423,21 @@ static int tmc_probe(struct amba_device *adev, const struct amba_id *id)
 
 	spin_lock_init(&drvdata->spinlock);
 
+	drvdata->cpu = pdata ? pdata->cpu : 0;
+
+	/* Enable options for Silicon issues */
+	if (id->id == OCTEONTX_CN9XXX_ETR)
+		drvdata->etr_options = CORESIGHT_OPTS_BUFFSIZE_8BX |
+					CORESIGHT_OPTS_SECURE_BUFF |
+					CORESIGHT_OPTS_RESET_CTL_REG;
+
 	devid = readl_relaxed(drvdata->base + CORESIGHT_DEVID);
 	drvdata->config_type = BMVAL(devid, 6, 7);
 	drvdata->memwidth = tmc_get_memwidth(devid);
 	/* This device is not associated with a session */
 	drvdata->pid = -1;
+	drvdata->formatter_en = !(readl_relaxed(drvdata->base + TMC_FFSR) &
+		TMC_FFSR_FT_NOT_PRESENT);
 
 	if (drvdata->config_type == TMC_CONFIG_TYPE_ETR) {
 		if (np)
@@ -432,6 +446,11 @@ static int tmc_probe(struct amba_device *adev, const struct amba_id *id)
 						   &drvdata->size);
 		if (ret)
 			drvdata->size = SZ_1M;
+
+		/* Cache locked buffer */
+		if (np)
+			drvdata->cache_lock_en = of_property_read_bool(np,
+						   "cache-lock");
 	} else {
 		drvdata->size = readl_relaxed(drvdata->base + TMC_RSZ) * 4;
 	}
