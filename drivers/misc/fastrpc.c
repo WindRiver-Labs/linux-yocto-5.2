@@ -186,6 +186,7 @@ struct fastrpc_channel_ctx {
 	struct idr ctx_idr;
 	struct list_head users;
 	struct miscdevice miscdev;
+	struct kref refcount;
 };
 
 struct fastrpc_user {
@@ -290,6 +291,25 @@ static int fastrpc_buf_alloc(struct fastrpc_user *fl, struct device *dev,
 	return 0;
 }
 
+static void fastrpc_channel_ctx_free(struct kref *ref)
+{
+	struct fastrpc_channel_ctx *cctx;
+
+	cctx = container_of(ref, struct fastrpc_channel_ctx, refcount);
+
+	kfree(cctx);
+}
+
+static void fastrpc_channel_ctx_get(struct fastrpc_channel_ctx *cctx)
+{
+	kref_get(&cctx->refcount);
+}
+
+static void fastrpc_channel_ctx_put(struct fastrpc_channel_ctx *cctx)
+{
+	kref_put(&cctx->refcount, fastrpc_channel_ctx_free);
+}
+
 static void fastrpc_context_free(struct kref *ref)
 {
 	struct fastrpc_invoke_ctx *ctx;
@@ -313,6 +333,8 @@ static void fastrpc_context_free(struct kref *ref)
 	kfree(ctx->maps);
 	kfree(ctx->olaps);
 	kfree(ctx);
+
+	fastrpc_channel_ctx_put(cctx);
 }
 
 static void fastrpc_context_get(struct fastrpc_invoke_ctx *ctx)
@@ -419,6 +441,9 @@ static struct fastrpc_invoke_ctx *fastrpc_context_alloc(
 		fastrpc_get_buff_overlaps(ctx);
 	}
 
+	/* Released in fastrpc_context_put() */
+	fastrpc_channel_ctx_get(cctx);
+
 	ctx->sc = sc;
 	ctx->retval = -1;
 	ctx->pid = current->pid;
@@ -448,6 +473,7 @@ err_idr:
 	spin_lock(&user->lock);
 	list_del(&ctx->node);
 	spin_unlock(&user->lock);
+	fastrpc_channel_ctx_put(cctx);
 	kfree(ctx->maps);
 	kfree(ctx->olaps);
 	kfree(ctx);
@@ -1128,6 +1154,7 @@ static int fastrpc_device_release(struct inode *inode, struct file *file)
 	}
 
 	fastrpc_session_free(cctx, fl->sctx);
+	fastrpc_channel_ctx_put(cctx);
 
 	mutex_destroy(&fl->mutex);
 	kfree(fl);
@@ -1145,6 +1172,9 @@ static int fastrpc_device_open(struct inode *inode, struct file *filp)
 	fl = kzalloc(sizeof(*fl), GFP_KERNEL);
 	if (!fl)
 		return -ENOMEM;
+
+	/* Released in fastrpc_device_release() */
+	fastrpc_channel_ctx_get(cctx);
 
 	filp->private_data = fl;
 	spin_lock_init(&fl->lock);
@@ -1403,10 +1433,6 @@ static int fastrpc_rpmsg_probe(struct rpmsg_device *rpdev)
 	int i, err, domain_id = -1;
 	const char *domain;
 
-	data = devm_kzalloc(rdev, sizeof(*data), GFP_KERNEL);
-	if (!data)
-		return -ENOMEM;
-
 	err = of_property_read_string(rdev->of_node, "label", &domain);
 	if (err) {
 		dev_info(rdev, "FastRPC Domain not specified in DT\n");
@@ -1425,6 +1451,10 @@ static int fastrpc_rpmsg_probe(struct rpmsg_device *rpdev)
 		return -EINVAL;
 	}
 
+	data = kzalloc(sizeof(*data), GFP_KERNEL);
+	if (!data)
+		return -ENOMEM;
+
 	data->miscdev.minor = MISC_DYNAMIC_MINOR;
 	data->miscdev.name = devm_kasprintf(rdev, GFP_KERNEL, "fastrpc-%s",
 					    domains[domain_id]);
@@ -1432,6 +1462,8 @@ static int fastrpc_rpmsg_probe(struct rpmsg_device *rpdev)
 	err = misc_register(&data->miscdev);
 	if (err)
 		return err;
+
+	kref_init(&data->refcount);
 
 	dev_set_drvdata(&rpdev->dev, data);
 	dma_set_mask_and_coherent(rdev, DMA_BIT_MASK(32));
@@ -1467,7 +1499,8 @@ static void fastrpc_rpmsg_remove(struct rpmsg_device *rpdev)
 
 	misc_deregister(&cctx->miscdev);
 	of_platform_depopulate(&rpdev->dev);
-	kfree(cctx);
+
+	fastrpc_channel_ctx_put(cctx);
 }
 
 static int fastrpc_rpmsg_callback(struct rpmsg_device *rpdev, void *data,
