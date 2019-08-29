@@ -1244,6 +1244,7 @@ static struct hdp_ops ls1028a_dp_ops = {
 static struct hdp_devtype ls1028a_dp_devtype = {
 	.ops = &ls1028a_dp_ops,
 	.rw = &ls1028a_rw,
+	.connector_type = DRM_MODE_CONNECTOR_DisplayPort,
 };
 static const struct of_device_id imx_hdp_dt_ids[] = {
 	{ .compatible = "fsl,imx8qm-hdmi", .data = &imx8qm_hdmi_devtype},
@@ -1613,7 +1614,7 @@ static int imx_hdp_imx_bind(struct device *dev, struct device *master,
 
 	drm_connector_init(drm, connector,
 			   &imx_hdp_connector_funcs,
-			   DRM_MODE_CONNECTOR_HDMIA);
+			   devtype->connector_type);
 
 	drm_connector_attach_encoder(connector, encoder);
 
