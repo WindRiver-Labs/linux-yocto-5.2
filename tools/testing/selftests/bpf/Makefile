@@ -77,8 +77,6 @@ all: $(TEST_CUSTOM_PROGS)
 $(OUTPUT)/urandom_read: $(OUTPUT)/%: %.c
 	$(CC) -o $@ $< -Wl,--build-id
 
-$(OUTPUT)/test_maps: map_tests/*.c
-
 BPFOBJ := $(OUTPUT)/libbpf.a
 
 $(TEST_GEN_PROGS): $(BPFOBJ)
@@ -163,6 +161,7 @@ endif
 endif
 
 TEST_PROGS_CFLAGS := -I. -I$(OUTPUT)
+TEST_MAPS_CFLAGS := -I. -I$(OUTPUT)
 TEST_VERIFIER_CFLAGS := -I. -I$(OUTPUT) -Iverifier
 
 ifneq ($(SUBREG_CODEGEN),)
@@ -214,16 +213,14 @@ ifeq ($(DWARF2BTF),y)
 	$(BTF_PAHOLE) -J $@
 endif
 
-PROG_TESTS_H := $(OUTPUT)/prog_tests/tests.h
-test_progs.c: $(PROG_TESTS_H)
-$(OUTPUT)/test_progs: CFLAGS += $(TEST_PROGS_CFLAGS)
-$(OUTPUT)/test_progs: prog_tests/*.c
-
 PROG_TESTS_DIR = $(OUTPUT)/prog_tests
 $(PROG_TESTS_DIR):
 	mkdir -p $@
-
+PROG_TESTS_H := $(PROG_TESTS_DIR)/tests.h
 PROG_TESTS_FILES := $(wildcard prog_tests/*.c)
+test_progs.c: $(PROG_TESTS_H)
+$(OUTPUT)/test_progs: CFLAGS += $(TEST_PROGS_CFLAGS)
+$(OUTPUT)/test_progs: test_progs.c $(PROG_TESTS_H) $(PROG_TESTS_FILES)
 $(PROG_TESTS_H): $(PROG_TESTS_DIR) $(PROG_TESTS_FILES)
 	$(shell ( cd prog_tests/; \
 		  echo '/* Generated header, do not edit */'; \
@@ -237,14 +234,14 @@ $(PROG_TESTS_H): $(PROG_TESTS_DIR) $(PROG_TESTS_FILES)
 		  echo '#endif' \
 		 ) > $(PROG_TESTS_H))
 
-TEST_MAPS_CFLAGS := -I. -I$(OUTPUT)
 MAP_TESTS_DIR = $(OUTPUT)/map_tests
 $(MAP_TESTS_DIR):
 	mkdir -p $@
 MAP_TESTS_H := $(MAP_TESTS_DIR)/tests.h
+MAP_TESTS_FILES := $(wildcard map_tests/*.c)
 test_maps.c: $(MAP_TESTS_H)
 $(OUTPUT)/test_maps: CFLAGS += $(TEST_MAPS_CFLAGS)
-MAP_TESTS_FILES := $(wildcard map_tests/*.c)
+$(OUTPUT)/test_maps: test_maps.c $(MAP_TESTS_H) $(MAP_TESTS_FILES)
 $(MAP_TESTS_H): $(MAP_TESTS_DIR) $(MAP_TESTS_FILES)
 	$(shell ( cd map_tests/; \
 		  echo '/* Generated header, do not edit */'; \
@@ -258,16 +255,15 @@ $(MAP_TESTS_H): $(MAP_TESTS_DIR) $(MAP_TESTS_FILES)
 		  echo '#endif' \
 		 ) > $(MAP_TESTS_H))
 
-VERIFIER_TESTS_H := $(OUTPUT)/verifier/tests.h
-test_verifier.c: $(VERIFIER_TESTS_H)
-$(OUTPUT)/test_verifier: CFLAGS += $(TEST_VERIFIER_CFLAGS)
-
 VERIFIER_TESTS_DIR = $(OUTPUT)/verifier
 $(VERIFIER_TESTS_DIR):
 	mkdir -p $@
-
+VERIFIER_TESTS_H := $(VERIFIER_TESTS_DIR)/tests.h
 VERIFIER_TEST_FILES := $(wildcard verifier/*.c)
-$(OUTPUT)/verifier/tests.h: $(VERIFIER_TESTS_DIR) $(VERIFIER_TEST_FILES)
+test_verifier.c: $(VERIFIER_TESTS_H)
+$(OUTPUT)/test_verifier: CFLAGS += $(TEST_VERIFIER_CFLAGS)
+$(OUTPUT)/test_verifier: test_verifier.c $(VERIFIER_TESTS_H)
+$(VERIFIER_TESTS_H): $(VERIFIER_TEST_FILES) | $(VERIFIER_TESTS_DIR)
 	$(shell ( cd verifier/; \
 		  echo '/* Generated header, do not edit */'; \
 		  echo '#ifdef FILL_ARRAY'; \
