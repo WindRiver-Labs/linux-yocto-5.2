@@ -522,6 +522,8 @@ struct ocelot_port {
 	u8 vlan_aware;
 
 	u64 *stats;
+	phy_interface_t phy_mode;
+	struct phy *serdes;
 
         /* cpu frame injection handler */
         netdev_tx_t (*cpu_inj_handler)(struct sk_buff *skb,
@@ -532,8 +534,6 @@ struct ocelot_port {
         bool rx_tstamp;
         u8 tstamp_id;
 
-	phy_interface_t phy_mode;
-	struct phy *serdes;
 };
 
 u32 __ocelot_read_ix(struct ocelot *ocelot, u32 reg, u32 offset);
