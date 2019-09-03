@@ -15,6 +15,7 @@
 #include <linux/can/led.h>
 #include <linux/can/dev.h>
 #include <linux/clk.h>
+#include <linux/clk-provider.h>
 #include <linux/can/platform/rcar_can.h>
 #include <linux/of.h>
 
@@ -864,7 +865,9 @@ static int __maybe_unused rcar_can_suspend(struct device *dev)
 	writew(ctlr, &priv->regs->ctlr);
 	priv->can.state = CAN_STATE_SLEEPING;
 
-	clk_disable(priv->clk);
+	if(__clk_is_enabled(priv->clk))
+		clk_disable(priv->clk);
+
 	return 0;
 }
 
