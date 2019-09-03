@@ -205,6 +205,15 @@
 	};
 };
 
+&gpio5 {
+	gpio_exp_77_int {
+		gpio-hog;
+		gpios = <9 0>;
+		input;
+		line-name = "gpio-exp-77-int";
+	};
+};
+
 &i2c4 {
 	gpio_exp_76: gpio@76 {
 		compatible = "ti,tca9539";
