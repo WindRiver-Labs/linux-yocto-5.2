@@ -14,6 +14,7 @@
 #include <linux/bitops.h>
 #include <linux/clk.h>
 #include <linux/delay.h>
+#include <linux/regulator/consumer.h>
 #include <linux/interrupt.h>
 #include <linux/irq.h>
 #include <linux/irqdomain.h>
@@ -151,6 +152,8 @@ struct rcar_pcie {
 	struct list_head	resources;
 	int			root_bus_nr;
 	struct clk		*bus_clk;
+	struct regulator	*pcie3v3; /* 3.3V power supply */
+	struct regulator	*pcie1v8; /* 1.8V power supply */
 	struct			rcar_msi msi;
 };
 
@@ -1120,6 +1123,36 @@ static const struct of_device_id rcar_pcie_of_match[] = {
 	{},
 };
 
+static int rcar_pcie_set_vpcie(struct rcar_pcie *pcie)
+{
+	struct device *dev = pcie->dev;
+	int err;
+
+	if (!IS_ERR(pcie->pcie3v3)) {
+		err = regulator_enable(pcie->pcie3v3);
+		if (err) {
+			dev_err(dev, "fail to enable vpcie3v3 regulator\n");
+			goto err_out;
+		}
+	}
+
+	if (!IS_ERR(pcie->pcie1v8)) {
+		err = regulator_enable(pcie->pcie1v8);
+		if (err) {
+			dev_err(dev, "fail to enable vpcie1v8 regulator\n");
+			goto err_disable_3v3;
+		}
+	}
+
+	return 0;
+
+err_disable_3v3:
+	if (!IS_ERR(pcie->pcie3v3))
+		regulator_disable(pcie->pcie3v3);
+err_out:
+	return err;
+}
+
 static int rcar_pcie_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -1137,6 +1170,31 @@ static int rcar_pcie_probe(struct platform_device *pdev)
 
 	pcie->dev = dev;
 	platform_set_drvdata(pdev, pcie);
+
+	pcie->pcie3v3 = devm_regulator_get_optional(dev, "pcie3v3");
+	if (IS_ERR(pcie->pcie3v3)) {
+		if (PTR_ERR(pcie->pcie3v3) == -EPROBE_DEFER) {
+			pci_free_host_bridge(bridge);
+			return -EPROBE_DEFER;
+		}
+		dev_info(dev, "no pcie3v3 regulator found\n");
+	}
+
+	pcie->pcie1v8 = devm_regulator_get_optional(dev, "pcie1v8");
+	if (IS_ERR(pcie->pcie1v8)) {
+		if (PTR_ERR(pcie->pcie1v8) == -EPROBE_DEFER) {
+			pci_free_host_bridge(bridge);
+			return -EPROBE_DEFER;
+		}
+		dev_info(dev, "no pcie1v8 regulator found\n");
+	}
+
+	err = rcar_pcie_set_vpcie(pcie);
+	if (err) {
+		dev_err(dev, "failed to set pcie regulators\n");
+		pci_free_host_bridge(bridge);
+		return err;
+	}
 
 	err = pci_parse_request_of_pci_ranges(dev, &pcie->resources, NULL);
 	if (err)
@@ -1223,6 +1281,12 @@ err_pm_disable:
 	pci_free_resource_list(&pcie->resources);
 
 err_free_bridge:
+	if(!IS_ERR(pcie->pcie3v3))
+		if (regulator_is_enabled(pcie->pcie3v3))
+			regulator_disable(pcie->pcie3v3);
+	if(!IS_ERR(pcie->pcie1v8))
+		if (regulator_is_enabled(pcie->pcie1v8))
+			regulator_disable(pcie->pcie1v8);
 	pci_free_host_bridge(bridge);
 
 	return err;
