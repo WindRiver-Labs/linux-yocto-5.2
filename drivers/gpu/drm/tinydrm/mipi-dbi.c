@@ -839,7 +839,7 @@ static int mipi_dbi_typec1_command(struct mipi_dbi *mipi, u8 *cmd,
 	int ret;
 
 	if (mipi_dbi_command_is_read(mipi, *cmd))
-		return -ENOTSUPP;
+		return -EOPNOTSUPP;
 
 	MIPI_DBI_DEBUG_COMMAND(*cmd, parameters, num);
 
