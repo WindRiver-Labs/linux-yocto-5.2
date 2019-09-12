@@ -310,7 +310,7 @@ extern "C" {
 #define DRM_FORMAT_MOD_VENDOR_BROADCOM 0x07
 #define DRM_FORMAT_MOD_VENDOR_ARM     0x08
 #define DRM_FORMAT_MOD_VENDOR_ALLWINNER 0x09
-#define DRM_FORMAT_MOD_VENDOR_AMPHION  0x0A
+#define DRM_FORMAT_MOD_VENDOR_AMPHION  0xf0
 #define DRM_FORMAT_MOD_VENDOR_VSI      0x0b
 
 /* add more to the end as needed */
