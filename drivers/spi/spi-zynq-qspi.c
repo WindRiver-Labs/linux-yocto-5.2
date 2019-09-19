@@ -129,6 +129,9 @@
  * @rxbuf:		Pointer to the RX buffer
  * @tx_bytes:		Number of bytes left to transfer
  * @rx_bytes:		Number of bytes left to receive
+ * @is_dual:		Flag to indicate whether dual flash memories are used
+ * @is_instr:		Flag to indicate if transfer contains an instruction
+ *			(Used in dual parallel configuration)
  * @data_completion:	completion structure
  */
 struct zynq_qspi {
@@ -141,6 +144,8 @@ struct zynq_qspi {
 	u8 *rxbuf;
 	int tx_bytes;
 	int rx_bytes;
+	u32 is_dual;
+	u8 is_instr;
 	struct completion data_completion;
 };
 
@@ -213,6 +218,14 @@ static void zynq_qspi_init_hw(struct zynq_qspi *xqspi)
 	zynq_qspi_write(xqspi, ZYNQ_QSPI_TX_THRESH_OFFSET,
 			ZYNQ_QSPI_TX_THRESHOLD);
 
+	if (xqspi->is_dual)
+		/* Enable two memories on separate buses */
+		zynq_qspi_write(xqspi, ZYNQ_QSPI_LINEAR_CFG_OFFSET,
+				(ZYNQ_QSPI_LCFG_TWO_MEM_MASK |
+				ZYNQ_QSPI_LCFG_SEP_BUS_MASK |
+				(1 << ZYNQ_QSPI_LCFG_DUMMY_SHIFT) |
+				ZYNQ_QSPI_FAST_READ_QOUT_CODE));
+
 	zynq_qspi_write(xqspi, ZYNQ_QSPI_ENABLE_OFFSET,
 			ZYNQ_QSPI_ENABLE_ENABLE_MASK);
 }
@@ -236,15 +249,23 @@ static bool zynq_qspi_supports_op(struct spi_mem *mem,
  * zynq_qspi_rxfifo_op - Read 1..4 bytes from RxFIFO to RX buffer
  * @xqspi:	Pointer to the zynq_qspi structure
  * @size:	Number of bytes to be read (1..4)
+ *
+ * Note: In case of dual parallel connection, even number of bytes are read
+ * when odd bytes are requested to avoid transfer of a nibble to each flash.
+ * The receive buffer though, is populated with the number of bytes requested.
  */
 static void zynq_qspi_rxfifo_op(struct zynq_qspi *xqspi, unsigned int size)
 {
+	unsigned int xsize;
 	u32 data;
 
 	data = zynq_qspi_read(xqspi, ZYNQ_QSPI_RXD_OFFSET);
 
 	if (xqspi->rxbuf) {
-		memcpy(xqspi->rxbuf, ((u8 *)&data) + 4 - size, size);
+		xsize = size;
+		if (xqspi->is_dual && !xqspi->is_instr && (size % 2))
+			xsize++;
+		memcpy(xqspi->rxbuf, ((u8 *)&data) + 4 - xsize, size);
 		xqspi->rxbuf += size;
 	}
 
@@ -257,12 +278,19 @@ static void zynq_qspi_rxfifo_op(struct zynq_qspi *xqspi, unsigned int size)
  * zynq_qspi_txfifo_op - Write 1..4 bytes from TX buffer to TxFIFO
  * @xqspi:	Pointer to the zynq_qspi structure
  * @size:	Number of bytes to be written (1..4)
+ *
+ * In dual parallel configuration, when read/write data operations
+ * are performed, odd data bytes have to be converted to even to
+ * avoid a nibble (of data when programming / dummy when reading)
+ * going to individual flash devices, where a byte is expected.
+ * This check is only for data and will not apply for commands.
  */
 static void zynq_qspi_txfifo_op(struct zynq_qspi *xqspi, unsigned int size)
 {
 	static const unsigned int offset[4] = {
 		ZYNQ_QSPI_TXD_00_01_OFFSET, ZYNQ_QSPI_TXD_00_10_OFFSET,
 		ZYNQ_QSPI_TXD_00_11_OFFSET, ZYNQ_QSPI_TXD_00_00_OFFSET };
+	unsigned int xsize;
 	u32 data;
 
 	if (xqspi->txbuf) {
@@ -274,7 +302,11 @@ static void zynq_qspi_txfifo_op(struct zynq_qspi *xqspi, unsigned int size)
 	}
 
 	xqspi->tx_bytes -= size;
-	zynq_qspi_write(xqspi, offset[size - 1], data);
+
+	xsize = size;
+	if (xqspi->is_dual && !xqspi->is_instr && (size % 2))
+		xsize++;
+	zynq_qspi_write(xqspi, offset[xsize - 1], data);
 }
 
 /**
@@ -295,6 +327,7 @@ static void zynq_qspi_chipselect(struct spi_device *spi, bool assert)
 		config_reg |= (((~(BIT(spi->chip_select))) <<
 				ZYNQ_QSPI_SS_SHIFT) &
 				ZYNQ_QSPI_CONFIG_SSCTRL_MASK);
+		xqspi->is_instr = 1;
 	} else {
 		config_reg |= ZYNQ_QSPI_CONFIG_SSCTRL_MASK;
 	}
@@ -635,6 +668,12 @@ static int zynq_qspi_probe(struct platform_device *pdev)
 	if (IS_ERR(xqspi->regs)) {
 		ret = PTR_ERR(xqspi->regs);
 		goto remove_master;
+	}
+
+	if (of_property_read_u32(pdev->dev.of_node, "is-dual",
+				 &xqspi->is_dual)) {
+		dev_warn(&pdev->dev, "couldn't determine configuration info");
+		dev_warn(&pdev->dev, "about dual memories. defaulting to single memory\n");
 	}
 
 	xqspi->pclk = devm_clk_get(&pdev->dev, "pclk");
