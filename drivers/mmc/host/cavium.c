@@ -853,7 +853,7 @@ static void cvm_mmc_dma_request(struct mmc_host *mmc,
 	/* unaligned multi-block DMA has problems, so forbid all unaligned */
 	for (seg = 0; seg < mrq->data->sg_len; seg++) {
 		struct scatterlist *sg = &mrq->data->sg[seg];
-		u64 align = (sg->offset | sg->length | sg->dma_address);
+		u64 align = (sg->offset | sg->length);
 
 		if (!(align & 7))
 			continue;
