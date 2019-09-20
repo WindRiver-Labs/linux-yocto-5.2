@@ -27,6 +27,10 @@ enum NPC_LID_E {
 enum npc_kpu_la_ltype {
 	NPC_LT_LA_8023 = 1,
 	NPC_LT_LA_ETHER,
+	NPC_LT_LA_IH_NIX_ETHER,
+	NPC_LT_LA_IH_8_ETHER,
+	NPC_LT_LA_IH_4_ETHER,
+	NPC_LT_LA_IH_2_ETHER,
 };
 
 enum npc_kpu_lb_ltype {
@@ -40,7 +44,9 @@ enum npc_kpu_lb_ltype {
 
 enum npc_kpu_lc_ltype {
 	NPC_LT_LC_IP = 1,
+	NPC_LT_LC_IP_OPT,
 	NPC_LT_LC_IP6,
+	NPC_LT_LC_IP6_EXT,
 	NPC_LT_LC_ARP,
 	NPC_LT_LC_RARP,
 	NPC_LT_LC_MPLS,
@@ -57,49 +63,57 @@ enum npc_kpu_ld_ltype {
 	NPC_LT_LD_UDP,
 	NPC_LT_LD_ICMP,
 	NPC_LT_LD_SCTP,
-	NPC_LT_LD_IGMP,
 	NPC_LT_LD_ICMP6,
+	NPC_LT_LD_IGMP = 8,
 	NPC_LT_LD_ESP,
 	NPC_LT_LD_AH,
 	NPC_LT_LD_GRE,
-	NPC_LT_LD_GRE_MPLS,
-	NPC_LT_LD_GRE_NSH,
-	NPC_LT_LD_TU_MPLS,
+	NPC_LT_LD_NVGRE,
+	NPC_LT_LD_NSH,
+	NPC_LT_LD_TU_MPLS_IN_NSH,
+	NPC_LT_LD_TU_MPLS_IN_IP,
 };
 
 enum npc_kpu_le_ltype {
-	NPC_LT_LE_TU_ETHER = 1,
-	NPC_LT_LE_TU_PPP,
-	NPC_LT_LE_TU_MPLS_IN_NSH,
-	NPC_LT_LE_TU_3RD_NSH,
+	NPC_LT_LE_VXLAN = 1,
+	NPC_LT_LE_GENEVE,
+	NPC_LT_LE_GTPU = 4,
+	NPC_LT_LE_VXLANGPE,
+	NPC_LT_LE_GTPC,
+	NPC_LT_LE_NSH,
+	NPC_LT_LE_TU_MPLS_IN_GRE,
+	NPC_LT_LE_TU_NSH_IN_GRE,
+	NPC_LT_LE_TU_MPLS_IN_UDP,
 };
 
 enum npc_kpu_lf_ltype {
-	NPC_LT_LF_TU_IP = 1,
-	NPC_LT_LF_TU_IP6,
-	NPC_LT_LF_TU_ARP,
-	NPC_LT_LF_TU_MPLS_IP,
-	NPC_LT_LF_TU_MPLS_IP6,
-	NPC_LT_LF_TU_MPLS_ETHER,
+	NPC_LT_LF_TU_ETHER = 1,
+	NPC_LT_LF_TU_PPP,
+	NPC_LT_LF_TU_MPLS_IN_VXLANGPE,
+	NPC_LT_LF_TU_NSH_IN_VXLANGPE,
+	NPC_LT_LF_TU_MPLS_IN_NSH,
+	NPC_LT_LF_TU_3RD_NSH,
 };
 
 enum npc_kpu_lg_ltype {
-	NPC_LT_LG_TU_TCP = 1,
-	NPC_LT_LG_TU_UDP,
-	NPC_LT_LG_TU_SCTP,
-	NPC_LT_LG_TU_ICMP,
-	NPC_LT_LG_TU_IGMP,
-	NPC_LT_LG_TU_ICMP6,
-	NPC_LT_LG_TU_ESP,
-	NPC_LT_LG_TU_AH,
+	NPC_LT_LG_TU_IP = 1,
+	NPC_LT_LG_TU_IP6,
+	NPC_LT_LG_TU_ARP,
+	NPC_LT_LG_TU_ETHER_IN_NSH,
 };
 
+/* Don't modify Ltypes upto SCTP, otherwise it will
+ * effect flow tag calculation and thus RSS.
+ */
 enum npc_kpu_lh_ltype {
-	NPC_LT_LH_TCP_DATA = 1,
-	NPC_LT_LH_HTTP_DATA,
-	NPC_LT_LH_HTTPS_DATA,
-	NPC_LT_LH_PPTP_DATA,
-	NPC_LT_LH_UDP_DATA,
+	NPC_LT_LH_TU_TCP = 1,
+	NPC_LT_LH_TU_UDP,
+	NPC_LT_LH_TU_ICMP,
+	NPC_LT_LH_TU_SCTP,
+	NPC_LT_LH_TU_ICMP6,
+	NPC_LT_LH_TU_IGMP = 8,
+	NPC_LT_LH_TU_ESP,
+	NPC_LT_LH_TU_AH,
 };
 
 struct npc_kpu_profile_cam {
@@ -259,11 +273,41 @@ struct nix_rx_action {
 #endif
 };
 
+struct nix_tx_action {
+#if defined(__BIG_ENDIAN_BITFIELD)
+	u64	rsvd_63_48	:16;
+	u64	match_id	:16;
+	u64	index		:20;
+	u64	rsvd_11_8	:8;
+	u64	op		:4;
+#else
+	u64	op		:4;
+	u64	rsvd_11_8	:8;
+	u64	index		:20;
+	u64	match_id	:16;
+	u64	rsvd_63_48	:16;
+#endif
+};
+
 /* NIX Receive Vtag Action Structure */
-#define VTAG0_VALID_BIT		BIT_ULL(15)
-#define VTAG0_TYPE_MASK		GENMASK_ULL(14, 12)
-#define VTAG0_LID_MASK		GENMASK_ULL(10, 8)
-#define VTAG0_RELPTR_MASK	GENMASK_ULL(7, 0)
+#define RX_VTAG0_VALID_BIT		BIT_ULL(15)
+#define RX_VTAG0_TYPE_MASK		GENMASK_ULL(14, 12)
+#define RX_VTAG0_LID_MASK		GENMASK_ULL(10, 8)
+#define RX_VTAG0_RELPTR_MASK		GENMASK_ULL(7, 0)
+#define RX_VTAG1_VALID_BIT		BIT_ULL(47)
+#define RX_VTAG1_TYPE_MASK		GENMASK_ULL(46, 44)
+#define RX_VTAG1_LID_MASK		GENMASK_ULL(42, 40)
+#define RX_VTAG1_RELPTR_MASK		GENMASK_ULL(39, 32)
+
+/* NIX Transmit Vtag Action Structure */
+#define TX_VTAG0_DEF_MASK		GENMASK_ULL(25, 16)
+#define TX_VTAG0_OP_MASK		GENMASK_ULL(13, 12)
+#define TX_VTAG0_LID_MASK		GENMASK_ULL(10, 8)
+#define TX_VTAG0_RELPTR_MASK		GENMASK_ULL(7, 0)
+#define TX_VTAG1_DEF_MASK		GENMASK_ULL(57, 48)
+#define TX_VTAG1_OP_MASK		GENMASK_ULL(45, 44)
+#define TX_VTAG1_LID_MASK		GENMASK_ULL(42, 40)
+#define TX_VTAG1_RELPTR_MASK		GENMASK_ULL(39, 32)
 
 struct npc_mcam_kex {
 	/* MKEX Profle Header */
@@ -282,5 +326,24 @@ struct npc_mcam_kex {
 	/* NPC_AF_INTF(0..1)_LDATA(0..1)_FLAGS(0..15)_CFG */
 	u64 intf_ld_flags[NPC_MAX_INTF][NPC_MAX_LD][NPC_MAX_LFL];
 } __packed;
+
+struct rvu_npc_mcam_rule {
+	struct flow_msg packet;
+	struct flow_msg mask;
+	u8 intf;
+	union {
+		struct nix_tx_action tx_action;
+		struct nix_rx_action rx_action;
+	};
+	u64 vtag_action;
+	struct list_head list;
+	u64 features;
+	u16 owner;
+	u16 entry;
+	u16 cntr;
+	bool has_cntr;
+	u8 default_rule;
+	bool enable;
+};
 
 #endif /* NPC_H */

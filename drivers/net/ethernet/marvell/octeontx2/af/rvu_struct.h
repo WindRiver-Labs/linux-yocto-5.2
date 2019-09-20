@@ -11,24 +11,27 @@
 #ifndef RVU_STRUCT_H
 #define RVU_STRUCT_H
 
+/* RVU Block revision IDs */
+#define RVU_BLK_RVUM_REVID		0x01
+
 /* RVU Block Address Enumeration */
 enum rvu_block_addr_e {
-	BLKADDR_RVUM    = 0x0ULL,
-	BLKADDR_LMT     = 0x1ULL,
-	BLKADDR_MSIX    = 0x2ULL,
-	BLKADDR_NPA     = 0x3ULL,
-	BLKADDR_NIX0    = 0x4ULL,
-	BLKADDR_NIX1    = 0x5ULL,
-	BLKADDR_NPC     = 0x6ULL,
-	BLKADDR_SSO     = 0x7ULL,
-	BLKADDR_SSOW    = 0x8ULL,
-	BLKADDR_TIM     = 0x9ULL,
-	BLKADDR_CPT0    = 0xaULL,
-	BLKADDR_CPT1    = 0xbULL,
-	BLKADDR_NDC0    = 0xcULL,
-	BLKADDR_NDC1    = 0xdULL,
-	BLKADDR_NDC2    = 0xeULL,
-	BLK_COUNT	= 0xfULL,
+	BLKADDR_RVUM		= 0x0ULL,
+	BLKADDR_LMT		= 0x1ULL,
+	BLKADDR_MSIX		= 0x2ULL,
+	BLKADDR_NPA		= 0x3ULL,
+	BLKADDR_NIX0		= 0x4ULL,
+	BLKADDR_NIX1		= 0x5ULL,
+	BLKADDR_NPC		= 0x6ULL,
+	BLKADDR_SSO		= 0x7ULL,
+	BLKADDR_SSOW		= 0x8ULL,
+	BLKADDR_TIM		= 0x9ULL,
+	BLKADDR_CPT0		= 0xaULL,
+	BLKADDR_CPT1		= 0xbULL,
+	BLKADDR_NDC_NIX0_RX	= 0xcULL,
+	BLKADDR_NDC_NIX0_TX	= 0xdULL,
+	BLKADDR_NDC_NPA0	= 0xeULL,
+	BLK_COUNT		= 0xfULL,
 };
 
 /* RVU Block Type Enumeration */
@@ -55,6 +58,43 @@ enum rvu_af_int_vec_e {
 	RVU_AF_INT_VEC_GEN    = 0x3,
 	RVU_AF_INT_VEC_MBOX   = 0x4,
 	RVU_AF_INT_VEC_CNT    = 0x5,
+};
+
+/* NPA Admin function Interrupt Vector Enumeration */
+enum npa_af_int_vec_e {
+	NPA_AF_INT_VEC_RVU	= 0x0,
+	NPA_AF_INT_VEC_GEN	= 0x1,
+	NPA_AF_INT_VEC_AQ_DONE	= 0x2,
+	NPA_AF_INT_VEC_AF_ERR	= 0x3,
+	NPA_AF_INT_VEC_POISON	= 0x4,
+	NPA_AF_INT_VEC_CNT	= 0x5,
+};
+
+/* NIX Admin function Interrupt Vector Enumeration */
+enum nix_af_int_vec_e {
+	NIX_AF_INT_VEC_RVU	= 0x0,
+	NIX_AF_INT_VEC_GEN	= 0x1,
+	NIX_AF_INT_VEC_AQ_DONE	= 0x2,
+	NIX_AF_INT_VEC_AF_ERR	= 0x3,
+	NIX_AF_INT_VEC_POISON	= 0x4,
+	NIX_AF_INT_VEC_CNT	= 0x5,
+};
+
+/* SSO Admin function Interrupt Vector Enumeration */
+enum sso_af_int_vec_e {
+	SSO_AF_INT_VEC_ERR0 = 0x0,
+	SSO_AF_INT_VEC_ERR2 = 0x1,
+	SSO_AF_INT_VEC_RAS  = 0x2,
+	SSO_AF_INT_VEC_CNT  = 0x3,
+};
+
+/* CPT Admin function Interrupt Vector Enumeration */
+enum cpt_af_int_vec_e {
+	CPT_AF_INT_VEC_FLT0	= 0x0,
+	CPT_AF_INT_VEC_FLT1	= 0x1,
+	CPT_AF_INT_VEC_RVU	= 0x2,
+	CPT_AF_INT_VEC_RAS	= 0x3,
+	CPT_AF_INT_VEC_CNT	= 0x4,
 };
 
 /**
@@ -95,6 +135,19 @@ enum npa_aq_instop {
 	NPA_AQ_INSTOP_READ   = 0x3,
 	NPA_AQ_INSTOP_LOCK   = 0x4,
 	NPA_AQ_INSTOP_UNLOCK = 0x5,
+};
+
+/* ALLOC/FREE input queues Enumeration from coprocessors */
+enum npa_inpq {
+	NPA_INPQ_NIX0_RX       = 0x0,
+	NPA_INPQ_NIX0_TX       = 0x1,
+	NPA_INPQ_NIX1_RX       = 0x2,
+	NPA_INPQ_NIX1_TX       = 0x3,
+	NPA_INPQ_SSO           = 0x4,
+	NPA_INPQ_TIM           = 0x5,
+	NPA_INPQ_DPI           = 0x6,
+	NPA_INPQ_AURA_OP       = 0xe,
+	NPA_INPQ_INTERNAL_RSV  = 0xf,
 };
 
 /* NPA admin queue instruction structure */
@@ -474,9 +527,9 @@ struct nix_cq_ctx_s {
 	u64 ena			: 1;
 	u64 drop_ena		: 1;
 	u64 drop		: 8;
-	u64 dp			: 8;
+	u64 bp			: 8;
 #else
-	u64 dp			: 8;
+	u64 bp			: 8;
 	u64 drop		: 8;
 	u64 drop_ena		: 1;
 	u64 ena			: 1;
