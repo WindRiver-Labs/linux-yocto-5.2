@@ -28,6 +28,7 @@
 #include "vchiq_ioctl.h"
 #include "vchiq_arm.h"
 #include "vchiq_debugfs.h"
+#include "vchiq_killable.h"
 
 #define DEVICE_NAME "vchiq"
 
@@ -146,6 +147,11 @@ static struct vchiq_drvdata bcm2835_drvdata = {
 
 static struct vchiq_drvdata bcm2836_drvdata = {
 	.cache_line_size = 64,
+};
+
+static struct vchiq_drvdata bcm2838_drvdata = {
+	.cache_line_size = 64,
+	.use_36bit_addrs = true,
 };
 
 static const char *const ioctl_names[] = {
@@ -3451,6 +3457,7 @@ void vchiq_platform_conn_state_changed(struct vchiq_state *state,
 static const struct of_device_id vchiq_of_match[] = {
 	{ .compatible = "brcm,bcm2835-vchiq", .data = &bcm2835_drvdata },
 	{ .compatible = "brcm,bcm2836-vchiq", .data = &bcm2836_drvdata },
+	{ .compatible = "brcm,bcm2838-vchiq", .data = &bcm2838_drvdata },
 	{},
 };
 MODULE_DEVICE_TABLE(of, vchiq_of_match);
@@ -3545,7 +3552,8 @@ failed_platform_init:
 
 static int vchiq_remove(struct platform_device *pdev)
 {
-	platform_device_unregister(bcm2835_camera);
+	if (!IS_ERR(bcm2835_camera))
+		platform_device_unregister(bcm2835_camera);
 	vchiq_debugfs_deinit();
 	device_destroy(vchiq_class, vchiq_devid);
 	cdev_del(&vchiq_cdev);

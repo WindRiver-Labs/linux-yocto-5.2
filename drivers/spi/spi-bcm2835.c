@@ -285,6 +285,10 @@ static irqreturn_t bcm2835_spi_interrupt(int irq, void *dev_id)
 	if (bs->tx_len && cs & BCM2835_SPI_CS_DONE)
 		bcm2835_wr_fifo_blind(bs, BCM2835_SPI_FIFO_SIZE);
 
+	/* check if we got interrupt enabled */
+	if (!(bcm2835_rd(bs, BCM2835_SPI_CS) & BCM2835_SPI_CS_INTR))
+		return IRQ_NONE;
+
 	/* Read as many bytes as possible from FIFO */
 	bcm2835_rd_fifo(bs);
 	/* Write as many bytes as possible to FIFO */
@@ -847,15 +851,61 @@ static void bcm2835_spi_handle_err(struct spi_master *master,
 	bcm2835_spi_reset_hw(master);
 }
 
-static int chip_match_name(struct gpio_chip *chip, void *data)
+static void bcm2835_spi_set_cs(struct spi_device *spi, bool gpio_level)
 {
-	return !strcmp(chip->label, data);
+	/*
+	 * we can assume that we are "native" as per spi_set_cs
+	 *   calling us ONLY when cs_gpio is not set
+	 * we can also assume that we are CS < 3 as per bcm2835_spi_setup
+	 *   we would not get called because of error handling there.
+	 * the level passed is the electrical level not enabled/disabled
+	 *   so it has to get translated back to enable/disable
+	 *   see spi_set_cs in spi.c for the implementation
+	 */
+
+	struct spi_master *master = spi->master;
+	struct bcm2835_spi *bs = spi_master_get_devdata(master);
+	u32 cs = bcm2835_rd(bs, BCM2835_SPI_CS);
+	bool enable;
+
+	/* calculate the enable flag from the passed gpio_level */
+	enable = (spi->mode & SPI_CS_HIGH) ? gpio_level : !gpio_level;
+
+	/* set flags for "reverse" polarity in the registers */
+	if (spi->mode & SPI_CS_HIGH) {
+		/* set the correct CS-bits */
+		cs |= BCM2835_SPI_CS_CSPOL;
+		cs |= BCM2835_SPI_CS_CSPOL0 << spi->chip_select;
+	} else {
+		/* clean the CS-bits */
+		cs &= ~BCM2835_SPI_CS_CSPOL;
+		cs &= ~(BCM2835_SPI_CS_CSPOL0 << spi->chip_select);
+	}
+
+	/* select the correct chip_select depending on disabled/enabled */
+	if (enable) {
+		/* set cs correctly */
+		if (spi->mode & SPI_NO_CS) {
+			/* use the "undefined" chip-select */
+			cs |= BCM2835_SPI_CS_CS_10 | BCM2835_SPI_CS_CS_01;
+		} else {
+			/* set the chip select */
+			cs &= ~(BCM2835_SPI_CS_CS_10 | BCM2835_SPI_CS_CS_01);
+			cs |= spi->chip_select;
+		}
+	} else {
+		/* disable CSPOL which puts HW-CS into deselected state */
+		cs &= ~BCM2835_SPI_CS_CSPOL;
+		/* use the "undefined" chip-select as precaution */
+		cs |= BCM2835_SPI_CS_CS_10 | BCM2835_SPI_CS_CS_01;
+	}
+
+	/* finally set the calculated flags in SPI_CS */
+	bcm2835_wr(bs, BCM2835_SPI_CS, cs);
 }
 
 static int bcm2835_spi_setup(struct spi_device *spi)
 {
-	int err;
-	struct gpio_chip *chip;
 	/*
 	 * sanity checking the native-chipselects
 	 */
@@ -871,29 +921,6 @@ static int bcm2835_spi_setup(struct spi_device *spi)
 		dev_err(&spi->dev,
 			"setup: only two native chip-selects are supported\n");
 		return -EINVAL;
-	}
-	/* now translate native cs to GPIO */
-
-	/* get the gpio chip for the base */
-	chip = gpiochip_find("pinctrl-bcm2835", chip_match_name);
-	if (!chip)
-		return 0;
-
-	/* and calculate the real CS */
-	spi->cs_gpio = chip->base + 8 - spi->chip_select;
-
-	/* and set up the "mode" and level */
-	dev_info(&spi->dev, "setting up native-CS%i as GPIO %i\n",
-		 spi->chip_select, spi->cs_gpio);
-
-	/* set up GPIO as output and pull to the correct level */
-	err = gpio_direction_output(spi->cs_gpio,
-				    (spi->mode & SPI_CS_HIGH) ? 0 : 1);
-	if (err) {
-		dev_err(&spi->dev,
-			"could not set CS%i gpio %i as output: %i",
-			spi->chip_select, spi->cs_gpio, err);
-		return err;
 	}
 
 	return 0;
@@ -918,6 +945,7 @@ static int bcm2835_spi_probe(struct platform_device *pdev)
 	master->bits_per_word_mask = SPI_BPW_MASK(8);
 	master->num_chipselect = 3;
 	master->setup = bcm2835_spi_setup;
+	master->set_cs = bcm2835_spi_set_cs;
 	master->transfer_one = bcm2835_spi_transfer_one;
 	master->handle_err = bcm2835_spi_handle_err;
 	master->prepare_message = bcm2835_spi_prepare_message;
@@ -954,7 +982,8 @@ static int bcm2835_spi_probe(struct platform_device *pdev)
 	bcm2835_wr(bs, BCM2835_SPI_CS,
 		   BCM2835_SPI_CS_CLEAR_RX | BCM2835_SPI_CS_CLEAR_TX);
 
-	err = devm_request_irq(&pdev->dev, bs->irq, bcm2835_spi_interrupt, 0,
+	err = devm_request_irq(&pdev->dev, bs->irq, bcm2835_spi_interrupt,
+			       IRQF_SHARED,
 			       dev_name(&pdev->dev), master);
 	if (err) {
 		dev_err(&pdev->dev, "could not request IRQ: %d\n", err);

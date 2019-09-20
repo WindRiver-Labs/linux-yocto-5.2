@@ -91,6 +91,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_ICS43432
 	select SND_SOC_INNO_RK3036
 	select SND_SOC_ISABELLE if I2C
+	select SND_SOC_I_SABRE_CODEC if I2C
 	select SND_SOC_JZ4740_CODEC
 	select SND_SOC_JZ4725B_CODEC
 	select SND_SOC_LM4857 if I2C
@@ -128,6 +129,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_PCM179X_SPI if SPI_MASTER
 	select SND_SOC_PCM186X_I2C if I2C
 	select SND_SOC_PCM186X_SPI if SPI_MASTER
+	select SND_SOC_PCM1794A if I2C
 	select SND_SOC_PCM3008
 	select SND_SOC_PCM3060_I2C if I2C
 	select SND_SOC_PCM3060_SPI if SPI_MASTER
@@ -179,6 +181,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_TFA9879 if I2C
 	select SND_SOC_TLV320AIC23_I2C if I2C
 	select SND_SOC_TLV320AIC23_SPI if SPI_MASTER
+	select SND_SOC_TAS5713 if I2C
 	select SND_SOC_TLV320AIC26 if SPI_MASTER
 	select SND_SOC_TLV320AIC31XX if I2C
 	select SND_SOC_TLV320AIC32X4_I2C if I2C && COMMON_CLK
@@ -307,11 +310,11 @@ config SND_SOC_AD193X
 	tristate
 
 config SND_SOC_AD193X_SPI
-	tristate
+	tristate "Analog Devices AU193X CODEC - SPI"
 	select SND_SOC_AD193X
 
 config SND_SOC_AD193X_I2C
-	tristate
+	tristate "Analog Devices AU193X CODEC - I2C"
 	select SND_SOC_AD193X
 
 config SND_SOC_AD1980
@@ -678,7 +681,7 @@ config SND_SOC_HDAC_HDA
 	select SND_HDA
 
 config SND_SOC_ICS43432
-	tristate
+	tristate "InvenSense ICS43432 I2S microphone codec"
 
 config SND_SOC_INNO_RK3036
 	tristate "Inno codec driver for RK3036 SoC"
@@ -924,6 +927,10 @@ config SND_SOC_RT5616
 	tristate "Realtek RT5616 CODEC"
 	depends on I2C
 
+config SND_SOC_PCM1794A
+	tristate
+	depends on I2C
+
 config SND_SOC_RT5631
 	tristate "Realtek ALC5631/RT5631 CODEC"
 	depends on I2C
@@ -1081,6 +1088,9 @@ config SND_SOC_TDA7419
 config SND_SOC_TFA9879
 	tristate "NXP Semiconductors TFA9879 amplifier"
 	depends on I2C
+
+config SND_SOC_TAS5713
+	tristate
 
 config SND_SOC_TLV320AIC23
 	tristate
@@ -1422,6 +1432,10 @@ config SND_SOC_NAU8825
 
 config SND_SOC_TPA6130A2
 	tristate "Texas Instruments TPA6130A2 headphone amplifier"
+	depends on I2C
+
+config SND_SOC_I_SABRE_CODEC
+	tristate "Audiophonics I-SABRE Codec"
 	depends on I2C
 
 endmenu
