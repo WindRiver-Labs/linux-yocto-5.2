@@ -720,7 +720,7 @@ static int sdhci_arasan_runtime_resume(struct device *dev)
 		return ret;
 	}
 
-	ret = sdhci_runtime_resume_host(host);
+	ret = sdhci_runtime_resume_host(host, 0);
 	if (ret)
 		goto out;
 
