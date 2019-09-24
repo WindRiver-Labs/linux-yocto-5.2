@@ -16,6 +16,7 @@
 #include "rvu.h"
 #include "npc.h"
 #include "cgx.h"
+#include "rvu_fixes.h"
 
 static void nix_free_tx_vtag_entries(struct rvu *rvu, u16 pcifunc);
 static int nix_update_bcast_mce_list(struct rvu *rvu, u16 pcifunc, bool add);
@@ -205,6 +206,11 @@ static int nix_interface_init(struct rvu *rvu, u16 pcifunc, int type, int nixlf)
 		break;
 	case NIX_INTF_TYPE_LBK:
 		vf = (pcifunc & RVU_PFVF_FUNC_MASK) - 1;
+
+		/* Note that AF's VFs work in pairs and talk over consecutive
+		 * loopback channels.Therefore if odd number of AF VFs are
+		 * enabled then the last VF remains with no pair.
+		 */
 		pfvf->rx_chan_base = NIX_CHAN_LBK_CHX(0, vf);
 		pfvf->tx_chan_base = vf & 0x1 ? NIX_CHAN_LBK_CHX(0, vf - 1) :
 						NIX_CHAN_LBK_CHX(0, vf + 1);
@@ -1581,6 +1587,8 @@ static void nix_smq_flush(struct rvu *rvu, int blkaddr,
 	 */
 	rvu_cgx_enadis_rx_bp(rvu, pf, false);
 
+	rvu_smqvf_xmit(rvu);
+
 	/* Wait for flush to complete */
 	err = rvu_poll_reg(rvu, blkaddr,
 			   NIX_AF_SMQX_CFG(smq), BIT_ULL(49), true);
@@ -1898,18 +1906,16 @@ int rvu_mbox_handler_nix_txschq_cfg(struct rvu *rvu,
 			mutex_unlock(&rvu->rsrc_lock);
 		}
 
-		rvu_write64(rvu, blkaddr, reg, regval);
-
-		/* Check for SMQ flush, if so, poll for its completion */
+		/* SMQ flush is special hence split register writes such
+		 * that flush first and write rest of the bits later.
+		 */
 		if (schq_regbase == NIX_AF_SMQX_CFG(0) &&
 		    (regval & BIT_ULL(49))) {
-			err = rvu_poll_reg(rvu, blkaddr,
-					   reg, BIT_ULL(49), true);
-			if (err) {
-				rvu_nix_txsch_unlock(nix_hw);
-				return NIX_AF_SMQ_FLUSH_FAILED;
-			}
+			schq = TXSCHQ_IDX(reg, TXSCHQ_IDX_SHIFT);
+			nix_smq_flush(rvu, blkaddr, schq, pcifunc, nixlf);
+			regval &= ~BIT_ULL(49);
 		}
+		rvu_write64(rvu, blkaddr, reg, regval);
 	}
 
 	rvu_nix_txsch_config_changed(nix_hw);
@@ -2013,7 +2019,7 @@ static int nix_tx_vtag_decfg(struct rvu *rvu, int blkaddr,
 	u16 pcifunc = req->hdr.pcifunc;
 	int idx0 = req->tx.vtag0_idx;
 	int idx1 = req->tx.vtag1_idx;
-	int err;
+	int err = 0;
 
 	if (req->tx.free_vtag0 && req->tx.free_vtag1)
 		if (vlan->entry2pfvf_map[idx0] != pcifunc ||

@@ -122,9 +122,17 @@ static struct cvm_mmc_cr_type cvm_mmc_cr_types[] = {
 	{0, 0}		/* CMD63 */
 };
 
-static int tapdance = 2;
+static int tapdance;
 module_param(tapdance, int, 0644);
 MODULE_PARM_DESC(tapdance, "adjust bus-timing: (0=mid-eye, positive=Nth_fastest_tap)");
+
+static int clk_scale = 100;
+module_param(clk_scale, int, 0644);
+MODULE_PARM_DESC(clk_scale, "percent scale data_/cmd_out taps (default 100)");
+
+static bool fixed_timing;
+module_param(fixed_timing, bool, 0444);
+MODULE_PARM_DESC(fixed_timing, "use fixed data_/cmd_out taps");
 
 static bool ddr_cmd_taps;
 module_param(ddr_cmd_taps, bool, 0644);
@@ -148,12 +156,54 @@ static void cvm_mmc_set_timing(struct cvm_mmc_slot *slot)
 	writeq(slot->taps, slot->host->base + MIO_EMM_TIMING(slot->host));
 }
 
+static int tout(struct cvm_mmc_slot *slot, int ps, int hint)
+{
+	struct cvm_mmc_host *host = slot->host;
+	struct mmc_host *mmc = slot->mmc;
+	int tap_ps = host->per_tap_delay;
+	int timing = mmc->ios.timing;
+	static int old_scale;
+	int taps;
+
+	if (fixed_timing)
+		return hint;
+
+	if (!hint)
+		hint = 63;
+
+	if (!tap_ps)
+		return hint;
+
+	taps = min((int)(ps * clk_scale) / (tap_ps * 100), 63);
+
+	/* when modparam is adjusted, re-announce timing */
+	if (old_scale != clk_scale) {
+		host->delay_logged = 0;
+		old_scale = clk_scale;
+	}
+
+	if (!test_and_set_bit(timing,
+			&host->delay_logged))
+		dev_info(host->dev, "mmc%d.ios_timing:%d %dpS hint:%d taps:%d\n",
+			mmc->index, timing, ps, hint, taps);
+
+	return taps;
+}
+
 static int cvm_mmc_configure_delay(struct cvm_mmc_slot *slot)
 {
 	struct cvm_mmc_host *host = slot->host;
 	struct mmc_host *mmc = slot->mmc;
 
-	if (is_mmc_otx2(host)) {
+	pr_debug("slot%d.configure_delay\n", slot->bus_id);
+
+	if (is_mmc_8xxx(host)) {
+		/* MIO_EMM_SAMPLE is till T83XX */
+		u64 emm_sample =
+			FIELD_PREP(MIO_EMM_SAMPLE_CMD_CNT, slot->cmd_cnt) |
+			FIELD_PREP(MIO_EMM_SAMPLE_DAT_CNT, slot->data_cnt);
+		writeq(emm_sample, host->base + MIO_EMM_SAMPLE(host));
+	} else {
 		int half = MAX_NO_OF_TAPS / 2;
 		int cin = FIELD_GET(MIO_EMM_TIMING_CMD_IN, slot->taps);
 		int din = FIELD_GET(MIO_EMM_TIMING_DATA_IN, slot->taps);
@@ -163,36 +213,39 @@ static int cvm_mmc_configure_delay(struct cvm_mmc_slot *slot)
 			cin = din = half;
 		/*
 		 * EMM_CMD hold time from rising edge of EMMC_CLK.
-		 * Typically 5.0 ns at frequencies < 26 MHz.
-		 * Typically 2.5 ns at frequencies <= 52 MHz.
-		 * Typically 0.4 ns at frequencies > 52 MHz.
+		 * Typically 3.0 ns at frequencies < 26 MHz.
+		 * Typically 3.0 ns at frequencies <= 52 MHz SDR.
+		 * Typically 2.5 ns at frequencies <= 52 MHz DDR.
+		 * Typically 0.8 ns at frequencies > 52 MHz SDR.
+		 * Typically 0.4 ns at frequencies > 52 MHz DDR.
 		 */
 		switch (mmc->ios.timing) {
 		case MMC_TIMING_LEGACY:
 		default:
-			cout = 63;
 			if (mmc->card && mmc_card_mmc(mmc->card))
-				cout = 39;
+				cout = tout(slot, 5000, 39);
+			else
+				cout = tout(slot, 8000, 63);
 			break;
 		case MMC_TIMING_UHS_SDR12:
-			cout = 39;
+			cout = tout(slot, 3000, 39);
 			break;
 		case MMC_TIMING_MMC_HS:
-			cout = 32;
+			cout = tout(slot, 2500, 32);
 			break;
 		case MMC_TIMING_SD_HS:
 		case MMC_TIMING_UHS_SDR25:
 		case MMC_TIMING_UHS_SDR50:
-			cout = 26;
+			cout = tout(slot, 2000, 26);
 			break;
 		case MMC_TIMING_UHS_DDR50:
 		case MMC_TIMING_MMC_DDR52:
-			cout = 20;
+			cout = tout(slot, 1500, 20);
 			break;
 		case MMC_TIMING_UHS_SDR104:
 		case MMC_TIMING_MMC_HS200:
 		case MMC_TIMING_MMC_HS400:
-			cout = 10;
+			cout = tout(slot, 800, 10);
 			break;
 		}
 
@@ -204,7 +257,7 @@ static int cvm_mmc_configure_delay(struct cvm_mmc_slot *slot)
 			else
 				dout = cout / 2;
 		} else
-			dout = 10;
+			dout = tout(slot, 800, 10);
 
 		slot->taps =
 			FIELD_PREP(MIO_EMM_TIMING_CMD_IN, cin) |
@@ -212,14 +265,8 @@ static int cvm_mmc_configure_delay(struct cvm_mmc_slot *slot)
 			FIELD_PREP(MIO_EMM_TIMING_DATA_IN, din) |
 			FIELD_PREP(MIO_EMM_TIMING_DATA_OUT, dout);
 
-		pr_debug("taps %llx\n", slot->taps);
+		pr_debug("slot%d.taps %llx\n", slot->bus_id, slot->taps);
 		cvm_mmc_set_timing(slot);
-	} else {
-		/* MIO_EMM_SAMPLE is till T8XXX */
-		u64 emm_sample =
-			FIELD_PREP(MIO_EMM_SAMPLE_CMD_CNT, slot->cmd_cnt) |
-			FIELD_PREP(MIO_EMM_SAMPLE_DAT_CNT, slot->data_cnt);
-		writeq(emm_sample, host->base + MIO_EMM_SAMPLE(host));
 	}
 
 	return 0;
@@ -282,14 +329,14 @@ static void check_switch_errors(struct cvm_mmc_host *host)
 		dev_err(host->dev, "Switch bus width error\n");
 }
 
-static void clear_bus_id(u64 *reg)
+static inline void clear_bus_id(u64 *reg)
 {
 	u64 bus_id_mask = GENMASK_ULL(61, 60);
 
 	*reg &= ~bus_id_mask;
 }
 
-static void set_bus_id(u64 *reg, int bus_id)
+static inline void set_bus_id(u64 *reg, int bus_id)
 {
 	clear_bus_id(reg);
 	*reg |= FIELD_PREP(GENMASK(61, 60), bus_id);
@@ -300,26 +347,69 @@ static int get_bus_id(u64 reg)
 	return FIELD_GET(GENMASK_ULL(61, 60), reg);
 }
 
-/*
- * We never set the switch_exe bit since that would interfere
- * with the commands send by the MMC core.
- */
-static void do_switch(struct cvm_mmc_host *host, u64 emm_switch)
+/* save old slot details, switch power */
+static bool pre_switch(struct cvm_mmc_host *host, u64 emm_switch)
 {
-	int retries = 100;
-	u64 rsp_sts;
+	int bus_id = get_bus_id(emm_switch);
+	struct cvm_mmc_slot *slot = host->slot[bus_id];
+	struct cvm_mmc_slot *old_slot;
+	bool same_vqmmc = false;
+
+	if (host->last_slot == bus_id)
+		return false;
+
+	/* when VQMMC is switched, tri-state CMDn over any slot change
+	 * to avoid transient states on D0-7 or CLK from level-shifters
+	 */
+	if (host->use_vqmmc) {
+		writeq(1ull << 3, host->base + MIO_EMM_CFG(host));
+		udelay(10);
+	}
+
+	if (host->last_slot >= 0 && host->slot[host->last_slot]) {
+		old_slot = host->slot[host->last_slot];
+		old_slot->cached_switch =
+		    readq(host->base + MIO_EMM_SWITCH(host));
+		old_slot->cached_rca = readq(host->base + MIO_EMM_RCA(host));
+
+		same_vqmmc = (slot->mmc->supply.vqmmc ==
+				old_slot->mmc->supply.vqmmc);
+		if (!same_vqmmc && !IS_ERR_OR_NULL(old_slot->mmc->supply.vqmmc))
+			regulator_disable(old_slot->mmc->supply.vqmmc);
+	}
+
+	if (!same_vqmmc && !IS_ERR_OR_NULL(slot->mmc->supply.vqmmc)) {
+		int e = regulator_enable(slot->mmc->supply.vqmmc);
+
+		if (e)
+			dev_err(host->dev, "mmc-slot@%d.vqmmc err %d\n",
+						bus_id, e);
+	}
+
+	host->last_slot = slot->bus_id;
+
+	return true;
+}
+
+static void post_switch(struct cvm_mmc_host *host, u64 emm_switch)
+{
 	int bus_id = get_bus_id(emm_switch);
 	struct cvm_mmc_slot *slot = host->slot[bus_id];
 
-	/*
-	 * Modes setting only taken from slot 0. Work around that hardware
-	 * issue by first switching to slot 0.
-	 */
-	if (bus_id) {
-		clear_bus_id(&emm_switch);
-		writeq(emm_switch, host->base + MIO_EMM_SWITCH(host));
-		set_bus_id(&emm_switch, bus_id);
+	if (host->use_vqmmc) {
+		/* enable new CMDn */
+		writeq(1ull << bus_id, host->base + MIO_EMM_CFG(host));
+		udelay(10);
 	}
+
+	writeq(slot->cached_rca, host->base + MIO_EMM_RCA(host));
+}
+
+static inline void mode_switch(struct cvm_mmc_host *host, u64 emm_switch)
+{
+	u64 rsp_sts;
+	int retries = 100;
+
 	writeq(emm_switch, host->base + MIO_EMM_SWITCH(host));
 
 	/* wait for the switch to finish */
@@ -329,14 +419,37 @@ static void do_switch(struct cvm_mmc_host *host, u64 emm_switch)
 			break;
 		udelay(10);
 	} while (--retries);
+}
+
+/*
+ * We never set the switch_exe bit since that would interfere
+ * with the commands send by the MMC core.
+ */
+static void do_switch(struct cvm_mmc_host *host, u64 emm_switch)
+{
+	int bus_id = get_bus_id(emm_switch);
+	struct cvm_mmc_slot *slot = host->slot[bus_id];
+	bool slot_changed = pre_switch(host, emm_switch);
+
+	/*
+	 * Modes setting only taken from slot 0. Work around that hardware
+	 * issue by first switching to slot 0.
+	 */
+	if (bus_id) {
+		u64 switch0 = emm_switch;
+
+		clear_bus_id(&switch0);
+		mode_switch(host, switch0);
+	}
+
+	mode_switch(host, emm_switch);
 
 	check_switch_errors(host);
-
-	if (slot) {
-		if (emm_switch & MIO_EMM_SWITCH_CLK)
-			slot->cmd6_pending = false;
-		slot->cached_switch = emm_switch;
-	}
+	if (slot_changed)
+		post_switch(host, emm_switch);
+	slot->cached_switch = emm_switch;
+	if (emm_switch & MIO_EMM_SWITCH_CLK)
+		slot->cmd6_pending = false;
 }
 
 /* need to change hardware state to match software requirements? */
@@ -406,27 +519,15 @@ static void cvm_mmc_reset_bus(struct cvm_mmc_slot *slot)
 static void cvm_mmc_switch_to(struct cvm_mmc_slot *slot)
 {
 	struct cvm_mmc_host *host = slot->host;
-	struct cvm_mmc_slot *old_slot;
-	u64 emm_switch;
 
 	if (slot->bus_id == host->last_slot)
 		return;
 
-	if (host->last_slot >= 0 && host->slot[host->last_slot]) {
-		old_slot = host->slot[host->last_slot];
-		old_slot->cached_switch = readq(host->base + MIO_EMM_SWITCH(host));
-		old_slot->cached_rca = readq(host->base + MIO_EMM_RCA(host));
-	}
-
-	writeq(slot->cached_rca, host->base + MIO_EMM_RCA(host));
-	emm_switch = slot->cached_switch;
-
-	do_switch(host, emm_switch);
+	do_switch(host, slot->cached_switch);
 	host->powered = true;
 
 	emmc_io_drive_setup(slot);
 	cvm_mmc_configure_delay(slot);
-	host->last_slot = slot->bus_id;
 }
 
 static void do_read(struct cvm_mmc_slot *slot, struct mmc_request *req,
@@ -594,12 +695,6 @@ irqreturn_t cvm_mmc_interrupt(int irq, void *dev_id)
 		spin_lock_irqsave(&host->irq_handler_lock, flags);
 	else
 		__acquire(&host->irq_handler_lock);
-
-	rsp_sts = readq(host->base + MIO_EMM_RSP_STS(host));
-	bus_id = get_bus_id(rsp_sts);
-	slot = host->slot[bus_id];
-	if (slot)
-		req = slot->current_req;
 
 	rsp_sts = readq(host->base + MIO_EMM_RSP_STS(host));
 	bus_id = get_bus_id(rsp_sts);
@@ -1129,14 +1224,11 @@ static int cvm_mmc_data_tuning(struct mmc_host *mmc, u32 *statp, u32 opcode)
 	struct mmc_card *card = mmc->card;
 
 	if (!(slot->cached_switch & MIO_EMM_SWITCH_HS400_TIMING)) {
-		struct cvm_mmc_host *host = slot->host;
 		int edetail = -EINVAL;
 		int core_opinion;
 
-		host->release_bus(host);
 		core_opinion =
 			mmc_send_tuning(mmc, opcode, &edetail);
-		host->acquire_bus(host);
 
 		/* only accept mmc/core opinion  when it's happy */
 		if (!core_opinion)
@@ -1314,7 +1406,7 @@ static void cvm_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 			cvm_mmc_reset_bus(slot);
 			if (host->global_pwr_gpiod)
 				host->set_shared_power(host, 0);
-			else if (!IS_ERR(mmc->supply.vmmc))
+			else if (!IS_ERR_OR_NULL(mmc->supply.vmmc))
 				mmc_regulator_set_ocr(mmc, mmc->supply.vmmc, 0);
 			host->powered = false;
 		}
@@ -1328,7 +1420,7 @@ static void cvm_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	if (ios->power_mode == MMC_POWER_UP) {
 		if (host->global_pwr_gpiod)
 			host->set_shared_power(host, 1);
-		else if (!IS_ERR(mmc->supply.vmmc))
+		else if (!IS_ERR_OR_NULL(mmc->supply.vmmc))
 			mmc_regulator_set_ocr(mmc, mmc->supply.vmmc, ios->vdd);
 	}
 
@@ -1557,7 +1649,7 @@ static int cvm_mmc_init_lowlevel(struct cvm_mmc_slot *slot)
 	struct cvm_mmc_host *host = slot->host;
 	u64 emm_switch;
 
-	/* Enable this bus slot. */
+	/* Enable this bus slot. Overridden when vqmmc-switching engaged */
 	host->emm_cfg |= (1ull << slot->bus_id);
 	writeq(host->emm_cfg, slot->host->base + MIO_EMM_CFG(host));
 	udelay(10);
@@ -1620,7 +1712,7 @@ static int cvm_mmc_of_parse(struct device *dev, struct cvm_mmc_slot *slot)
 	 * Legacy Octeon firmware has no regulator entry, fall-back to
 	 * a hard-coded voltage to get a sane OCR.
 	 */
-	if (IS_ERR(mmc->supply.vmmc))
+	if (IS_ERR_OR_NULL(mmc->supply.vmmc))
 		mmc->ocr_avail = MMC_VDD_32_33 | MMC_VDD_33_34;
 
 	/* Common MMC bindings */
@@ -1747,6 +1839,7 @@ int cvm_mmc_of_slot_probe(struct device *dev, struct cvm_mmc_host *host)
 
 	host->acquire_bus(host);
 	host->slot[id] = slot;
+	host->use_vqmmc |= !IS_ERR_OR_NULL(slot->mmc->supply.vqmmc);
 	cvm_mmc_init_lowlevel(slot);
 	cvm_mmc_switch_to(slot);
 	host->release_bus(host);

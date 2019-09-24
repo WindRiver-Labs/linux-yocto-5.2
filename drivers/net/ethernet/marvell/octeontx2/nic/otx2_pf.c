@@ -100,7 +100,7 @@ static void otx2_flr_handler(struct work_struct *work)
 	req->hdr.pcifunc |= (vf + 1) & RVU_PFVF_FUNC_MASK;
 
 	if (!otx2_sync_mbox_msg(&pf->mbox)) {
-		if (vf > 64) {
+		if (vf >= 64) {
 			reg = 1;
 			vf = vf - 64;
 		}
@@ -862,7 +862,6 @@ int otx2_mbox_up_handler_cgx_link_event(struct otx2_nic *pf,
 	otx2_handle_link_event(pf);
 	return 0;
 }
-EXPORT_SYMBOL(otx2_mbox_up_handler_cgx_link_event);
 
 static int otx2_process_mbox_msg_up(struct otx2_nic *pf,
 				    struct mbox_msghdr *req)
@@ -1249,11 +1248,14 @@ static void otx2_free_sq_res(struct otx2_nic *pf)
 
 	/* Disable SQs */
 	otx2_ctx_disable(mbox, NIX_AQ_CTYPE_SQ, false);
+	/* Free SQB pointers */
+	otx2_sq_free_sqbs(pf);
 	for (qidx = 0; qidx < pf->hw.tx_queues; qidx++) {
 		sq = &qset->sq[qidx];
 		qmem_free(pf->dev, sq->sqe);
 		qmem_free(pf->dev, sq->tso_hdrs);
 		kfree(sq->sg);
+		kfree(sq->sqb_ptrs);
 		qmem_free(pf->dev, sq->timestamps);
 	}
 }
@@ -1329,7 +1331,7 @@ err_free_nix_queues:
 err_free_txsch:
 	otx2_txschq_stop(pf);
 err_free_sq_ptrs:
-	otx2_free_aura_ptr(pf, AURA_NIX_SQ);
+	otx2_sq_free_sqbs(pf);
 err_free_rq_ptrs:
 	otx2_free_aura_ptr(pf, AURA_NIX_RQ);
 	otx2_ctx_disable(mbox, NPA_AQ_CTYPE_POOL, true);
@@ -1373,9 +1375,6 @@ static void otx2_free_hw_resources(struct otx2_nic *pf)
 	otx2_mbox_unlock(mbox);
 
 	otx2_free_sq_res(pf);
-
-	/* Free SQB pointers */
-	otx2_free_aura_ptr(pf, AURA_NIX_SQ);
 
 	/* Disable RQs */
 	otx2_ctx_disable(mbox, NIX_AQ_CTYPE_RQ, false);
@@ -1432,17 +1431,19 @@ static netdev_tx_t otx2_xmit(struct sk_buff *skb, struct net_device *netdev)
 
 	sq = &pf->qset.sq[qidx];
 
-	if (!netif_tx_queue_stopped(txq) &&
-	    !otx2_sq_append_skb(netdev, sq, skb, qidx)) {
+	if (netif_tx_queue_stopped(txq)) {
+		dev_kfree_skb(skb);
+	} else if (!otx2_sq_append_skb(netdev, sq, skb, qidx)) {
 		netif_tx_stop_queue(txq);
 
-		/* Barrier, for stop_queue to be visible on other cpus */
+		/* Check again, incase SQBs got freed up */
 		smp_mb();
-		if ((sq->num_sqbs - *sq->aura_fc_addr) > 1)
-			netif_tx_start_queue(txq);
+		if (((sq->num_sqbs - *sq->aura_fc_addr) * sq->sqe_per_sqb)
+							> sq->sqe_thresh)
+			netif_tx_wake_queue(txq);
 		else
 			netdev_warn(netdev,
-				    "%s: No free SQE/SQB, stopping SQ%d\n",
+				    "%s: Transmit ring full, stopping SQ%d\n",
 				     netdev->name, qidx);
 
 		return NETDEV_TX_BUSY;
@@ -1574,11 +1575,13 @@ int otx2_open(struct net_device *netdev)
 
 	otx2_set_cints_affinity(pf);
 
+	pf->intf_down = false;
+	/* 'intf_down' may be checked on any cpu */
+	smp_wmb();
+
 	err = otx2_rxtx_enable(pf, true);
 	if (err)
 		goto err_free_cints;
-
-	pf->intf_down = false;
 
 	/* we have already received link status notification */
 	if (pf->linfo.link_up && !(pf->pcifunc & RVU_PFVF_FUNC_MASK))
@@ -1619,17 +1622,17 @@ int otx2_stop(struct net_device *netdev)
 	struct otx2_nic *pf = netdev_priv(netdev);
 	struct otx2_cq_poll *cq_poll = NULL;
 	struct otx2_qset *qset = &pf->qset;
-	int qidx, vec;
+	int qidx, vec, wrk;
 
-	/* First stop packet Rx/Tx */
-	otx2_rxtx_enable(pf, false);
+	netif_carrier_off(netdev);
+	netif_tx_stop_all_queues(netdev);
 
 	pf->intf_down = true;
 	/* 'intf_down' may be checked on any cpu */
 	smp_wmb();
 
-	netif_carrier_off(netdev);
-	netif_tx_stop_all_queues(netdev);
+	/* First stop packet Rx/Tx */
+	otx2_rxtx_enable(pf, false);
 
 	/* Cleanup Queue IRQ */
 	vec = pci_irq_vector(pf->pdev,
@@ -1660,10 +1663,17 @@ int otx2_stop(struct net_device *netdev)
 	for (qidx = 0; qidx < netdev->num_tx_queues; qidx++)
 		netdev_tx_reset_queue(netdev_get_tx_queue(netdev, qidx));
 
+	for (wrk = 0; wrk < pf->qset.cq_cnt; wrk++)
+		cancel_delayed_work_sync(&pf->refill_wrk[wrk].pool_refill_work);
+	devm_kfree(pf->dev, pf->refill_wrk);
+
 	kfree(qset->sq);
 	kfree(qset->cq);
+	kfree(qset->rq);
 	kfree(qset->napi);
-	memset(qset, 0, sizeof(*qset));
+	/* Do not clear RQ/SQ ringsize settings */
+	memset((void *)qset + offsetof(struct otx2_qset, sqe_cnt), 0,
+	       sizeof(*qset) - offsetof(struct otx2_qset, sqe_cnt));
 	return 0;
 }
 EXPORT_SYMBOL(otx2_stop);
@@ -2105,7 +2115,6 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (!hw->affinity_mask)
 		goto err_free_netdev;
 
-
 	/* Map CSRs */
 	pf->reg_base = pcim_iomap(pdev, PCI_CFG_REG_BAR_NUM, 0);
 	if (!pf->reg_base) {
@@ -2119,8 +2128,12 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err_free_netdev;
 
 	err = pci_alloc_irq_vectors(hw->pdev, num_vec, num_vec, PCI_IRQ_MSIX);
-	if (err < 0)
+	if (err < 0) {
+		dev_err(dev, "%s: Failed to alloc %d IRQ vectors\n",
+			__func__, num_vec);
 		goto err_free_netdev;
+	}
+
 	/* Init PF <=> AF mailbox stuff */
 	err = otx2_pfaf_mbox_init(pf);
 	if (err)

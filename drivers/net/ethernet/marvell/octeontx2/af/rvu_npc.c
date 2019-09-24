@@ -38,8 +38,9 @@ static void npc_mcam_free_all_entries(struct rvu *rvu, struct npc_mcam *mcam,
 static void npc_mcam_free_all_counters(struct rvu *rvu, struct npc_mcam *mcam,
 				       u16 pcifunc);
 
-int npc_mcam_verify_pf_func(struct rvu *rvu, struct mcam_entry *entry_data,
-			    u8 intf, u16 pcifunc)
+static int npc_mcam_verify_pf_func(struct rvu *rvu,
+				   struct mcam_entry *entry_data,
+				   u8 intf, u16 pcifunc)
 {
 	u16 pf_func, pf_func_mask;
 
@@ -909,13 +910,11 @@ static void npc_config_tx_ldata_extract(struct rvu *rvu, int blkaddr)
 	/* Layer B: Stacked VLAN (STAG|QinQ) */
 	/* Outer VLAN: 2 bytes, KW0[63:48] */
 	cfg = KEX_LD_CFG(0x01, 0x2, 0x1, 0x0, 0x6);
-	SET_KEX_LD(NIX_INTF_TX, NPC_LID_LB, NPC_LT_LB_STAG, 0, cfg);
-	SET_KEX_LD(NIX_INTF_TX, NPC_LID_LB, NPC_LT_LB_QINQ, 0, cfg);
+	SET_KEX_LD(NIX_INTF_TX, NPC_LID_LB, NPC_LT_LB_STAG_QINQ, 0, cfg);
 
 	/* Outer VLAN: 2 Bytes, KW1[15:0] */
 	cfg = KEX_LD_CFG(0x01, 0x8, 0x1, 0x0, 0x8);
-	SET_KEX_LD(NIX_INTF_TX, NPC_LID_LB, NPC_LT_LB_STAG, 1, cfg);
-	SET_KEX_LD(NIX_INTF_TX, NPC_LID_LB, NPC_LT_LB_QINQ, 1, cfg);
+	SET_KEX_LD(NIX_INTF_TX, NPC_LID_LB, NPC_LT_LB_STAG_QINQ, 1, cfg);
 
 	/* DMAC: 6 bytes, KW1[63:16] */
 	cfg = KEX_LD_CFG(0x05, 0x8, 0x1, 0x0, 0xa);
@@ -968,13 +967,11 @@ static void npc_config_rx_ldata_extract(struct rvu *rvu, int blkaddr)
 	/* Layer B: Stacked VLAN (STAG|QinQ) */
 	/* Outer VLAN: 2 bytes, KW0[63:48] */
 	cfg = KEX_LD_CFG(0x01, 0x2, 0x1, 0x0, 0x6);
-	SET_KEX_LD(NIX_INTF_RX, NPC_LID_LB, NPC_LT_LB_STAG, 0, cfg);
-	SET_KEX_LD(NIX_INTF_RX, NPC_LID_LB, NPC_LT_LB_QINQ, 0, cfg);
+	SET_KEX_LD(NIX_INTF_RX, NPC_LID_LB, NPC_LT_LB_STAG_QINQ, 0, cfg);
 
 	/* Ethertype: 2 bytes, KW0[47:32] */
 	cfg = KEX_LD_CFG(0x01, 0x8, 0x1, 0x0, 0x4);
-	SET_KEX_LD(NIX_INTF_RX, NPC_LID_LB, NPC_LT_LB_STAG, 1, cfg);
-	SET_KEX_LD(NIX_INTF_RX, NPC_LID_LB, NPC_LT_LB_QINQ, 1, cfg);
+	SET_KEX_LD(NIX_INTF_RX, NPC_LID_LB, NPC_LT_LB_STAG_QINQ, 1, cfg);
 
 	/* Layer C: IPv4 */
 	/* SIP+DIP: 8 bytes, KW2[63:0] */

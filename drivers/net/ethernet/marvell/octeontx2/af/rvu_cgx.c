@@ -489,10 +489,13 @@ int rvu_mbox_handler_cgx_mac_addr_set(struct rvu *rvu,
 				      struct cgx_mac_addr_set_or_get *rsp)
 {
 	int pf = rvu_get_pf(req->hdr.pcifunc);
+	struct rvu_pfvf *pfvf;
 	u8 cgx_id, lmac_id;
 
 	rvu_get_cgx_lmac_id(rvu->pf2cgxlmac_map[pf], &cgx_id, &lmac_id);
 
+	pfvf = &rvu->pf[pf];
+	memcpy(pfvf->mac_addr, req->mac_addr, ETH_ALEN);
 	cgx_lmac_addr_set(cgx_id, lmac_id, req->mac_addr);
 
 	return 0;
@@ -558,18 +561,13 @@ int rvu_mbox_handler_cgx_mac_addr_get(struct rvu *rvu,
 				      struct cgx_mac_addr_set_or_get *req,
 				      struct cgx_mac_addr_set_or_get *rsp)
 {
-	int pf = rvu_get_pf(req->hdr.pcifunc);
-	u8 cgx_id, lmac_id;
-	int rc = 0, i;
-	u64 cfg;
+	struct rvu_pfvf *pfvf = rvu_get_pfvf(rvu, req->hdr.pcifunc);
+	int i;
 
-	rvu_get_cgx_lmac_id(rvu->pf2cgxlmac_map[pf], &cgx_id, &lmac_id);
-
-	rsp->hdr.rc = rc;
-	cfg = cgx_lmac_addr_get(cgx_id, lmac_id);
-	/* copy 48 bit mac address to req->mac_addr */
+	/* copy 48 bit mac address to rsp->mac_addr */
 	for (i = 0; i < ETH_ALEN; i++)
-		rsp->mac_addr[i] = cfg >> (ETH_ALEN - 1 - i) * 8;
+		rsp->mac_addr[i] = pfvf->mac_addr[i];
+
 	return 0;
 }
 
@@ -611,8 +609,10 @@ static void cgx_notify_up_ptp_info(struct rvu *rvu, int pf, bool enable)
 
 	/* Send mbox message to PF */
 	msg = otx2_mbox_alloc_msg_cgx_ptp_rx_info(rvu, pf);
-	if (!msg)
-		dev_err(rvu->dev, "failed to alloc message\n");
+	if (!msg) {
+		dev_err(rvu->dev, "ptp notification to pf %d failed\n", pf);
+		return;
+	}
 
 	msg->ptp_en = enable;
 	otx2_mbox_msg_send(&rvu->afpf_wq_info.mbox_up, pf);
@@ -929,6 +929,8 @@ int rvu_cgx_nix_cuml_stats(struct rvu *rvu, void *cgxd, int lmac_id,
 	 */
 	pcifunc = pf << RVU_PFVF_PF_SHIFT;
 	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NIX, pcifunc);
+	if (blkaddr < 0)
+		return 0;
 	block = &rvu->hw->block[blkaddr];
 
 	*stat = 0;

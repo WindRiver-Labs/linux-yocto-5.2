@@ -274,6 +274,10 @@ static inline bool otx2_check_rcv_errors(struct otx2_nic *pfvf,
 		}
 	} else {
 		atomic_inc(&stats->rx_other_errs);
+		/* For now ignore all the NPC parser errors and
+		 * pass the packets to stack.
+		 */
+		return false;
 	}
 
 	start = cqe + sizeof(struct nix_cqe_hdr_s) + sizeof(*parse);
@@ -464,6 +468,11 @@ process_cqe:
 	if (tx_pkts) {
 		txq = netdev_get_tx_queue(pfvf->netdev, cq->cint_idx);
 		netdev_tx_completed_queue(txq, tx_pkts, tx_bytes);
+		/* Check if queue was stopped earlier due to ring full */
+		smp_mb();
+		if (netif_carrier_ok(pfvf->netdev) &&
+		    netif_tx_queue_stopped(txq))
+			netif_tx_wake_queue(txq);
 	}
 
 	if (!cq->pool_ptrs)

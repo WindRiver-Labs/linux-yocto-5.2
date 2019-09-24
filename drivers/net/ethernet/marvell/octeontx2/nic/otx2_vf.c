@@ -359,7 +359,7 @@ static int otx2vf_open(struct net_device *netdev)
 
 	/* LBKs do not receive link events so tell everyone we are up here */
 	vf = netdev_priv(netdev);
-	if (vf->tx_chan_base < SDP_CHAN_BASE) {
+	if (is_otx2_lbkvf(vf->pdev)) {
 		pr_info("%s NIC Link is UP\n", netdev->name);
 		netif_carrier_on(netdev);
 		netif_tx_start_all_queues(netdev);
@@ -370,18 +370,7 @@ static int otx2vf_open(struct net_device *netdev)
 
 static int otx2vf_stop(struct net_device *netdev)
 {
-	struct otx2_nic *vf;
-	int err;
-
-	err = otx2_stop(netdev);
-	if (err)
-		return err;
-
-	vf = netdev_priv(netdev);
-	if (vf->tx_chan_base < SDP_CHAN_BASE)
-		pr_info("%s NIC Link is DOWN\n", netdev->name);
-
-	return 0;
+	return otx2_stop(netdev);
 }
 
 static netdev_tx_t otx2vf_xmit(struct sk_buff *skb, struct net_device *netdev)
@@ -516,8 +505,11 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err_free_netdev;
 
 	err = pci_alloc_irq_vectors(hw->pdev, num_vec, num_vec, PCI_IRQ_MSIX);
-	if (err < 0)
+	if (err < 0) {
+		dev_err(dev, "%s: Failed to alloc %d IRQ vectors\n",
+			__func__, num_vec);
 		goto err_free_netdev;
+	}
 
 	vf->reg_base = pcim_iomap(pdev, PCI_CFG_REG_BAR_NUM, 0);
 	if (!vf->reg_base) {
@@ -547,6 +539,12 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	otx2_setup_dev_hw_settings(vf);
 
+	err = otx2smqvf_probe(vf);
+	if (!err)
+		return 0;
+	else if (err == -EINVAL)
+		goto err_detach_rsrc;
+
 	/* Assign default mac address */
 	otx2_get_mac_from_af(netdev);
 
@@ -568,7 +566,7 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	INIT_WORK(&vf->reset_task, otx2vf_reset_task);
 
-	if (id->device == PCI_DEVID_OCTEONTX2_RVU_AFVF) {
+	if (is_otx2_lbkvf(vf->pdev)) {
 		int n;
 
 		n = (vf->pcifunc >> RVU_PFVF_FUNC_SHIFT) & RVU_PFVF_FUNC_MASK;
@@ -612,7 +610,9 @@ static void otx2vf_remove(struct pci_dev *pdev)
 		return;
 
 	vf = netdev_priv(netdev);
-	unregister_netdev(netdev);
+
+	if (otx2smqvf_remove(vf))
+		unregister_netdev(netdev);
 
 	otx2vf_disable_mbox_intr(vf);
 
