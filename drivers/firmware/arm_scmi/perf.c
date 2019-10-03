@@ -355,6 +355,23 @@ static int scmi_dev_domain_id(struct device *dev)
 	return clkspec.args[0];
 }
 
+static uint32_t roundoff_to_nearest_100(uint32_t freq)
+{
+	uint32_t quotient, remainder;
+	uint32_t freq_mhz;
+
+	freq_mhz = (freq / 1000000);
+	quotient = freq_mhz / 100;
+	remainder = freq_mhz % 100;
+
+	if (remainder >= 50)
+		freq_mhz = quotient * 100 + 100;
+	else
+		freq_mhz = quotient * 100;
+
+	return freq_mhz * 1000000;
+}
+
 static int scmi_dvfs_device_opps_add(const struct scmi_handle *handle,
 				     struct device *dev)
 {
@@ -372,6 +389,12 @@ static int scmi_dvfs_device_opps_add(const struct scmi_handle *handle,
 
 	for (opp = dom->opp, idx = 0; idx < dom->opp_count; idx++, opp++) {
 		freq = opp->perf * dom->mult_factor;
+
+		/*
+		 * marvell specific: need to round off to nearest hundered
+		 * if the calcuated frequency is not a multiple of 100 in MHz
+		 */
+		freq = roundoff_to_nearest_100(freq);
 
 		ret = dev_pm_opp_add(dev, freq, 0);
 		if (ret) {
