@@ -130,6 +130,13 @@ enum tmc_mem_intf_width {
 #define CORESIGHT_SOC_600_ETR_CAPS	\
 	(TMC_ETR_SAVE_RESTORE | TMC_ETR_AXI_ARCACHE)
 
+/* Marvell OcteonTx CN9xxx TMC-ETR unadvertised capabilities */
+#define OCTEONTX_CN9XXX_ETR_CAPS	\
+	(TMC_ETR_SAVE_RESTORE)
+
+/* Marvell OcteonTx CN9xxx device */
+#define OCTEONTX_CN9XXX_ETR		0x000cc213
+
 enum etr_mode {
 	ETR_MODE_FLAT,		/* Uses contiguous flat buffer */
 	ETR_MODE_ETR_SG,	/* Uses in-built TMC ETR SG mechanism */
