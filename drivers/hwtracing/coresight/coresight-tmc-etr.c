@@ -14,6 +14,7 @@
 #include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/vmalloc.h>
+#include <linux/arm-smccc.h>
 #include "coresight-catu.h"
 #include "coresight-etm-perf.h"
 #include "coresight-priv.h"
@@ -107,6 +108,17 @@ struct etr_sg_table {
 	struct tmc_sg_table	*sg_table;
 	dma_addr_t		hwaddr;
 };
+
+void *tmc_etr_drvbuf_vaddr(struct tmc_drvdata *drvdata)
+{
+	struct etr_buf *etr_buf;
+	struct etr_flat_buf *flat_buf;
+
+	etr_buf = drvdata->etr_buf;
+	flat_buf = etr_buf->private;
+
+	return flat_buf->vaddr;
+}
 
 /*
  * tmc_etr_sg_table_entries: Total number of table entries required to map
@@ -595,6 +607,8 @@ static int tmc_etr_alloc_flat_buf(struct tmc_drvdata *drvdata,
 {
 	struct etr_flat_buf *flat_buf;
 	struct device *real_dev = drvdata->csdev->dev.parent;
+	u64 s_hwaddr = 0;
+	int err;
 
 	/* We cannot reuse existing pages for flat buf */
 	if (pages)
@@ -611,12 +625,40 @@ static int tmc_etr_alloc_flat_buf(struct tmc_drvdata *drvdata,
 		return -ENOMEM;
 	}
 
+	if (!(drvdata->etr_options & CORESIGHT_OPTS_SECURE_BUFF))
+		goto skip_secure_buffer;
+
+	/* Register driver allocated dma buffer for necessary
+	 * mapping in the secure world
+	 */
+	if (tmc_register_drvbuf(drvdata, flat_buf->daddr, etr_buf->size)) {
+		err = -ENOMEM;
+		goto reg_err;
+	}
+
+	/* Allocate secure trace buffer */
+	if (tmc_alloc_secbuf(drvdata, etr_buf->size, &s_hwaddr)) {
+		err = -ENOMEM;
+		goto salloc_err;
+	}
+
+skip_secure_buffer:
 	flat_buf->size = etr_buf->size;
 	flat_buf->dev = &drvdata->csdev->dev;
 	etr_buf->hwaddr = flat_buf->daddr;
+	etr_buf->s_hwaddr = s_hwaddr;
 	etr_buf->mode = ETR_MODE_FLAT;
 	etr_buf->private = flat_buf;
 	return 0;
+
+salloc_err:
+	tmc_unregister_drvbuf(drvdata, etr_buf->hwaddr,
+					      etr_buf->size);
+reg_err:
+	dma_free_coherent(real_dev, etr_buf->size, flat_buf->vaddr,
+			  flat_buf->daddr);
+	return err;
+
 }
 
 static void tmc_etr_free_flat_buf(struct etr_buf *etr_buf)
@@ -634,15 +676,24 @@ static void tmc_etr_free_flat_buf(struct etr_buf *etr_buf)
 
 static void tmc_etr_sync_flat_buf(struct etr_buf *etr_buf, u64 rrp, u64 rwp)
 {
+	u64 w_offset;
+
 	/*
 	 * Adjust the buffer to point to the beginning of the trace data
 	 * and update the available trace data.
 	 */
-	etr_buf->offset = rrp - etr_buf->hwaddr;
-	if (etr_buf->full)
+	if (etr_buf->secure)
+		w_offset = rwp - etr_buf->s_hwaddr;
+	else /* TODO: Need to verify if rrp can be replaced as below */
+		w_offset = rwp - etr_buf->hwaddr;
+
+	if (etr_buf->full) {
+		etr_buf->offset = w_offset;
 		etr_buf->len = etr_buf->size;
-	else
-		etr_buf->len = rwp - rrp;
+	} else {
+		etr_buf->offset = 0;
+		etr_buf->len = w_offset;
+	}
 }
 
 static ssize_t tmc_etr_get_data_flat_buf(struct etr_buf *etr_buf,
@@ -845,6 +896,11 @@ static struct etr_buf *tmc_alloc_etr_buf(struct tmc_drvdata *drvdata,
 		return ERR_PTR(-ENOMEM);
 
 	etr_buf->size = size;
+	/* TODO: Consider using etr_buf->secure everywhere instead of
+	 * etr_options for consistency
+	 */
+	if (drvdata->etr_options & CORESIGHT_OPTS_SECURE_BUFF)
+		etr_buf->secure = true;
 
 	/*
 	 * If we have to use an existing list of pages, we cannot reliably
@@ -957,10 +1013,16 @@ static void __tmc_etr_enable_hw(struct tmc_drvdata *drvdata)
 
 	CS_UNLOCK(drvdata->base);
 
+	if (drvdata->etr_options & CORESIGHT_OPTS_RESET_CTL_REG)
+		tmc_disable_hw(drvdata);
+
 	/* Wait for TMCSReady bit to be set */
 	tmc_wait_for_tmcready(drvdata);
 
-	writel_relaxed(etr_buf->size / 4, drvdata->base + TMC_RSZ);
+	if (drvdata && CORESIGHT_OPTS_BUFFSIZE_8BX)
+		writel_relaxed(etr_buf->size / 8, drvdata->base + TMC_RSZ);
+	else
+		writel_relaxed(etr_buf->size / 4, drvdata->base + TMC_RSZ);
 	writel_relaxed(TMC_MODE_CIRCULAR_BUFFER, drvdata->base + TMC_MODE);
 
 	axictl = readl_relaxed(drvdata->base + TMC_AXICTL);
@@ -977,7 +1039,11 @@ static void __tmc_etr_enable_hw(struct tmc_drvdata *drvdata)
 		axictl |= TMC_AXICTL_SCT_GAT_MODE;
 
 	writel_relaxed(axictl, drvdata->base + TMC_AXICTL);
-	tmc_write_dba(drvdata, etr_buf->hwaddr);
+	if (drvdata->etr_options & CORESIGHT_OPTS_SECURE_BUFF)
+		tmc_write_dba(drvdata, etr_buf->s_hwaddr);
+	else
+		tmc_write_dba(drvdata, etr_buf->hwaddr);
+
 	/*
 	 * If the TMC pointers must be programmed before the session,
 	 * we have to set it properly (i.e, RRP/RWP to base address and
@@ -985,7 +1051,10 @@ static void __tmc_etr_enable_hw(struct tmc_drvdata *drvdata)
 	 */
 	if (tmc_etr_has_cap(drvdata, TMC_ETR_SAVE_RESTORE)) {
 		tmc_write_rrp(drvdata, etr_buf->hwaddr);
-		tmc_write_rwp(drvdata, etr_buf->hwaddr);
+		if (drvdata->etr_options & CORESIGHT_OPTS_SECURE_BUFF)
+			tmc_write_rwp(drvdata, etr_buf->s_hwaddr);
+		else
+			tmc_write_rwp(drvdata, etr_buf->hwaddr);
 		sts = readl_relaxed(drvdata->base + TMC_STS) & ~TMC_STS_FULL;
 		writel_relaxed(sts, drvdata->base + TMC_STS);
 	}
@@ -1088,7 +1157,7 @@ static void tmc_etr_sync_sysfs_buf(struct tmc_drvdata *drvdata)
 		 * Insert barrier packets at the beginning, if there was
 		 * an overflow.
 		 */
-		if (etr_buf->full)
+		if (etr_buf->full && !drvdata->formatter_en)
 			tmc_etr_buf_insert_barrier_packet(etr_buf,
 							  etr_buf->offset);
 	}
