@@ -2829,23 +2829,6 @@ static void fixup_active_planes(struct intel_crtc_state *crtc_state)
 		crtc_state->active_planes |= BIT(to_intel_plane(plane)->id);
 }
 
-static void fixup_active_planes(struct intel_crtc_state *crtc_state)
-{
-	struct drm_i915_private *dev_priv = to_i915(crtc_state->base.crtc->dev);
-	struct drm_plane *plane;
-
-	/*
-	 * Active_planes aliases if multiple "primary" or cursor planes
-	 * have been used on the same (or wrong) pipe. plane_mask uses
-	 * unique ids, hence we can use that to reconstruct active_planes.
-	 */
-	crtc_state->active_planes = 0;
-
-	drm_for_each_plane_mask(plane, &dev_priv->drm,
-				crtc_state->base.plane_mask)
-		crtc_state->active_planes |= BIT(to_intel_plane(plane)->id);
-}
-
 static void intel_plane_disable_noatomic(struct intel_crtc *crtc,
 					 struct intel_plane *plane)
 {

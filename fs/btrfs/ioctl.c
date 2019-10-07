@@ -3901,7 +3901,7 @@ static noinline int btrfs_clone_files(struct file *file, struct file *file_src,
 	 * if the file size is not blocksize aligned. So we don't need to check
 	 * for that case here.
 	 */
-	if (off + len == src->i_size)
+	if (off + len == src->i_size) {
 		len = ALIGN(src->i_size, bs) - off;
 	}
 
