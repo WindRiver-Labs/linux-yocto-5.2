@@ -376,7 +376,7 @@ CDN_API_STATUS CDN_API_DPTX_ReadEvent_blocking(state_struct *state,
 /**
  * \brief set vic mode according to vic table, the input are video parameters
  */
-CDN_API_STATUS CDN_API_DPTX_Set_VIC(state_struct *state, struct drm_display_mode *mode,
+CDN_API_STATUS CDN_API_DPTX_Set_VIC(state_struct *state, const struct drm_display_mode *mode,
 				    int bitsPerPixel,
 				    VIC_NUM_OF_LANES NumOfLanes,
 				    VIC_SYMBOL_RATE rate,
