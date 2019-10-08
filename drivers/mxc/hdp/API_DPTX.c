@@ -481,7 +481,7 @@ CDN_API_STATUS CDN_API_DPTX_ReadEvent_blocking(state_struct *state,
 }
 
 CDN_API_STATUS CDN_API_DPTX_Set_VIC(state_struct *state,
-					struct drm_display_mode *mode,
+					const struct drm_display_mode *mode,
 				    int bitsPerPixel,
 				    VIC_NUM_OF_LANES NumOfLanes,
 				    VIC_SYMBOL_RATE rate,
@@ -602,7 +602,7 @@ CDN_API_STATUS CDN_API_DPTX_Set_VIC(state_struct *state,
 		 ((mode->flags & DRM_MODE_FLAG_NVSYNC ? 1 : 0) << 15)) +
 		((mode->flags & DRM_MODE_FLAG_INTERLACE ? mode->vdisplay / 2 : mode->vdisplay) << 16);
 
-	DP_HORIZONTAL_ADDR_Param = (mode->hdisplay << 16) + mode->hsync;
+	DP_HORIZONTAL_ADDR_Param = (mode->hdisplay << 16) + (mode->hsync_end - mode->hsync_start);
 
 	DP_VERTICAL_0_ADDR_Param =
 	    (mode->flags & DRM_MODE_FLAG_INTERLACE ? (mode->vtotal / 2) : mode->vtotal) -
