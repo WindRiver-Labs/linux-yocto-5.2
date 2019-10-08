@@ -2243,6 +2243,7 @@ static void ptrace_stop(int exit_code, int why, int clear_code, kernel_siginfo_t
 
 		read_unlock(&tasklist_lock);
 		cgroup_enter_frozen();
+		preempt_enable_no_resched();
 		freezable_schedule();
 		cgroup_leave_frozen(true);
 	} else {
