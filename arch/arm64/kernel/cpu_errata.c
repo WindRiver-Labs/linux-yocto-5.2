@@ -691,6 +691,16 @@ static const struct midr_range cavium_erratum_36890_cpus[] = {
 };
 #endif
 
+#ifdef CONFIG_MRVL_ERRATUM_37119
+static const struct midr_range mrvl_erratum_37119_cpus[] = {
+	/* Marvell OcteonTX 2, 96xx pass A0, A1, and B0 */
+	MIDR_RANGE(MIDR_MRVL_OCTEONTX2_96XX, 0, 0, 1, 0),
+	/* Marvell OcteonTX 2, 95 pass A0/A1 */
+	MIDR_RANGE(MIDR_MRVL_OCTEONTX2_95XX, 0, 0, 0, 1),
+	{},
+};
+#endif
+
 #ifdef CONFIG_QCOM_FALKOR_ERRATUM_1003
 static const struct arm64_cpu_capabilities qcom_erratum_1003_list[] = {
 	{
@@ -808,6 +818,13 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 		.capability = ARM64_WORKAROUND_CAVIUM_36890,
 		ERRATA_MIDR_RANGE_LIST(cavium_erratum_36890_cpus),
 		.cpu_enable = cpu_enable_trap_zva_access,
+	},
+#endif
+#ifdef CONFIG_MRVL_ERRATUM_37119
+	{
+		.desc = "Marvell erratum 37119",
+		.capability = ARM64_WORKAROUND_MRVL_37119,
+		ERRATA_MIDR_RANGE_LIST(mrvl_erratum_37119_cpus),
 	},
 #endif
 	{

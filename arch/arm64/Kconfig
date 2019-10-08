@@ -609,6 +609,19 @@ config CAVIUM_ERRATUM_36890
 
 	  If unsure, say Y.
 
+config MRVL_ERRATUM_37119
+	bool "Marvell erratum 37119"
+	default y
+	help
+	  Enable workaround for erratum 37119.  On some OcteonTX2 chips,
+	  while using the SSO workslots in userspace can cause problems
+	  as the cache are not invalidated correctly.  To workaround
+	  this erratum, a local tlbi is placed before the eret.
+	  This TLBI does not need to invalidate anything so a tlbi against
+	  asid 0 is used.
+
+	  If unsure, say Y.
+
 config QCOM_FALKOR_ERRATUM_1003
 	bool "Falkor E1003: Incorrect translation due to ASID change"
 	default y
