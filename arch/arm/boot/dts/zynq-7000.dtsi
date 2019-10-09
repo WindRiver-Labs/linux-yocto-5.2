@@ -447,8 +447,8 @@
 			};
 		};
 
-		funnel@f8804000 {
-			compatible = "arm,coresight-static-funnel", "arm,primecell";
+		funnel@0,f8804000 {
+			compatible = "arm,coresight-funnel", "arm,primecell";
 			reg = <0xf8804000 0x1000>;
 			clocks = <&clkc 27>, <&clkc 46>, <&clkc 47>;
 			clock-names = "apb_pclk", "dbg_trc", "dbg_apb";
@@ -503,7 +503,7 @@
 		};
 
 		replicator {
-			compatible = "arm,coresight-static-replicator";
+			compatible = "arm,coresight-replicator";
 			clocks = <&clkc 27>, <&clkc 46>, <&clkc 47>;
 			clock-names = "apb_pclk", "dbg_trc", "dbg_apb";
 
@@ -536,8 +536,8 @@
 			};
 		};
 
-		/* ITM is not supported by kernel, only leave device node here */
-		itm@f8805000 {
+		itm@0,f8805000 {
+			compatible = "arm,coresight-etm3x", "arm,primecell";
 			reg = <0xf8805000 0x1000>;
 			clocks = <&clkc 27>, <&clkc 46>, <&clkc 47>;
 			clock-names = "apb_pclk", "dbg_trc", "dbg_apb";
@@ -549,7 +549,7 @@
 			};
 		};
 
-		ptm@f889c000 {
+		ptm@0,f889c000 {
 			compatible = "arm,coresight-etm3x", "arm,primecell";
 			reg = <0xf889c000 0x1000>;
 			clocks = <&clkc 27>, <&clkc 46>, <&clkc 47>;
@@ -562,7 +562,7 @@
 			};
 		};
 
-		ptm@f889d000 {
+		ptm@0,f889d000 {
 			compatible = "arm,coresight-etm3x", "arm,primecell";
 			reg = <0xf889d000 0x1000>;
 			clocks = <&clkc 27>, <&clkc 46>, <&clkc 47>;
