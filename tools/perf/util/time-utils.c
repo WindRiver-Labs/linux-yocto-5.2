@@ -398,10 +398,11 @@ bool perf_time__ranges_skip_sample(struct perf_time_interval *ptime_buf,
 	return (i == num) ? true : false;
 }
 
-int perf_time__parse_for_ranges(const char *time_str,
+int perf_time__parse_for_ranges_reltime(const char *time_str,
 				struct perf_session *session,
 				struct perf_time_interval **ranges,
-				int *range_size, int *range_num)
+				int *range_size, int *range_num,
+				bool reltime)
 {
 	bool has_percent = strchr(time_str, '%');
 	struct perf_time_interval *ptime_range;
@@ -411,7 +412,7 @@ int perf_time__parse_for_ranges(const char *time_str,
 	if (!ptime_range)
 		return -ENOMEM;
 
-	if (has_percent) {
+	if (has_percent || reltime) {
 		if (session->evlist->first_sample_time == 0 &&
 		    session->evlist->last_sample_time == 0) {
 			pr_err("HINT: no first/last sample time found in perf data.\n"
@@ -420,7 +421,9 @@ int perf_time__parse_for_ranges(const char *time_str,
 			ret = -EINVAL;
 			goto error;
 		}
+	}
 
+	if (has_percent) {
 		num = perf_time__percent_parse_str(
 				ptime_range, size,
 				time_str,
@@ -438,6 +441,15 @@ int perf_time__parse_for_ranges(const char *time_str,
 		num = 1;
 	}
 
+	if (reltime) {
+		int i;
+
+		for (i = 0; i < num; i++) {
+			ptime_range[i].start += session->evlist->first_sample_time;
+			ptime_range[i].end += session->evlist->first_sample_time;
+		}
+	}
+
 	*range_size = size;
 	*range_num = num;
 	*ranges = ptime_range;
@@ -446,6 +458,15 @@ int perf_time__parse_for_ranges(const char *time_str,
 error:
 	free(ptime_range);
 	return ret;
+}
+
+int perf_time__parse_for_ranges(const char *time_str,
+				struct perf_session *session,
+				struct perf_time_interval **ranges,
+				int *range_size, int *range_num)
+{
+	return perf_time__parse_for_ranges_reltime(time_str, session, ranges,
+					range_size, range_num, false);
 }
 
 int timestamp__scnprintf_usec(u64 timestamp, char *buf, size_t sz)
