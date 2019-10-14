@@ -335,10 +335,10 @@ static void octeontx2_be_workaround_init(struct pci_bus *bus)
 static void octeontx2_be_workaround(struct pci_bus *bus, int where,
 				    int size, u32 val)
 {
-	struct pci_dev *rc;
+	struct pci_host_bridge *rc;
 	u32 reg, be = 0;
 
-	rc = pci_get_domain_bus_and_slot(pci_domain_nr(bus), 0, 0);
+	rc = pci_find_host_bridge(bus);
 
 	/* Setup RAS to inject one error */
 	octeontx2_be_workaround_init(rc->bus);
