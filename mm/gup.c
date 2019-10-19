@@ -1890,7 +1890,8 @@ static unsigned long hugepte_addr_end(unsigned long addr, unsigned long end,
 }
 
 static int gup_hugepte(pte_t *ptep, unsigned long sz, unsigned long addr,
-		       unsigned long end, int write, struct page **pages, int *nr)
+		       unsigned long end, unsigned int flags,
+		       struct page **pages, int *nr)
 {
 	unsigned long pte_end;
 	struct page *head, *page;
@@ -1903,7 +1904,7 @@ static int gup_hugepte(pte_t *ptep, unsigned long sz, unsigned long addr,
 
 	pte = READ_ONCE(*ptep);
 
-	if (!pte_access_permitted(pte, write))
+	if (!pte_access_permitted(pte, flags & FOLL_WRITE))
 		return 0;
 
 	/* hugepages are never "special" */
@@ -1938,7 +1939,7 @@ static int gup_hugepte(pte_t *ptep, unsigned long sz, unsigned long addr,
 }
 
 static int gup_huge_pd(hugepd_t hugepd, unsigned long addr,
-		unsigned int pdshift, unsigned long end, int write,
+		unsigned int pdshift, unsigned long end, unsigned int flags,
 		struct page **pages, int *nr)
 {
 	pte_t *ptep;
@@ -1948,7 +1949,7 @@ static int gup_huge_pd(hugepd_t hugepd, unsigned long addr,
 	ptep = hugepte_offset(hugepd, addr, pdshift);
 	do {
 		next = hugepte_addr_end(addr, end, sz);
-		if (!gup_hugepte(ptep, sz, addr, end, write, pages, nr))
+		if (!gup_hugepte(ptep, sz, addr, end, flags, pages, nr))
 			return 0;
 	} while (ptep++, addr = next, addr != end);
 
@@ -1956,7 +1957,7 @@ static int gup_huge_pd(hugepd_t hugepd, unsigned long addr,
 }
 #else
 static inline int gup_huge_pd(hugepd_t hugepd, unsigned long addr,
-		unsigned pdshift, unsigned long end, int write,
+		unsigned int pdshift, unsigned long end, unsigned int flags,
 		struct page **pages, int *nr)
 {
 	return 0;
@@ -1964,7 +1965,8 @@ static inline int gup_huge_pd(hugepd_t hugepd, unsigned long addr,
 #endif /* CONFIG_ARCH_HAS_HUGEPD */
 
 static int gup_huge_pmd(pmd_t orig, pmd_t *pmdp, unsigned long addr,
-		unsigned long end, unsigned int flags, struct page **pages, int *nr)
+			unsigned long end, unsigned int flags,
+			struct page **pages, int *nr)
 {
 	struct page *head, *page;
 	int refs;
