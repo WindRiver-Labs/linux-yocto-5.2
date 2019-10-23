@@ -126,9 +126,9 @@ int platform_get_irq_optional(struct platform_device *dev, unsigned int num)
 	return dev->archdata.irqs[num];
 #else
 	struct resource *r;
-	if (IS_ENABLED(CONFIG_OF_IRQ) && dev->dev.of_node) {
-		int ret;
+	int ret;
 
+	if (IS_ENABLED(CONFIG_OF_IRQ) && dev->dev.of_node) {
 		ret = of_irq_get(dev->dev.of_node, num);
 		if (ret > 0 || ret == -EPROBE_DEFER)
 			return ret;
@@ -137,8 +137,6 @@ int platform_get_irq_optional(struct platform_device *dev, unsigned int num)
 	r = platform_get_resource(dev, IORESOURCE_IRQ, num);
 	if (has_acpi_companion(&dev->dev)) {
 		if (r && r->flags & IORESOURCE_DISABLED) {
-			int ret;
-
 			ret = acpi_irq_get(ACPI_HANDLE(&dev->dev), num, r);
 			if (ret)
 				return ret;
@@ -171,8 +169,7 @@ int platform_get_irq_optional(struct platform_device *dev, unsigned int num)
 	 * allows a common code path across either kind of resource.
 	 */
 	if (num == 0 && has_acpi_companion(&dev->dev)) {
-		int ret = acpi_dev_gpio_irq_get(ACPI_COMPANION(&dev->dev), num);
-
+		ret = acpi_dev_gpio_irq_get(ACPI_COMPANION(&dev->dev), num);
 		/* Our callers expect -ENXIO for missing IRQs. */
 		if (ret >= 0 || ret == -EPROBE_DEFER)
 			return ret;
@@ -260,10 +257,9 @@ static int __platform_get_irq_byname(struct platform_device *dev,
 				     const char *name)
 {
 	struct resource *r;
+	int ret;
 
 	if (IS_ENABLED(CONFIG_OF_IRQ) && dev->dev.of_node) {
-		int ret;
-
 		ret = of_irq_get_byname(dev->dev.of_node, name);
 		if (ret > 0 || ret == -EPROBE_DEFER)
 			return ret;
