@@ -285,6 +285,12 @@ if SOC_S32GEN1
 		   S32GEN1 Software Simulator from Synopsys is a presilicon
 		   development solution.
 
+	config S32GEN1_EMULATOR
+		bool "S32GEN1 Emulator"
+		help
+		   S32GEN1 Emulator is a presilicon development solution.
+
+
 	config S32GEN1_A53GPR_WORKAROUND
 		bool "S32GEN1 A53 GPR Model Workaround"
 		depends on S32GEN1_SIMULATOR
