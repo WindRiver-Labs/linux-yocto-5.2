@@ -895,6 +895,9 @@ EXPORT_SYMBOL_GPL(devm_fpga_mgr_create);
 int fpga_mgr_register(struct fpga_manager *mgr)
 {
 	int ret;
+#ifdef CONFIG_FPGA_MGR_DEBUG_FS
+	struct dentry *d, *parent;
+#endif
 
 	/*
 	 * Initialize framework state by requesting low level driver read state
@@ -908,8 +911,6 @@ int fpga_mgr_register(struct fpga_manager *mgr)
 		goto error_device;
 
 #ifdef CONFIG_FPGA_MGR_DEBUG_FS
-	struct dentry *d, *parent;
-
 	mgr->dir = debugfs_create_dir("fpga", NULL);
 	if (!mgr->dir)
 		goto error_device;
