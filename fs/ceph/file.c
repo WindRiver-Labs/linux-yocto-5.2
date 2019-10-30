@@ -454,6 +454,9 @@ int ceph_atomic_open(struct inode *dir, struct dentry *dentry,
 		err = ceph_pre_init_acls(dir, &mode, &acls);
 		if (err < 0)
 			return err;
+	} else if (!d_in_lookup(dentry)) {
+		/* If it's not being looked up, it's negative */
+		return -ENOENT;
 	}
 
 	/* do the open */
