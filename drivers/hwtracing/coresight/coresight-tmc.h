@@ -12,6 +12,7 @@
 #include <linux/miscdevice.h>
 #include <linux/mutex.h>
 #include <linux/refcount.h>
+#include <linux/arm-smccc.h>
 
 #define TMC_RSZ			0x004
 #define TMC_STS			0x00c
@@ -73,6 +74,9 @@
 #define TMC_AXICTL_AXCACHE_OS	(0xf << 2)
 #define TMC_AXICTL_ARCACHE_OS	(0xf << 16)
 
+/* TMC_FFSR - 0x300 */
+#define TMC_FFSR_FT_NOT_PRESENT	BIT(4)
+
 /* TMC_FFCR - 0x304 */
 #define TMC_FFCR_FLUSHMAN_BIT	6
 #define TMC_FFCR_EN_FMT		BIT(0)
@@ -126,6 +130,33 @@ enum tmc_mem_intf_width {
 #define CORESIGHT_SOC_600_ETR_CAPS	\
 	(TMC_ETR_SAVE_RESTORE | TMC_ETR_AXI_ARCACHE)
 
+/* Marvell OcteonTx CN9xxx TMC-ETR unadvertised capabilities */
+#define OCTEONTX_CN9XXX_ETR_CAPS	\
+	(TMC_ETR_SAVE_RESTORE)
+
+/* Marvell OcteonTx CN9xxx device */
+#define OCTEONTX_CN9XXX_ETR		0x000cc213
+
+/* Marvell OcteonTx CN9xxx HW issues */
+#define CORESIGHT_OPTS_BUFFSIZE_8BX	(0x1U << 0) /* 8 byte size multiplier */
+#define CORESIGHT_OPTS_SECURE_BUFF	(0x1U << 1) /* Trace buffer is Secure */
+#define CORESIGHT_OPTS_RESET_CTL_REG	(0x1U << 2) /* Reset CTL on reset */
+
+/* SMC call ids for managing the secure trace buffer */
+
+/* Args: x1 - size, x2 - cpu, x3 - llc lock flag
+ * Returns: x0 - status, x1 - secure buffer address
+ */
+#define OCTEONTX_TRC_ALLOC_SBUF		0xc2000c05
+/* Args: x1 - non secure buffer address, x2 - size */
+#define OCTEONTX_TRC_REGISTER_DRVBUF	0xc2000c06
+/* Args: x1 - dst(non secure), x2 - src(secure), x3 - size */
+#define OCTEONTX_TRC_COPY_TO_DRVBUF	0xc2000c07
+/* Args: x1 - secure buffer address, x2 - size */
+#define OCTEONTX_TRC_FREE_SBUF		0xc2000c08
+/* Args: x1 - non secure buffer address, x2 - size */
+#define OCTEONTX_TRC_UNREGISTER_DRVBUF	0xc2000c09
+
 enum etr_mode {
 	ETR_MODE_FLAT,		/* Uses contiguous flat buffer */
 	ETR_MODE_ETR_SG,	/* Uses in-built TMC ETR SG mechanism */
@@ -141,6 +172,7 @@ struct etr_buf_operations;
  * @full	: Trace data overflow
  * @size	: Size of the buffer.
  * @hwaddr	: Address to be programmed in the TMC:DBA{LO,HI}
+ * @s_paddr	: Secure trace buffer
  * @offset	: Offset of the trace data in the buffer for consumption.
  * @len		: Available trace data @buf (may round up to the beginning).
  * @ops		: ETR buffer operations for the mode.
@@ -152,6 +184,7 @@ struct etr_buf {
 	bool				full;
 	ssize_t				size;
 	dma_addr_t			hwaddr;
+	dma_addr_t			s_paddr;
 	unsigned long			offset;
 	s64				len;
 	const struct etr_buf_operations	*ops;
@@ -164,13 +197,14 @@ struct etr_buf {
  * @dev:	the device entity associated to this component.
  * @csdev:	component vitals needed by the framework.
  * @miscdev:	specifics to handle "/dev/xyz.tmc" entry.
- * @spinlock:	only one at a time pls.
- * @pid:	Process ID of the process being monitored by the session
+ * @spinlock:	only one at a time pls.  * @pid:	Process ID of the process being monitored by the session
  *		that is using this component.
  * @buf:	Snapshot of the trace data for ETF/ETB.
  * @etr_buf:	details of buffer used in TMC-ETR
  * @len:	size of the available trace for ETF/ETB.
  * @size:	trace buffer size for this TMC (common for all modes).
+ * @formatter_en: Formatter enable/disable status
+ * @cache_lock_en: Cache lock status
  * @mode:	how this TMC is being used.
  * @config_type: TMC variant, must be of type @tmc_config_type.
  * @memwidth:	width of the memory interface databus, in bytes.
@@ -181,6 +215,8 @@ struct etr_buf {
  * @idr_mutex:	Access serialisation for idr.
  * @perf_data:	PERF buffer for ETR.
  * @sysfs_data:	SYSFS buffer for ETR.
+ * @etr_options: Bitmask of options to manage Silicon issues
+ * @cpu:	CPU id this component is associated with
  */
 struct tmc_drvdata {
 	void __iomem		*base;
@@ -194,6 +230,8 @@ struct tmc_drvdata {
 		char		*buf;		/* TMC ETB */
 		struct etr_buf	*etr_buf;	/* TMC ETR */
 	};
+	bool			formatter_en;
+	bool			cache_lock_en;
 	u32			len;
 	u32			size;
 	u32			mode;
@@ -205,6 +243,8 @@ struct tmc_drvdata {
 	struct mutex		idr_mutex;
 	struct etr_buf		*sysfs_buf;
 	void			*perf_data;
+	u32			etr_options;
+	int			cpu;
 };
 
 struct etr_buf_operations {
@@ -322,4 +362,54 @@ tmc_sg_table_buf_size(struct tmc_sg_table *sg_table)
 
 struct coresight_device *tmc_etr_get_catu_device(struct tmc_drvdata *drvdata);
 
+static inline int tmc_alloc_secbuf(struct tmc_drvdata *drvdata,
+				   size_t len, dma_addr_t *s_paddr)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(OCTEONTX_TRC_ALLOC_SBUF, len, drvdata->cpu,
+		      drvdata->cache_lock_en, 0, 0, 0, 0, &res);
+	if (res.a0 != SMCCC_RET_SUCCESS)
+		return -EFAULT;
+
+	*s_paddr = res.a1;
+	return 0;
+}
+
+static inline int tmc_free_secbuf(struct tmc_drvdata *drvdata,
+				  dma_addr_t s_paddr, size_t len)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(OCTEONTX_TRC_FREE_SBUF, s_paddr, len,
+		      0, 0, 0, 0, 0, &res);
+	return 0;
+}
+
+static inline int tmc_register_drvbuf(struct tmc_drvdata *drvdata,
+				      dma_addr_t paddr, size_t len)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(OCTEONTX_TRC_REGISTER_DRVBUF, paddr, len,
+		      0, 0, 0, 0, 0, &res);
+	if (res.a0 != SMCCC_RET_SUCCESS)
+		return -EFAULT;
+
+	return 0;
+}
+
+static inline int tmc_unregister_drvbuf(struct tmc_drvdata *drvdata,
+					dma_addr_t paddr, size_t len)
+{
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(OCTEONTX_TRC_UNREGISTER_DRVBUF, paddr, len,
+		      0, 0, 0, 0, 0, &res);
+	return 0;
+
+}
+
+int tmc_copy_secure_buffer(struct tmc_drvdata *drvdata,
+					 char *bufp, size_t len);
 #endif
