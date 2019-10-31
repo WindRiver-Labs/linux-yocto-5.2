@@ -1478,6 +1478,9 @@ static void tmc_free_etr_buffer(void *config)
 	if (buf && WARN_ON(buf != etr_buf))
 		goto free_etr_perf_buffer;
 
+	tmc_unregister_drvbuf(drvdata, etr_buf->hwaddr,
+					      etr_buf->size);
+
 	tmc_free_etr_buf(etr_perf->etr_buf);
 
 free_etr_perf_buffer:
