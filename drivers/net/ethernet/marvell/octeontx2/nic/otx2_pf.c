@@ -44,6 +44,24 @@ enum {
 	TYPE_PFVF,
 };
 
+static int otx2_change_mtu(struct net_device *netdev, int new_mtu)
+{
+	bool if_up = netif_running(netdev);
+	int err = 0;
+
+	if (if_up)
+		otx2_stop(netdev);
+
+	netdev_info(netdev, "Changing MTU from %d to %d\n",
+		    netdev->mtu, new_mtu);
+	netdev->mtu = new_mtu;
+
+	if (if_up)
+		err = otx2_open(netdev);
+
+	return err;
+}
+
 static void otx2_disable_flr_me_intr(struct otx2_nic *pf)
 {
 	int irq, vfs = pf->total_vfs;
@@ -941,11 +959,11 @@ static irqreturn_t otx2_pfaf_mbox_intr_handler(int irq, void *pf_irq)
 	struct otx2_nic *pf = (struct otx2_nic *)pf_irq;
 	struct mbox *mbox;
 
-	mbox = &pf->mbox;
-	otx2_queue_work(mbox, pf->mbox_wq, 0, 1, 1, TYPE_PFAF);
-
 	/* Clear the IRQ */
 	otx2_write64(pf, RVU_PF_INT, BIT_ULL(0));
+
+	mbox = &pf->mbox;
+	otx2_queue_work(mbox, pf->mbox_wq, 0, 1, 1, TYPE_PFAF);
 
 	return IRQ_HANDLED;
 }
@@ -1514,11 +1532,6 @@ int otx2_open(struct net_device *netdev)
 		napi_enable(&cq_poll->napi);
 	}
 
-	/* Set default mac address */
-	err = otx2_hw_set_mac_addr(pf, netdev);
-	if (err)
-		goto err_disable_napi;
-
 	/* Set default MTU in HW */
 	err = otx2_hw_set_mtu(pf, netdev->mtu);
 	if (err)
@@ -1579,13 +1592,12 @@ int otx2_open(struct net_device *netdev)
 	/* 'intf_down' may be checked on any cpu */
 	smp_wmb();
 
-	err = otx2_rxtx_enable(pf, true);
-	if (err)
-		goto err_free_cints;
-
 	/* we have already received link status notification */
 	if (pf->linfo.link_up && !(pf->pcifunc & RVU_PFVF_FUNC_MASK))
 		otx2_handle_link_event(pf);
+
+	if (otx2_nic_is_feature_enabled(pf, OTX2_RX_VLAN_OFFLOAD_CAPABLE))
+		otx2_enable_rxvlan(pf, true);
 
 	/* When reinitializing enable time stamping if it is enabled before */
 	if (pf->hw_tx_tstamp) {
@@ -1596,6 +1608,10 @@ int otx2_open(struct net_device *netdev)
 		pf->hw_rx_tstamp = 0;
 		otx2_config_hw_rx_tstamp(pf, true);
 	}
+
+	err = otx2_rxtx_enable(pf, true);
+	if (err)
+		goto err_free_cints;
 
 	return 0;
 
@@ -1751,6 +1767,10 @@ static int otx2_set_features(struct net_device *netdev,
 	if ((changed & NETIF_F_LOOPBACK) && netif_running(netdev))
 		return otx2_cgx_config_loopback(pf,
 						features & NETIF_F_LOOPBACK);
+
+	if ((changed & NETIF_F_HW_VLAN_CTAG_RX) && netif_running(netdev))
+		return otx2_enable_rxvlan(pf,
+					  features & NETIF_F_HW_VLAN_CTAG_RX);
 
 	if ((changed & NETIF_F_NTUPLE) && !ntuple)
 		otx2_destroy_ntuple_flows(pf);
@@ -2185,8 +2205,13 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	netdev->features |= netdev->hw_features;
 	/* Support TSO on tag interface */
 	netdev->vlan_features |= netdev->features;
-	netdev->features  |= NETIF_F_HW_VLAN_CTAG_TX |
-			     NETIF_F_HW_VLAN_STAG_TX;
+
+	netdev->hw_features  |= NETIF_F_HW_VLAN_CTAG_TX |
+				NETIF_F_HW_VLAN_STAG_TX |
+				NETIF_F_HW_VLAN_CTAG_RX |
+				NETIF_F_HW_VLAN_STAG_RX;
+
+	netdev->features |= netdev->hw_features;
 
 	netdev->hw_features |= NETIF_F_LOOPBACK | NETIF_F_NTUPLE |
 			       NETIF_F_RXALL;
@@ -2416,6 +2441,7 @@ static struct pci_driver otx2_pf_driver = {
 	.name = DRV_NAME,
 	.id_table = otx2_pf_id_table,
 	.probe = otx2_probe,
+	.shutdown = otx2_remove,
 	.remove = otx2_remove,
 	.sriov_configure = otx2_sriov_configure
 };

@@ -16,6 +16,7 @@
 #include <linux/vmalloc.h>
 #include "coresight-catu.h"
 #include "coresight-etm-perf.h"
+#include <linux/arm-smccc.h>
 #include "coresight-priv.h"
 #include "coresight-tmc.h"
 
@@ -590,6 +591,9 @@ static int tmc_etr_alloc_flat_buf(struct tmc_drvdata *drvdata,
 				  void **pages)
 {
 	struct etr_flat_buf *flat_buf;
+	dma_addr_t s_paddr = 0;
+	int buff_sec_mapped = 0;
+	int ret;
 
 	/* We cannot reuse existing pages for flat buf */
 	if (pages)
@@ -606,12 +610,44 @@ static int tmc_etr_alloc_flat_buf(struct tmc_drvdata *drvdata,
 		return -ENOMEM;
 	}
 
+	if (!(drvdata->etr_options & CORESIGHT_OPTS_SECURE_BUFF))
+		goto skip_secure_buffer;
+
+	/* Register driver allocated dma buffer for necessary
+	 * mapping in the secure world
+	 */
+	if (tmc_register_drvbuf(drvdata, flat_buf->daddr, etr_buf->size)) {
+		ret = -ENOMEM;
+		goto err;
+	}
+	buff_sec_mapped = 1;
+
+	/* Allocate secure trace buffer */
+	if (tmc_alloc_secbuf(drvdata, etr_buf->size, &s_paddr)) {
+		ret = -ENOMEM;
+		goto err;
+	}
+
+skip_secure_buffer:
 	flat_buf->size = etr_buf->size;
 	flat_buf->dev = drvdata->dev;
 	etr_buf->hwaddr = flat_buf->daddr;
+	etr_buf->s_paddr= s_paddr;
 	etr_buf->mode = ETR_MODE_FLAT;
 	etr_buf->private = flat_buf;
 	return 0;
+
+err:
+	kfree(flat_buf);
+	dma_free_coherent(drvdata->dev, etr_buf->size, flat_buf->vaddr,
+			  flat_buf->daddr);
+	if (buff_sec_mapped)
+		tmc_unregister_drvbuf(drvdata, flat_buf->daddr,
+				      etr_buf->size);
+	if (s_paddr)
+		tmc_free_secbuf(drvdata, s_paddr, etr_buf->size);
+
+	return ret;
 }
 
 static void tmc_etr_free_flat_buf(struct etr_buf *etr_buf)
@@ -937,10 +973,17 @@ static void __tmc_etr_enable_hw(struct tmc_drvdata *drvdata)
 
 	CS_UNLOCK(drvdata->base);
 
+	if (drvdata->etr_options & CORESIGHT_OPTS_RESET_CTL_REG)
+		tmc_disable_hw(drvdata);
+
 	/* Wait for TMCSReady bit to be set */
 	tmc_wait_for_tmcready(drvdata);
 
 	writel_relaxed(etr_buf->size / 4, drvdata->base + TMC_RSZ);
+	if (drvdata && CORESIGHT_OPTS_BUFFSIZE_8BX)
+		writel_relaxed(etr_buf->size / 8, drvdata->base + TMC_RSZ);
+	else
+		writel_relaxed(etr_buf->size / 4, drvdata->base + TMC_RSZ);
 	writel_relaxed(TMC_MODE_CIRCULAR_BUFFER, drvdata->base + TMC_MODE);
 
 	axictl = readl_relaxed(drvdata->base + TMC_AXICTL);
@@ -957,7 +1000,10 @@ static void __tmc_etr_enable_hw(struct tmc_drvdata *drvdata)
 		axictl |= TMC_AXICTL_SCT_GAT_MODE;
 
 	writel_relaxed(axictl, drvdata->base + TMC_AXICTL);
-	tmc_write_dba(drvdata, etr_buf->hwaddr);
+	if (drvdata->etr_options & CORESIGHT_OPTS_SECURE_BUFF)
+		tmc_write_dba(drvdata, etr_buf->s_paddr);
+	else
+		tmc_write_dba(drvdata, etr_buf->hwaddr);
 	/*
 	 * If the TMC pointers must be programmed before the session,
 	 * we have to set it properly (i.e, RRP/RWP to base address and
@@ -965,7 +1011,10 @@ static void __tmc_etr_enable_hw(struct tmc_drvdata *drvdata)
 	 */
 	if (tmc_etr_has_cap(drvdata, TMC_ETR_SAVE_RESTORE)) {
 		tmc_write_rrp(drvdata, etr_buf->hwaddr);
-		tmc_write_rwp(drvdata, etr_buf->hwaddr);
+		if (drvdata->etr_options & CORESIGHT_OPTS_SECURE_BUFF)
+			tmc_write_rwp(drvdata, etr_buf->s_paddr);
+		else
+			tmc_write_rwp(drvdata, etr_buf->hwaddr);
 		sts = readl_relaxed(drvdata->base + TMC_STS) & ~TMC_STS_FULL;
 		writel_relaxed(sts, drvdata->base + TMC_STS);
 	}
@@ -1693,6 +1742,25 @@ int tmc_read_unprepare_etr(struct tmc_drvdata *drvdata)
 	/* Free allocated memory out side of the spinlock */
 	if (sysfs_buf)
 		tmc_etr_free_sysfs_buf(sysfs_buf);
+
+	return 0;
+}
+
+int tmc_copy_secure_buffer(struct tmc_drvdata *drvdata,
+					 char *bufp, size_t len)
+{
+	struct arm_smccc_res res;
+	uint64_t offset;
+	char *vaddr;
+	struct etr_buf *etr_buf = drvdata->etr_buf;
+
+	tmc_etr_buf_get_data(etr_buf, 0, 0, &vaddr);
+	offset = bufp - vaddr;
+
+	arm_smccc_smc(OCTEONTX_TRC_COPY_TO_DRVBUF, etr_buf->hwaddr + offset,
+		      etr_buf->s_paddr + offset, len, 0, 0, 0, 0, &res);
+	if (res.a0 != SMCCC_RET_SUCCESS)
+		return -EFAULT;
 
 	return 0;
 }

@@ -223,7 +223,7 @@ static void *etm_setup_aux(struct perf_event *event, void **pages,
 		id = (u32)event->attr.config2;
 		sink = coresight_get_sink_by_id(id);
 	} else {
-		sink = coresight_get_enabled_sink(true);
+		sink = coresight_get_enabled_sink(NULL, true);
 	}
 
 	if (!sink)

@@ -8385,6 +8385,14 @@ static struct npc_kpu_profile_action kpu2_action_entries[] = {
 		NPC_F_LB_U_UNK_ETYPE | NPC_F_LB_L_EXDSA,
 		0, 0, 0, 0,
 	},
+	{
+		NPC_ERRLEV_LB, NPC_EC_L2_K3,
+		0, 0, 0, 0, 1,
+		NPC_S_NA, 0, 0,
+		NPC_LID_LB, NPC_LT_NA,
+		0,
+		0, 0, 0, 0,
+	},
 };
 
 static struct npc_kpu_profile_action kpu3_action_entries[] = {
@@ -10711,7 +10719,7 @@ static struct npc_kpu_profile_action kpu8_action_entries[] = {
 		NPC_ERRLEV_RE, NPC_EC_NOERR,
 		12, 16, 20, 2, 0,
 		NPC_S_KPU11_TU_ETHER, 8, 1,
-		NPC_LID_LD, NPC_LT_LD_GRE,
+		NPC_LID_LD, NPC_LT_LD_NVGRE,
 		NPC_F_LD_L_GRE_NVGRE,
 		0, 0, 0, 0,
 	},
