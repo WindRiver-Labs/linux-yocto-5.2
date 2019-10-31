@@ -65,6 +65,9 @@ stable kernels.
 | ARM            | Neoverse-N1     | #1188873,1418040| ARM64_ERRATUM_1418040       |
 | ARM            | MMU-500         | #841119,826419  | N/A                         |
 |                |                 |                 |                             |
+| Broadcom       | Brahma-B53      | N/A             | ARM64_ERRATUM_845719        |
++----------------+-----------------+-----------------+-----------------------------+
++----------------+-----------------+-----------------+-----------------------------+
 | Cavium         | ThunderX ITS    | #22375,24313    | CAVIUM_ERRATUM_22375        |
 | Cavium         | ThunderX ITS    | #23144          | CAVIUM_ERRATUM_23144        |
 | Cavium         | ThunderX GICv3  | #23154          | CAVIUM_ERRATUM_23154        |
