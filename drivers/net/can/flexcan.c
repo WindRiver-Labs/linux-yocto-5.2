@@ -303,8 +303,9 @@ struct flexcan_irq {
 
 struct flexcan_devtype_data {
 	u32 quirks;		/* quirks needed for different IP cores */
+	int n_irqs;
+	struct flexcan_irq *irqs;
 };
-
 struct flexcan_stop_mode {
 	struct regmap *gpr;
 	u8 req_gpr;
@@ -374,6 +375,8 @@ static const struct flexcan_devtype_data fsl_p1010_devtype_data = {
 static const struct flexcan_devtype_data fsl_imx25_devtype_data = {
 	.quirks = FLEXCAN_QUIRK_BROKEN_WERR_STATE |
 		FLEXCAN_QUIRK_BROKEN_PERR_STATE,
+	.n_irqs = ARRAY_SIZE(combined_flexcan_irqs),
+	.irqs = combined_flexcan_irqs,
 };
 
 static const struct flexcan_devtype_data fsl_imx28_devtype_data = {
@@ -415,7 +418,9 @@ static struct flexcan_devtype_data fsl_s32v234_devtype_data = {
 };
 
 static struct flexcan_devtype_data fsl_s32gen1_devtype_data = {
-	.quirks = FLEXCAN_QUIRK_DISABLE_RXFG | FLEXCAN_QUIRK_DISABLE_MECR,
+	.quirks = FLEXCAN_QUIRK_DISABLE_RXFG | FLEXCAN_QUIRK_DISABLE_MECR |
+		FLEXCAN_QUIRK_USE_OFF_TIMESTAMP |
+		FLEXCAN_QUIRK_TIMESTAMP_SUPPORT_FD,
 	.n_irqs = ARRAY_SIZE(s32gen1_flexcan_irqs),
 	.irqs = s32gen1_flexcan_irqs,
 };
@@ -1016,7 +1021,7 @@ static unsigned int flexcan_mailbox_read(struct can_rx_offload *offload,
 	struct flexcan_mb __iomem *mb;
 	struct canfd_frame *cf;
 	u32 reg_ctrl, reg_id, reg_iflag1;
-	int i;
+	int i, j;
 	unsigned long flags;
 
 	mb = flexcan_get_mb(priv, n);
