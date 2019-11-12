@@ -247,6 +247,7 @@ struct clk_ops {
 					  struct clk_duty *duty);
 	void		(*init)(struct clk_hw *hw);
 	void		(*debug_init)(struct clk_hw *hw, struct dentry *dentry);
+	int		(*get_available_rates)(struct clk_hw *hw, u64 *rate);
 };
 
 /**

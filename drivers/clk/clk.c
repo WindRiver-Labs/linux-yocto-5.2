@@ -21,6 +21,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/sched.h>
 #include <linux/clkdev.h>
+#include <linux/uaccess.h>
 
 #include "clk.h"
 
@@ -3079,6 +3080,116 @@ static int clk_duty_cycle_show(struct seq_file *s, void *data)
 }
 DEFINE_SHOW_ATTRIBUTE(clk_duty_cycle);
 
+static ssize_t clock_freq_get(struct file *file, char __user *user_buf,
+				size_t count, loff_t *ppos)
+{
+	char buf[32];
+	unsigned int len;
+	struct clk_core *core = file->f_inode->i_private;
+	u32 clk_cur_frq = clk_core_get_rate(core);
+
+	len = snprintf(buf, sizeof(buf), "%u\n", clk_cur_frq);
+	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
+}
+
+static ssize_t clock_freq_set(struct file *file,
+		const char __user *user_buf, size_t count, loff_t *ppos)
+{
+	char buf[32];
+	ssize_t len;
+	struct clk_core *core = file->f_inode->i_private;
+	u32 new_clk_frq;
+	/* No parent */
+	unsigned long parent_rate = 0;
+
+	len = min(count, sizeof(buf) - 1);
+	if (copy_from_user(buf, user_buf, len))
+		return -EFAULT;
+
+	/* Make the buffer a valid string that we can not overrun */
+	buf[len] = '\0';
+	if (kstrtouint(buf, 0, &new_clk_frq))
+		return -EINVAL;
+
+	core->ops->set_rate(core->hw, new_clk_frq, parent_rate);
+	return count;
+}
+
+static int clock_freq_dummy(struct seq_file *s, void *unused)
+{
+	return 0;
+}
+
+static int clock_freq_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, clock_freq_dummy,
+		inode->i_private);
+}
+
+/* File operations for reading or setting various device clock frequencies */
+static const struct file_operations clock_freq_fops = {
+	.open           = clock_freq_open,
+	.read           = clock_freq_get,
+	.write		= clock_freq_set,
+	.llseek         = seq_lseek,
+	.release        = single_release,
+};
+
+int clk_core_get_available_rate(struct clk_core *core, u64 *rates)
+{
+	if (core->ops->get_available_rates)
+		return core->ops->get_available_rates(core->hw, rates);
+	return 0;
+}
+
+static ssize_t available_clock_freq_get(struct file *file,
+		char __user *user_buf, size_t count, loff_t *ppos)
+{
+	char buf[256];
+	u64 rates_buf[16];
+	u32 index = 0, i;
+	int no_of_freqs;
+
+	struct clk_core *core = file->f_inode->i_private;
+
+	no_of_freqs = clk_core_get_available_rate(core, rates_buf);
+
+	/* No freq found */
+	if (no_of_freqs <= 0 || no_of_freqs > 16) {
+		pr_err("Fails to get available frequencies\n");
+		return -EINVAL;
+	}
+
+	for (i = 0; i < no_of_freqs; i++)
+		index += snprintf(&buf[index],
+				sizeof(buf), "%llu ", rates_buf[i]);
+
+	index += snprintf(&buf[index], sizeof(buf), "\n");
+	return simple_read_from_buffer(user_buf, count, ppos, buf, index);
+}
+
+static int available_clock_freq_dummy(struct seq_file *s, void *unused)
+{
+	return 0;
+}
+
+static int available_clock_freq_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, available_clock_freq_dummy,
+		inode->i_private);
+}
+
+/*
+ * File operations for reading all valid possible frequencies the device
+ * clock could support.
+ */
+static const struct file_operations available_clock_freq_fops = {
+	.open           = available_clock_freq_open,
+	.read           = available_clock_freq_get,
+	.llseek         = seq_lseek,
+	.release        = single_release,
+};
+
 static void clk_debug_create_one(struct clk_core *core, struct dentry *pdentry)
 {
 	struct dentry *root;
@@ -3089,7 +3200,9 @@ static void clk_debug_create_one(struct clk_core *core, struct dentry *pdentry)
 	root = debugfs_create_dir(core->name, pdentry);
 	core->dentry = root;
 
-	debugfs_create_ulong("clk_rate", 0444, root, &core->rate);
+	debugfs_create_file("clk_rate", 0644, root, core, &clock_freq_fops);
+	debugfs_create_file("clk_available_freq", 0444, root, core,
+						&available_clock_freq_fops);
 	debugfs_create_ulong("clk_accuracy", 0444, root, &core->accuracy);
 	debugfs_create_u32("clk_phase", 0444, root, &core->phase);
 	debugfs_create_file("clk_flags", 0444, root, core, &clk_flags_fops);

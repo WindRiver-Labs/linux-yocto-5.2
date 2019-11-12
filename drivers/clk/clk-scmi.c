@@ -86,6 +86,15 @@ static void scmi_clk_disable(struct clk_hw *hw)
 	clk->handle->clk_ops->disable(clk->handle, clk->id);
 }
 
+static int scmi_get_available_rates(struct clk_hw *hw, u64 *rate)
+{
+	struct scmi_clk *clk = to_scmi_clk(hw);
+
+	return clk->handle->clk_ops->available_rates(clk->handle,
+							 clk->id, rate);
+}
+
+
 static const struct clk_ops scmi_clk_ops = {
 	.recalc_rate = scmi_clk_recalc_rate,
 	.round_rate = scmi_clk_round_rate,
@@ -98,6 +107,7 @@ static const struct clk_ops scmi_clk_ops = {
 	 */
 	.prepare = scmi_clk_enable,
 	.unprepare = scmi_clk_disable,
+	.get_available_rates = scmi_get_available_rates,
 };
 
 static int scmi_clk_ops_init(struct device *dev, struct scmi_clk *sclk)
