@@ -125,8 +125,9 @@ static struct list_head *scan_positives(struct dentry *cursor,
 		}
 	}
 	spin_unlock(&dentry->d_lock);
-	dput(last);
-	return found;
+	dput(*res);
+	*res = found;
+	return p;
 }
 
 loff_t dcache_dir_lseek(struct file *file, loff_t offset, int whence)
