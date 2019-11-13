@@ -28,6 +28,13 @@ config PCI_ENDPOINT_CONFIGFS
 	   configure the endpoint function and used to bind the
 	   function with a endpoint controller.
 
+config PCIE_ARMADA_DW_EP
+	bool "Armada DesignWare PCI End-point driver "
+	depends on OF && HAS_IOMEM
+        help
+           Enable this configuration option to support configurable Armada
+           PCI endpoint.
+
 source "drivers/pci/endpoint/functions/Kconfig"
 
 endmenu
