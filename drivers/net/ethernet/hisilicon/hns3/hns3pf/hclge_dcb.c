@@ -302,6 +302,7 @@ static int hclge_ieee_setpfc(struct hnae3_handle *h, struct ieee_pfc *pfc)
 	struct hclge_vport *vport = hclge_get_vport(h);
 	struct hclge_dev *hdev = vport->back;
 	u8 i, j, pfc_map, *prio_tc;
+	int ret;
 
 	if (!(hdev->dcbx_cap & DCB_CAP_DCBX_VER_IEEE) ||
 	    hdev->flag & HCLGE_FLAG_MQPRIO_ENABLE)
@@ -325,7 +326,21 @@ static int hclge_ieee_setpfc(struct hnae3_handle *h, struct ieee_pfc *pfc)
 	hdev->tm_info.hw_pfc_map = pfc_map;
 	hdev->tm_info.pfc_en = pfc->pfc_en;
 
-	return hclge_pause_setup_hw(hdev, false);
+	ret = hclge_pause_setup_hw(hdev, false);
+	if (ret)
+		return ret;
+
+	ret = hclge_notify_client(hdev, HNAE3_DOWN_CLIENT);
+	if (ret)
+		return ret;
+
+	ret = hclge_buffer_alloc(hdev);
+	if (ret) {
+		hclge_notify_client(hdev, HNAE3_UP_CLIENT);
+		return ret;
+	}
+
+	return hclge_notify_client(hdev, HNAE3_UP_CLIENT);
 }
 
 /* DCBX configuration */
