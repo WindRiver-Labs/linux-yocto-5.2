@@ -3377,7 +3377,7 @@ void predict_nextep_seq( dwc_otg_core_if_t * core_if)
 	dtknq1_data_t dtknqr1;
 	uint32_t in_tkn_epnums[4];
 	uint8_t seqnum[MAX_EPS_CHANNELS];
-	uint8_t intkn_seq[TOKEN_Q_DEPTH];
+	uint8_t *intkn_seq;
 	grstctl_t resetctl = {.d32 = 0 };
 	uint8_t temp;
 	int ndx = 0;
@@ -3389,6 +3389,8 @@ void predict_nextep_seq( dwc_otg_core_if_t * core_if)
 
 
 	DWC_DEBUGPL(DBG_PCD,"dev_token_q_depth=%d\n",TOKEN_Q_DEPTH);
+
+	intkn_seq = kmalloc(TOKEN_Q_DEPTH, GFP_KERNEL);
 
 	/* Read the DTKNQ Registers */
 	for (i = 0; i < DTKNQ_REG_CNT; i++) {
@@ -3530,7 +3532,7 @@ void predict_nextep_seq( dwc_otg_core_if_t * core_if)
 	resetctl.b.intknqflsh = 1;
 	DWC_WRITE_REG32(&core_if->core_global_regs->grstctl, resetctl.d32);
 
-
+	kfree(intkn_seq);
 }
 
 /**
