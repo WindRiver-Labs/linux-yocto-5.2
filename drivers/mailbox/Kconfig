@@ -22,6 +22,14 @@ config IMX_MBOX
 	help
 	  Mailbox implementation for i.MX Messaging Unit (MU).
 
+config MVL_MHU
+	tristate "MVL MHU Mailbox"
+	help
+	  Say Y here if you want to build the MVL MHU controller driver.
+	  The controller has 2 mailbox channels, the last of which can be
+	  used in secure mode only. Thi mail box uses internal CPC RAM for
+	  creating the mailbox memory.
+
 config PLATFORM_MHU
 	tristate "Platform MHU Mailbox"
 	depends on OF
