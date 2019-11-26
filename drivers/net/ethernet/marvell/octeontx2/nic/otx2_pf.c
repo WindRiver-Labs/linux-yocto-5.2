@@ -1648,10 +1648,12 @@ int otx2_open(struct net_device *netdev)
 		otx2_config_hw_rx_tstamp(pf, true);
 	}
 
-	/* Set NPC parsing mode */
-	err = otx2_set_npc_parse_mode(pf);
-	if (err)
-		goto err_free_cints;
+	/* Set NPC parsing mode, skip LBKs */
+	if (!is_otx2_lbkvf(pf->pdev)) {
+		err = otx2_set_npc_parse_mode(pf);
+		if (err)
+			goto err_free_cints;
+	}
 
 	err = otx2_rxtx_enable(pf, true);
 	if (err)
