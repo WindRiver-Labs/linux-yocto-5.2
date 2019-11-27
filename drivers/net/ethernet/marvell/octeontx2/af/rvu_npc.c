@@ -183,8 +183,8 @@ static bool is_mcam_entry_enabled(struct rvu *rvu, struct npc_mcam *mcam,
 	return (cfg & 1);
 }
 
-static void npc_enable_mcam_entry(struct rvu *rvu, struct npc_mcam *mcam,
-				  int blkaddr, int index, bool enable)
+void npc_enable_mcam_entry(struct rvu *rvu, struct npc_mcam *mcam,
+			   int blkaddr, int index, bool enable)
 {
 	int bank = npc_get_bank(mcam, index);
 	int actbank = bank;
@@ -898,6 +898,11 @@ static void npc_config_tx_ldata_extract(struct rvu *rvu, int blkaddr)
 	cfg = KEX_LD_CFG(0x01, 0x0, 0x1, 0x0, 0x4);
 	SET_KEX_LD(NIX_INTF_TX, NPC_LID_LA, NPC_LT_LA_IH_NIX_ETHER, 0, cfg);
 
+	/* PF_FUNC incase of higig2 */
+	cfg = KEX_LD_CFG(0x01, 0x0, 0x1, 0x0, 0x4);
+	SET_KEX_LD(NIX_INTF_TX, NPC_LID_LA, NPC_LT_LA_IH_NIX_HIGIG2_ETHER, 0,
+		   cfg);
+
 	/* Layer B: Single VLAN (CTAG) */
 	/* CTAG VLAN[2..3] KW0[63:48] */
 	cfg = KEX_LD_CFG(0x01, 0x2, 0x1, 0x0, 0x6);
@@ -919,6 +924,11 @@ static void npc_config_tx_ldata_extract(struct rvu *rvu, int blkaddr)
 	/* DMAC: 6 bytes, KW1[63:16] */
 	cfg = KEX_LD_CFG(0x05, 0x8, 0x1, 0x0, 0xa);
 	SET_KEX_LD(NIX_INTF_TX, NPC_LID_LA, NPC_LT_LA_IH_NIX_ETHER, 1, cfg);
+
+	/* clasification in higig2 header */
+	cfg = KEX_LD_CFG(0x01, 0x10, 0x1, 0x0, 0xa);
+	SET_KEX_LD(NIX_INTF_TX, NPC_LID_LA, NPC_LT_LA_IH_NIX_HIGIG2_ETHER, 1,
+		   cfg);
 
 	/* Layer C: IPv4 */
 	/* SIP+DIP: 8 bytes, KW2[63:0] */
@@ -958,6 +968,14 @@ static void npc_config_rx_ldata_extract(struct rvu *rvu, int blkaddr)
 	/* Ethertype: 2 bytes, KW0[47:32] */
 	cfg = KEX_LD_CFG(0x01, 0xc, 0x1, 0x0, 0x4);
 	SET_KEX_LD(NIX_INTF_RX, NPC_LID_LA, NPC_LT_LA_ETHER, 1, cfg);
+
+	/* Classification in higig2 header */
+	cfg = KEX_LD_CFG(0x01, 0x8, 0x1, 0x0, NPC_PARSE_RESULT_DMAC_OFFSET);
+	SET_KEX_LD(NIX_INTF_RX, NPC_LID_LA, NPC_LT_LA_HIGIG2_ETHER, 0, cfg);
+
+	/* Vid in higig2 header */
+	cfg = KEX_LD_CFG(0x01, 0xc, 0x1, 0x0, NPC_PARSE_RESULT_DMAC_OFFSET + 2);
+	SET_KEX_LD(NIX_INTF_RX, NPC_LID_LA, NPC_LT_LA_HIGIG2_ETHER, 1, cfg);
 
 	/* Layer B: Single VLAN (CTAG) */
 	/* CTAG VLAN[2..3] + Ethertype, 4 bytes, KW0[63:32] */
@@ -2600,15 +2618,70 @@ int rvu_mbox_handler_npc_get_kex_cfg(struct rvu *rvu, struct msg_req *req,
 	return 0;
 }
 
-int rvu_npc_write_default_rule(struct rvu *rvu, int blkaddr, int nixlf,
-			       u16 pcifunc, u8 intf, struct mcam_entry *entry)
+bool rvu_npc_write_default_rule(struct rvu *rvu, int blkaddr, int nixlf,
+				u16 pcifunc, u8 intf, struct mcam_entry *entry,
+				int *index)
 {
 	struct npc_mcam *mcam = &rvu->hw->mcam;
-	int index;
+	bool enable;
 
-	index = npc_get_nixlf_mcam_index(mcam, pcifunc,
-					 nixlf, NIXLF_UCAST_ENTRY);
-	npc_config_mcam_entry(rvu, mcam, blkaddr, index, intf, entry, true);
+	*index = npc_get_nixlf_mcam_index(mcam, pcifunc,
+					  nixlf, NIXLF_UCAST_ENTRY);
+	/* dont force enable unicast entry  */
+	enable = is_mcam_entry_enabled(rvu, mcam, blkaddr, *index);
+	npc_config_mcam_entry(rvu, mcam, blkaddr, *index, intf, entry, enable);
 
-	return index;
+	return enable;
+}
+
+int rvu_mbox_handler_npc_set_pkind(struct rvu *rvu,
+				   struct npc_set_pkind *req,
+				   struct msg_rsp *rsp)
+{
+	struct rvu_pfvf *pfvf = rvu_get_pfvf(rvu, req->hdr.pcifunc);
+	int pf = rvu_get_pf(req->hdr.pcifunc);
+	int blkaddr, nixlf, rc;
+	u64 rxpkind, txpkind;
+	u8 cgx_id, lmac_id;
+
+	/* use default pkind to disable edsa/higig */
+	rxpkind = rvu_npc_get_pkind(rvu, pf);
+	txpkind = NPC_TX_DEF_PKIND;
+
+	if (req->mode & OTX2_PRIV_FLAGS_EDSA) {
+		rxpkind = NPC_RX_EDSA_PKIND;
+	} else if (req->mode & OTX2_PRIV_FLAGS_HIGIG) {
+		rxpkind = NPC_RX_HIGIG_PKIND;
+		txpkind = NPC_TX_HIGIG_PKIND;
+	} else if (req->mode & OTX2_PRIV_FLAGS_CUSTOM) {
+		rxpkind = req->pkind;
+		txpkind = req->pkind;
+	}
+
+	if (req->dir & PKIND_RX) {
+		/* rx pkind set req valid only for cgx mapped PFs */
+		if (!is_cgx_config_permitted(rvu, req->hdr.pcifunc))
+			return -EPERM;
+		rvu_get_cgx_lmac_id(pfvf->cgx_lmac, &cgx_id, &lmac_id);
+
+		rc = cgx_set_pkind(rvu_cgx_pdata(cgx_id, rvu),
+				   lmac_id, rxpkind);
+		if (rc)
+			return rc;
+	}
+
+	if (req->dir & PKIND_TX) {
+		blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NIX, req->hdr.pcifunc);
+
+		/* tx pkind set req valid if NIXLF attached */
+		if (!pfvf->nixlf || blkaddr < 0)
+			return NIX_AF_ERR_AF_LF_INVALID;
+
+		nixlf = rvu_get_lf(rvu, &rvu->hw->block[blkaddr],
+				   req->hdr.pcifunc, 0);
+
+		rvu_write64(rvu, blkaddr, NIX_AF_LFX_TX_PARSE_CFG(nixlf),
+			    txpkind);
+	}
+	return 0;
 }

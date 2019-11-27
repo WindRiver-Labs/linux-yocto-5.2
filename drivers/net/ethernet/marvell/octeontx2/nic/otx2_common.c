@@ -207,7 +207,10 @@ int otx2_hw_set_mtu(struct otx2_nic *pfvf, int mtu)
 	}
 
 	req->update_smq = true;
-	req->maxlen = mtu + OTX2_ETH_HLEN;
+	/* Add EDSA/HIGIG2 header len to maxlen */
+	pfvf->max_frs = mtu +  OTX2_ETH_HLEN + pfvf->addl_mtu;
+	req->maxlen = pfvf->max_frs;
+
 	err = otx2_sync_mbox_msg(&pfvf->mbox);
 	otx2_mbox_unlock(&pfvf->mbox);
 	return err;
@@ -335,9 +338,9 @@ void otx2_config_irq_coalescing(struct otx2_nic *pfvf, int qidx)
 	 * usecs, convert that to 100ns count.
 	 */
 	otx2_write64(pfvf, NIX_LF_CINTX_WAIT(qidx),
-		     ((u64)(pfvf->cq_time_wait * 10) << 48) |
-		     ((u64)pfvf->cq_qcount_wait << 32) |
-		     (pfvf->cq_ecount_wait - 1));
+		     ((u64)(pfvf->hw.cq_time_wait * 10) << 48) |
+		     ((u64)pfvf->hw.cq_qcount_wait << 32) |
+		     (pfvf->hw.cq_ecount_wait - 1));
 }
 
 dma_addr_t otx2_alloc_rbuf(struct otx2_nic *pfvf, struct otx2_pool *pool,
@@ -406,12 +409,12 @@ static int otx2_get_link(struct otx2_nic *pfvf)
 	u16 map;
 
 	/* cgx lmac link */
-	if (pfvf->tx_chan_base >= CGX_CHAN_BASE) {
-		map = pfvf->tx_chan_base & 0x7FF;
+	if (pfvf->hw.tx_chan_base >= CGX_CHAN_BASE) {
+		map = pfvf->hw.tx_chan_base & 0x7FF;
 		link = 4 * ((map >> 8) & 0xF) + ((map >> 4) & 0xF);
 	}
 	/* LBK channel */
-	if (pfvf->tx_chan_base < SDP_CHAN_BASE)
+	if (pfvf->hw.tx_chan_base < SDP_CHAN_BASE)
 		link = 12;
 
 	return link;
@@ -575,8 +578,8 @@ static int otx2_rq_init(struct otx2_nic *pfvf, u16 qidx, u16 lpb_aura)
 	aq->rq.qint_idx = 0;
 	aq->rq.lpb_drop_ena = 1; /* Enable RED dropping for AURA */
 	aq->rq.xqe_drop_ena = 1; /* Enable RED dropping for CQ/SSO */
-	aq->rq.xqe_pass = RQ_PASS_LVL_CQ(pfvf->rq_skid, qset->rqe_cnt);
-	aq->rq.xqe_drop = RQ_DROP_LVL_CQ(pfvf->rq_skid, qset->rqe_cnt);
+	aq->rq.xqe_pass = RQ_PASS_LVL_CQ(pfvf->hw.rq_skid, qset->rqe_cnt);
+	aq->rq.xqe_drop = RQ_DROP_LVL_CQ(pfvf->hw.rq_skid, qset->rqe_cnt);
 	aq->rq.lpb_aura_pass = RQ_PASS_LVL_AURA;
 	aq->rq.lpb_aura_drop = RQ_DROP_LVL_AURA;
 
@@ -630,7 +633,7 @@ static int otx2_sq_init(struct otx2_nic *pfvf, u16 qidx, u16 sqb_aura)
 	sq->aura_id = sqb_aura;
 	sq->aura_fc_addr = pool->fc_addr->base;
 	sq->lmt_addr = (__force u64 *)(pfvf->reg_base + LMT_LF_LMTLINEX(qidx));
-	sq->io_addr = (__force u64)(pfvf->reg_base + NIX_LF_OP_SENDX(0));
+	sq->io_addr = (__force u64)otx2_get_regaddr(pfvf, NIX_LF_OP_SENDX(0));
 
 	sq->stats.bytes = 0;
 	sq->stats.pkts = 0;
@@ -647,7 +650,7 @@ static int otx2_sq_init(struct otx2_nic *pfvf, u16 qidx, u16 sqb_aura)
 	/* Only one SMQ is allocated, map all SQ's to that SMQ  */
 	aq->sq.smq = pfvf->hw.txschq_list[NIX_TXSCH_LVL_SMQ][0];
 	aq->sq.smq_rr_quantum = OTX2_MAX_MTU;
-	aq->sq.default_chan = pfvf->tx_chan_base;
+	aq->sq.default_chan = pfvf->hw.tx_chan_base;
 	aq->sq.sqe_stype = NIX_STYPE_STF; /* Cache SQB */
 	aq->sq.sqb_aura = sqb_aura;
 	aq->sq.sq_int_ena = NIX_SQINT_BITS;
@@ -673,8 +676,16 @@ static int otx2_cq_init(struct otx2_nic *pfvf, u16 qidx)
 	int err, pool_id;
 
 	cq = &qset->cq[qidx];
-	cq->cqe_cnt = (qidx < pfvf->hw.rx_queues) ? qset->rqe_cnt
-			: qset->sqe_cnt;
+	cq->cq_idx = qidx;
+	if (qidx < pfvf->hw.rx_queues) {
+		cq->cq_type = CQ_RX;
+		cq->cint_idx = qidx;
+		cq->cqe_cnt = qset->rqe_cnt;
+	} else {
+		cq->cq_type = CQ_TX;
+		cq->cint_idx = qidx - pfvf->hw.rx_queues;
+		cq->cqe_cnt = qset->sqe_cnt;
+	}
 	cq->cqe_size = pfvf->qset.xqe_size;
 
 	/* Allocate memory for CQEs */
@@ -687,11 +698,9 @@ static int otx2_cq_init(struct otx2_nic *pfvf, u16 qidx)
 	/* In case where all RQs auras point to single pool,
 	 * all CQs receive buffer pool also point to same pool.
 	 */
-	pool_id = ((qidx < pfvf->hw.rx_queues) &&
+	pool_id = ((cq->cq_type == CQ_RX) &&
 		   (pfvf->hw.rqpool_cnt != pfvf->hw.rx_queues)) ? 0 : qidx;
 	cq->rbpool = &qset->pool[pool_id];
-
-	cq->cq_idx = qidx;
 	cq->refill_task_sched = false;
 
 	/* Get memory to put this msg */
@@ -703,15 +712,13 @@ static int otx2_cq_init(struct otx2_nic *pfvf, u16 qidx)
 	aq->cq.qsize = Q_SIZE(cq->cqe_cnt, 4);
 	aq->cq.caching = 1;
 	aq->cq.base = cq->cqe->iova;
-	aq->cq.cint_idx = (qidx < pfvf->hw.rx_queues) ? qidx
-				: (qidx - pfvf->hw.rx_queues);
-	cq->cint_idx = aq->cq.cint_idx;
+	aq->cq.cint_idx = cq->cint_idx;
 	aq->cq.cq_err_int_ena = NIX_CQERRINT_BITS;
 	aq->cq.qint_idx = 0;
 	aq->cq.avg_level = 255;
 
 	if (qidx < pfvf->hw.rx_queues) {
-		aq->cq.drop = RQ_DROP_LVL_CQ(pfvf->rq_skid, cq->cqe_cnt);
+		aq->cq.drop = RQ_DROP_LVL_CQ(pfvf->hw.rq_skid, cq->cqe_cnt);
 		aq->cq.drop_ena = 1;
 
 		/* Enable receive CQ backpressure */
@@ -719,7 +726,7 @@ static int otx2_cq_init(struct otx2_nic *pfvf, u16 qidx)
 		aq->cq.bpid = pfvf->bpid[0];
 
 		/* Set backpressure level is same as cq pass level */
-		aq->cq.bp = RQ_PASS_LVL_CQ(pfvf->rq_skid, qset->rqe_cnt);
+		aq->cq.bp = RQ_PASS_LVL_CQ(pfvf->hw.rq_skid, qset->rqe_cnt);
 	}
 
 	/* Fill AQ info */
@@ -1261,6 +1268,7 @@ int otx2_attach_npa_nix(struct otx2_nic *pfvf)
 			"RVUPF: Invalid MSIX vector offset for NPA/NIX\n");
 		return -EINVAL;
 	}
+
 	return 0;
 }
 EXPORT_SYMBOL(otx2_attach_npa_nix);
@@ -1312,10 +1320,10 @@ static inline void otx2_nix_rq_op_stats(struct queue_stats *stats,
 	u64 incr = (u64)qidx << 32;
 	atomic64_t *ptr;
 
-	ptr = (__force atomic64_t *)(pfvf->reg_base + NIX_LF_RQ_OP_OCTS);
+	ptr = (__force atomic64_t *)otx2_get_regaddr(pfvf, NIX_LF_RQ_OP_OCTS);
 	stats->bytes = atomic64_fetch_add_relaxed(incr, ptr);
 
-	ptr = (__force atomic64_t *)(pfvf->reg_base + NIX_LF_RQ_OP_PKTS);
+	ptr = (__force atomic64_t *)otx2_get_regaddr(pfvf, NIX_LF_RQ_OP_PKTS);
 	stats->pkts = atomic64_fetch_add_relaxed(incr, ptr);
 }
 
@@ -1325,10 +1333,10 @@ static inline void otx2_nix_sq_op_stats(struct queue_stats *stats,
 	u64 incr = (u64)qidx << 32;
 	atomic64_t *ptr;
 
-	ptr = (__force atomic64_t *)(pfvf->reg_base + NIX_LF_SQ_OP_OCTS);
+	ptr = (__force atomic64_t *)otx2_get_regaddr(pfvf, NIX_LF_SQ_OP_OCTS);
 	stats->bytes = atomic64_fetch_add_relaxed(incr, ptr);
 
-	ptr = (__force atomic64_t *)(pfvf->reg_base + NIX_LF_SQ_OP_PKTS);
+	ptr = (__force atomic64_t *)otx2_get_regaddr(pfvf, NIX_LF_SQ_OP_PKTS);
 	stats->pkts = atomic64_fetch_add_relaxed(incr, ptr);
 }
 
@@ -1376,8 +1384,8 @@ void mbox_handler_nix_lf_alloc(struct otx2_nic *pfvf,
 			       struct nix_lf_alloc_rsp *rsp)
 {
 	pfvf->hw.sqb_size = rsp->sqb_size;
-	pfvf->rx_chan_base = rsp->rx_chan_base;
-	pfvf->tx_chan_base = rsp->tx_chan_base;
+	pfvf->hw.rx_chan_base = rsp->rx_chan_base;
+	pfvf->hw.tx_chan_base = rsp->tx_chan_base;
 	pfvf->hw.lso_tsov4_idx = rsp->lso_tsov4_idx;
 	pfvf->hw.lso_tsov6_idx = rsp->lso_tsov6_idx;
 }

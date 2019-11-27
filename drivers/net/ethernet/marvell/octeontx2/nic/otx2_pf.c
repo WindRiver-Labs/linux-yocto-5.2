@@ -759,8 +759,6 @@ static void otx2_process_pfaf_mbox_msg(struct otx2_nic *pf,
 			config->intf_down = false;
 			dwork = &config->link_event_work;
 			schedule_delayed_work(dwork, msecs_to_jiffies(100));
-			dwork = &config->mac_vlan_work;
-			schedule_delayed_work(dwork, msecs_to_jiffies(100));
 			break;
 		case MBOX_MSG_NIX_LF_STOP_RX:
 			config->intf_down = true;
@@ -874,10 +872,31 @@ int otx2_mbox_up_handler_cgx_link_event(struct otx2_nic *pf,
 	}
 
 	/* interface has not been fully configured yet */
-	if (pf->intf_down)
+	if (pf->flags & OTX2_FLAG_INTF_DOWN)
 		return 0;
 
 	otx2_handle_link_event(pf);
+	return 0;
+}
+
+int otx2_mbox_up_handler_cgx_ptp_rx_info(struct otx2_nic *pf,
+					 struct cgx_ptp_rx_info_msg *msg,
+					 struct msg_rsp *rsp)
+{
+	int i;
+
+	pf->ptp->ptp_en = msg->ptp_en;
+
+	/* notify VFs about ptp event */
+	for (i = 0; i < pci_num_vf(pf->pdev); i++) {
+		struct otx2_vf_config *config = &pf->vf_configs[i];
+		struct delayed_work *dwork = &config->ptp_info_work;
+
+		if (config->intf_down)
+			continue;
+
+		schedule_delayed_work(dwork, msecs_to_jiffies(100));
+	}
 	return 0;
 }
 
@@ -977,7 +996,7 @@ static void otx2_disable_mbox_intr(struct otx2_nic *pf)
 	free_irq(vector, pf);
 }
 
-static int otx2_register_mbox_intr(struct otx2_nic *pf)
+static int otx2_register_mbox_intr(struct otx2_nic *pf, bool probe_af)
 {
 	struct otx2_hw *hw = &pf->hw;
 	struct msg_req *req;
@@ -1000,6 +1019,9 @@ static int otx2_register_mbox_intr(struct otx2_nic *pf)
 	 */
 	otx2_write64(pf, RVU_PF_INT, BIT_ULL(0));
 	otx2_write64(pf, RVU_PF_INT_ENA_W1S, BIT_ULL(0));
+
+	if (!probe_af)
+		return 0;
 
 	/* Check mailbox communication with AF */
 	req = otx2_mbox_alloc_msg_ready(&pf->mbox);
@@ -1155,23 +1177,24 @@ static irqreturn_t otx2_q_intr_handler(int irq, void *data)
 
 	/* CQ */
 	for (qidx = 0; qidx < pf->qset.cq_cnt; qidx++) {
-		ptr = pf->reg_base + NIX_LF_CQ_OP_INT;
-		val = atomic64_fetch_add_relaxed((qidx << 44) |
-						 NIX_CQERRINT_BITS, ptr);
+		ptr = otx2_get_regaddr(pf, NIX_LF_CQ_OP_INT);
+		val = atomic64_fetch_add_relaxed((qidx << 44), ptr);
 
+		otx2_write64(pf, NIX_LF_CQ_OP_INT, (qidx << 44) |
+			     (val & NIX_CQERRINT_BITS));
 		if (!(val & (NIX_CQERRINT_BITS | BIT_ULL(42))))
 			continue;
 
 		if (val & BIT_ULL(42)) {
-			dev_err(pf->dev, "CQ%lld: error reading NIX_LF_CQ_OP_INT, NIX_LF_ERR_INT 0x%llx\n",
-				qidx, otx2_read64(pf, NIX_LF_ERR_INT));
+			netdev_err(pf->netdev, "CQ%lld: error reading NIX_LF_CQ_OP_INT, NIX_LF_ERR_INT 0x%llx\n",
+				   qidx, otx2_read64(pf, NIX_LF_ERR_INT));
 		} else {
 			if (val & BIT_ULL(NIX_CQERRINT_DOOR_ERR))
-				dev_err(pf->dev, "CQ%lld: Doorbell error",
-					qidx);
+				netdev_err(pf->netdev, "CQ%lld: Doorbell error",
+					   qidx);
 			if (val & BIT_ULL(NIX_CQERRINT_CQE_FAULT))
-				dev_err(pf->dev, "CQ%lld: Memory fault on CQE write to LLC/DRAM",
-					qidx);
+				netdev_err(pf->netdev, "CQ%lld: Memory fault on CQE write to LLC/DRAM",
+					   qidx);
 		}
 
 		schedule_work(&pf->reset_task);
@@ -1179,29 +1202,44 @@ static irqreturn_t otx2_q_intr_handler(int irq, void *data)
 
 	/* SQ */
 	for (qidx = 0; qidx < pf->hw.tx_queues; qidx++) {
-		ptr = pf->reg_base + NIX_LF_SQ_OP_INT;
-		val = atomic64_fetch_add_relaxed((qidx << 44) | NIX_SQINT_BITS,
-						 ptr);
+		ptr = otx2_get_regaddr(pf, NIX_LF_SQ_OP_INT);
+		val = atomic64_fetch_add_relaxed((qidx << 44), ptr);
+		otx2_write64(pf, NIX_LF_SQ_OP_INT, (qidx << 44) |
+			     (val & NIX_SQINT_BITS));
+
 		if (!(val & (NIX_SQINT_BITS | BIT_ULL(42))))
 			continue;
 
 		if (val & BIT_ULL(42)) {
-			dev_err(pf->dev, "SQ%lld: error reading NIX_LF_SQ_OP_INT, NIX_LF_ERR_INT 0x%llx\n",
-				qidx, otx2_read64(pf, NIX_LF_ERR_INT));
+			netdev_err(pf->netdev, "SQ%lld: error reading NIX_LF_SQ_OP_INT, NIX_LF_ERR_INT 0x%llx\n",
+				   qidx, otx2_read64(pf, NIX_LF_ERR_INT));
 		} else {
-			if (val & BIT_ULL(NIX_SQINT_LMT_ERR))
-				dev_err(pf->dev, "SQ%lld: LMT store error",
-					qidx);
-			if (val & BIT_ULL(NIX_SQINT_MNQ_ERR))
-				dev_err(pf->dev, "SQ%lld: Meta-descriptor enqueue error",
-					qidx);
-			if (val & BIT_ULL(NIX_SQINT_SEND_ERR))
-				dev_err(pf->dev, "SQ%lld: Send error, NIX_LF_SEND_ERR_DBG 0x%llx",
-					qidx,
-					otx2_read64(pf, NIX_LF_SEND_ERR_DBG));
+			if (val & BIT_ULL(NIX_SQINT_LMT_ERR)) {
+				netdev_err(pf->netdev, "SQ%lld: LMT store error NIX_LF_SQ_OP_ERR_DBG:0x%llx",
+					   qidx,
+					   otx2_read64(pf,
+						       NIX_LF_SQ_OP_ERR_DBG));
+				otx2_write64(pf, NIX_LF_SQ_OP_ERR_DBG,
+					     BIT_ULL(44));
+			}
+			if (val & BIT_ULL(NIX_SQINT_MNQ_ERR)) {
+				netdev_err(pf->netdev, "SQ%lld: Meta-descriptor enqueue error NIX_LF_MNQ_ERR_DGB:0x%llx\n",
+					   qidx,
+					   otx2_read64(pf, NIX_LF_MNQ_ERR_DBG));
+				otx2_write64(pf, NIX_LF_MNQ_ERR_DBG,
+					     BIT_ULL(44));
+			}
+			if (val & BIT_ULL(NIX_SQINT_SEND_ERR)) {
+				netdev_err(pf->netdev, "SQ%lld: Send error, NIX_LF_SEND_ERR_DBG 0x%llx",
+					   qidx,
+					   otx2_read64(pf,
+						       NIX_LF_SEND_ERR_DBG));
+				otx2_write64(pf, NIX_LF_SEND_ERR_DBG,
+					     BIT_ULL(44));
+			}
 			if (val & BIT_ULL(NIX_SQINT_SQB_ALLOC_FAIL))
-				dev_err(pf->dev, "SQ%lld: SQB allocation failed",
-					qidx);
+				netdev_err(pf->netdev, "SQ%lld: SQB allocation failed",
+					   qidx);
 		}
 
 		schedule_work(&pf->reset_task);
@@ -1378,8 +1416,8 @@ static void otx2_free_hw_resources(struct otx2_nic *pf)
 	struct nix_lf_free_req *free_req;
 	struct mbox *mbox = &pf->mbox;
 	struct otx2_cq_queue *cq;
-	int err, qidx, cqe_count;
 	struct msg_req *req;
+	int qidx, err;
 
 	/* Stop transmission */
 	err = otx2_txschq_stop(pf);
@@ -1400,10 +1438,10 @@ static void otx2_free_hw_resources(struct otx2_nic *pf)
 	/*Dequeue all CQEs */
 	for (qidx = 0; qidx < qset->cq_cnt; qidx++) {
 		cq = &qset->cq[qidx];
-		cqe_count = otx2_read64(pf, NIX_LF_CINTX_CNT(cq->cint_idx));
-		cqe_count &= 0xFFFFFFFF;
-		if (cqe_count)
-			otx2_napi_handler(cq, pf, cqe_count);
+		if (cq->cq_type == CQ_RX)
+			otx2_cleanup_rx_cqes(pf, cq);
+		else
+			otx2_cleanup_tx_cqes(pf, cq);
 	}
 
 	/* Free RQ buffer pointers*/
@@ -1441,8 +1479,9 @@ static netdev_tx_t otx2_xmit(struct sk_buff *skb, struct net_device *netdev)
 	int qidx = skb_get_queue_mapping(skb);
 	struct netdev_queue *txq = netdev_get_tx_queue(netdev, qidx);
 
-	/* Check for minimum packet length */
-	if (skb->len <= ETH_HLEN) {
+	/* Check for minimum and maximum packet length */
+	if (skb->len <= ETH_HLEN ||
+	    (!skb_shinfo(skb)->gso_size && skb->len > pf->max_frs)) {
 		dev_kfree_skb(skb);
 		return NETDEV_TX_OK;
 	}
@@ -1522,13 +1561,13 @@ int otx2_open(struct net_device *netdev)
 		 * 'cq_ids[0]' points to RQ's CQ and
 		 * 'cq_ids[1]' points to SQ's CQ and
 		 */
-		cq_poll->cq_ids[0] =
+		cq_poll->cq_ids[CQ_RX] =
 			(qidx <  pf->hw.rx_queues) ? qidx : CINT_INVALID_CQ;
-		cq_poll->cq_ids[1] = (qidx < pf->hw.tx_queues) ?
+		cq_poll->cq_ids[CQ_TX] = (qidx < pf->hw.tx_queues) ?
 				      qidx + pf->hw.rx_queues : CINT_INVALID_CQ;
 		cq_poll->dev = (void *)pf;
 		netif_napi_add(netdev, &cq_poll->napi,
-			       otx2_poll, NAPI_POLL_WEIGHT);
+			       otx2_napi_handler, NAPI_POLL_WEIGHT);
 		napi_enable(&cq_poll->napi);
 	}
 
@@ -1588,7 +1627,7 @@ int otx2_open(struct net_device *netdev)
 
 	otx2_set_cints_affinity(pf);
 
-	pf->intf_down = false;
+	pf->flags &= ~OTX2_FLAG_INTF_DOWN;
 	/* 'intf_down' may be checked on any cpu */
 	smp_wmb();
 
@@ -1596,17 +1635,24 @@ int otx2_open(struct net_device *netdev)
 	if (pf->linfo.link_up && !(pf->pcifunc & RVU_PFVF_FUNC_MASK))
 		otx2_handle_link_event(pf);
 
-	if (otx2_nic_is_feature_enabled(pf, OTX2_RX_VLAN_OFFLOAD_CAPABLE))
+	if (pf->flags & OTX2_FLAG_RX_VLAN_SUPPORT)
 		otx2_enable_rxvlan(pf, true);
 
-	/* When reinitializing enable time stamping if it is enabled before */
-	if (pf->hw_tx_tstamp) {
-		pf->hw_tx_tstamp = 0;
+	/* When reinitializing enable time stamping if it was enabled before */
+	if (pf->flags & OTX2_FLAG_TX_TSTAMP_ENABLED) {
+		pf->flags &= ~OTX2_FLAG_TX_TSTAMP_ENABLED;
 		otx2_config_hw_tx_tstamp(pf, true);
 	}
-	if (pf->hw_rx_tstamp) {
-		pf->hw_rx_tstamp = 0;
+	if (pf->flags & OTX2_FLAG_RX_TSTAMP_ENABLED) {
+		pf->flags &= ~OTX2_FLAG_RX_TSTAMP_ENABLED;
 		otx2_config_hw_rx_tstamp(pf, true);
+	}
+
+	/* Set NPC parsing mode, skip LBKs */
+	if (!is_otx2_lbkvf(pf->pdev)) {
+		err = otx2_set_npc_parse_mode(pf);
+		if (err)
+			goto err_free_cints;
 	}
 
 	err = otx2_rxtx_enable(pf, true);
@@ -1643,7 +1689,7 @@ int otx2_stop(struct net_device *netdev)
 	netif_carrier_off(netdev);
 	netif_tx_stop_all_queues(netdev);
 
-	pf->intf_down = true;
+	pf->flags |= OTX2_FLAG_INTF_DOWN;
 	/* 'intf_down' may be checked on any cpu */
 	smp_wmb();
 
@@ -1783,7 +1829,7 @@ static int otx2_config_hw_rx_tstamp(struct otx2_nic *pfvf, bool enable)
 	struct msg_req *req;
 	int err;
 
-	if (!!pfvf->hw_rx_tstamp == enable)
+	if (pfvf->flags & OTX2_FLAG_RX_TSTAMP_ENABLED && enable)
 		return 0;
 
 	otx2_mbox_lock(&pfvf->mbox);
@@ -1803,7 +1849,10 @@ static int otx2_config_hw_rx_tstamp(struct otx2_nic *pfvf, bool enable)
 	}
 
 	otx2_mbox_unlock(&pfvf->mbox);
-	pfvf->hw_rx_tstamp = enable;
+	if (enable)
+		pfvf->flags |= OTX2_FLAG_RX_TSTAMP_ENABLED;
+	else
+		pfvf->flags &= ~OTX2_FLAG_RX_TSTAMP_ENABLED;
 	return 0;
 }
 
@@ -1812,7 +1861,7 @@ static int otx2_config_hw_tx_tstamp(struct otx2_nic *pfvf, bool enable)
 	struct msg_req *req;
 	int err;
 
-	if (!!pfvf->hw_tx_tstamp == enable)
+	if (pfvf->flags & OTX2_FLAG_TX_TSTAMP_ENABLED && enable)
 		return 0;
 
 	otx2_mbox_lock(&pfvf->mbox);
@@ -1832,7 +1881,10 @@ static int otx2_config_hw_tx_tstamp(struct otx2_nic *pfvf, bool enable)
 	}
 
 	otx2_mbox_unlock(&pfvf->mbox);
-	pfvf->hw_tx_tstamp = enable;
+	if (enable)
+		pfvf->flags |= OTX2_FLAG_TX_TSTAMP_ENABLED;
+	else
+		pfvf->flags &= ~OTX2_FLAG_TX_TSTAMP_ENABLED;
 	return 0;
 }
 
@@ -1918,7 +1970,7 @@ static int otx2_do_set_vf_mac(struct otx2_nic *pf, int vf, const u8 *mac)
 	ether_addr_copy(req->packet.dmac, mac);
 	u64_to_ether_addr(0xffffffffffffull, req->mask.dmac);
 	req->features = BIT_ULL(NPC_DMAC);
-	req->channel = pf->rx_chan_base;
+	req->channel = pf->hw.rx_chan_base;
 	req->intf = NIX_INTF_RX;
 	req->default_rule = 1;
 	req->append = 1;
@@ -1937,6 +1989,9 @@ static int otx2_set_vf_mac(struct net_device *netdev, int vf, u8 *mac)
 	struct pci_dev *pdev = pf->pdev;
 	struct otx2_vf_config *config;
 
+	if (!netif_running(netdev))
+		return -EAGAIN;
+
 	if (vf >= pci_num_vf(pdev))
 		return -EINVAL;
 
@@ -1945,8 +2000,6 @@ static int otx2_set_vf_mac(struct net_device *netdev, int vf, u8 *mac)
 
 	config = &pf->vf_configs[vf];
 	ether_addr_copy(config->mac, mac);
-	if (config->intf_down)
-		return 0;
 
 	return otx2_do_set_vf_mac(pf, vf, mac);
 }
@@ -1966,7 +2019,7 @@ static int otx2_do_set_vf_vlan(struct otx2_nic *pf, int vf, u16 vlan, u8 qos)
 	req->packet.vlan_tci = htons(vlan);
 	req->mask.vlan_tci = htons(VLAN_VID_MASK);
 	req->features = BIT_ULL(NPC_OUTER_VID);
-	req->channel = pf->rx_chan_base;
+	req->channel = pf->hw.rx_chan_base;
 	req->intf = NIX_INTF_RX;
 	req->default_rule = 1;
 	req->append = 1;
@@ -1986,6 +2039,9 @@ static int otx2_set_vf_vlan(struct net_device *netdev, int vf, u16 vlan, u8 qos,
 	struct pci_dev *pdev = pf->pdev;
 	struct otx2_vf_config *config;
 
+	if (!netif_running(netdev))
+		return -EAGAIN;
+
 	if (vf >= pci_num_vf(pdev))
 		return -EINVAL;
 
@@ -1998,8 +2054,6 @@ static int otx2_set_vf_vlan(struct net_device *netdev, int vf, u16 vlan, u8 qos,
 
 	config = &pf->vf_configs[vf];
 	config->vlan = vlan;
-	if (config->intf_down)
-		return 0;
 
 	return otx2_do_set_vf_vlan(pf, vf, vlan, qos);
 }
@@ -2065,6 +2119,30 @@ static int otx2_check_pf_usable(struct otx2_nic *nic)
 	return 0;
 }
 
+static int otx2_realloc_msix_vectors(struct otx2_nic *pf)
+{
+	struct otx2_hw *hw = &pf->hw;
+	int num_vec, err;
+
+	num_vec = hw->nix_msixoff;
+	num_vec += NIX_LF_CINT_VEC_START + hw->max_queues;
+
+	otx2_disable_mbox_intr(pf);
+	pci_free_irq_vectors(hw->pdev);
+	pci_free_irq_vectors(hw->pdev);
+	err = pci_alloc_irq_vectors(hw->pdev, num_vec, num_vec, PCI_IRQ_MSIX);
+	if (err < 0) {
+		dev_err(pf->dev, "%s: Failed to realloc %d IRQ vectors\n",
+			__func__, num_vec);
+		return err;
+	}
+
+	err = otx2_register_mbox_intr(pf, false);
+	if (err)
+		return err;
+	return 0;
+}
+
 static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	struct device *dev = &pdev->dev;
@@ -2116,7 +2194,7 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	pf->pdev = pdev;
 	pf->dev = dev;
 	pf->total_vfs = pci_sriov_get_totalvfs(pdev);
-	pf->intf_down = true;
+	pf->flags |= OTX2_FLAG_INTF_DOWN;
 
 	hw = &pf->hw;
 	hw->pdev = pdev;
@@ -2147,7 +2225,8 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (err)
 		goto err_free_netdev;
 
-	err = pci_alloc_irq_vectors(hw->pdev, num_vec, num_vec, PCI_IRQ_MSIX);
+	err = pci_alloc_irq_vectors(hw->pdev, RVU_PF_INT_VEC_CNT,
+				    RVU_PF_INT_VEC_CNT, PCI_IRQ_MSIX);
 	if (err < 0) {
 		dev_err(dev, "%s: Failed to alloc %d IRQ vectors\n",
 			__func__, num_vec);
@@ -2160,7 +2239,7 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err_free_irq_vectors;
 
 	/* Register mailbox interrupt */
-	err = otx2_register_mbox_intr(pf);
+	err = otx2_register_mbox_intr(pf, true);
 	if (err)
 		goto err_mbox_destroy;
 
@@ -2170,6 +2249,10 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	err = otx2_attach_npa_nix(pf);
 	if (err)
 		goto err_disable_mbox_intr;
+
+	err = otx2_realloc_msix_vectors(pf);
+	if (err)
+		goto err_mbox_destroy;
 
 	err = otx2_set_real_num_queues(netdev, hw->tx_queues, hw->rx_queues);
 	if (err)
@@ -2211,7 +2294,7 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 				NETIF_F_HW_VLAN_CTAG_RX |
 				NETIF_F_HW_VLAN_STAG_RX;
 
-	netdev->features |= netdev->hw_features;
+	netdev->features |= netdev->hw_features | NETIF_F_LLTX;
 
 	netdev->hw_features |= NETIF_F_LOOPBACK | NETIF_F_NTUPLE |
 			       NETIF_F_RXALL;
@@ -2223,7 +2306,7 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	netdev->netdev_ops = &otx2_netdev_ops;
 
-	/* MTU range: 68 - 9190 */
+	/* MTU range: 64 - 9190 */
 	netdev->min_mtu = OTX2_MIN_MTU;
 	netdev->max_mtu = OTX2_MAX_MTU;
 
@@ -2295,21 +2378,32 @@ static void otx2_vf_link_event_task(struct work_struct *work)
 	otx2_sync_mbox_up_msg(&pf->mbox_pfvf[0], vf_idx);
 }
 
-static void otx2_vf_mac_vlan_task(struct work_struct *work)
+static void otx2_vf_ptp_info_task(struct work_struct *work)
 {
+	struct cgx_ptp_rx_info_msg *req;
 	struct otx2_vf_config *config;
+	struct mbox_msghdr *msghdr;
 	struct otx2_nic *pf;
 	int vf_idx;
 
-	config = container_of(work, struct otx2_vf_config, mac_vlan_work.work);
+	config = container_of(work, struct otx2_vf_config,
+			      ptp_info_work.work);
 	vf_idx = config - config->pf->vf_configs;
 	pf = config->pf;
 
-	if (!is_zero_ether_addr(config->mac))
-		otx2_do_set_vf_mac(pf, vf_idx, config->mac);
+	msghdr = otx2_mbox_alloc_msg_rsp(&pf->mbox_pfvf[0].mbox_up, vf_idx,
+					 sizeof(*req), sizeof(struct msg_rsp));
+	if (!msghdr) {
+		dev_err(pf->dev, "Failed to create VF%d link event\n", vf_idx);
+		return;
+	}
 
-	if (config->vlan)
-		otx2_do_set_vf_vlan(pf, vf_idx, config->vlan, 0);
+	req = (struct cgx_ptp_rx_info_msg *)msghdr;
+	req->hdr.id = MBOX_MSG_CGX_PTP_RX_INFO;
+	req->hdr.sig = OTX2_MBOX_REQ_SIG;
+	req->ptp_en = pf->ptp->ptp_en;
+
+	otx2_sync_mbox_up_msg(&pf->mbox_pfvf[0], vf_idx);
 }
 
 static int otx2_sriov_enable(struct pci_dev *pdev, int numvfs)
@@ -2342,8 +2436,8 @@ static int otx2_sriov_enable(struct pci_dev *pdev, int numvfs)
 		pf->vf_configs[i].intf_down = true;
 		INIT_DELAYED_WORK(&pf->vf_configs[i].link_event_work,
 				  otx2_vf_link_event_task);
-		INIT_DELAYED_WORK(&pf->vf_configs[i].mac_vlan_work,
-				  otx2_vf_mac_vlan_task);
+		INIT_DELAYED_WORK(&pf->vf_configs[i].ptp_info_work,
+				  otx2_vf_ptp_info_task);
 	}
 
 	ret = otx2_pf_flr_init(pf, numvfs);
@@ -2383,8 +2477,10 @@ static int otx2_sriov_disable(struct pci_dev *pdev)
 
 	pci_disable_sriov(pdev);
 
-	for (i = 0; i < pci_num_vf(pdev); i++)
+	for (i = 0; i < pci_num_vf(pdev); i++) {
 		cancel_delayed_work_sync(&pf->vf_configs[i].link_event_work);
+		cancel_delayed_work_sync(&pf->vf_configs[i].ptp_info_work);
+	}
 	kfree(pf->vf_configs);
 
 	otx2_disable_flr_me_intr(pf);
@@ -2413,9 +2509,9 @@ static void otx2_remove(struct pci_dev *pdev)
 
 	pf = netdev_priv(netdev);
 
-	if (pf->hw_tx_tstamp)
+	if (pf->flags & OTX2_FLAG_TX_TSTAMP_ENABLED)
 		otx2_config_hw_tx_tstamp(pf, false);
-	if (pf->hw_rx_tstamp)
+	if (pf->flags & OTX2_FLAG_RX_TSTAMP_ENABLED)
 		otx2_config_hw_rx_tstamp(pf, false);
 
 	/* Disable link notifications */

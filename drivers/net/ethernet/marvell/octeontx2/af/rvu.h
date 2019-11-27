@@ -392,7 +392,8 @@ struct rvu_fwdata {
 	u64 rclk;
 	u64 mcam_addr;
 	u64 mcam_sz;
-#define FWDATA_RESERVED_MEM 1024
+	u64 msixtr_base;
+#define FWDATA_RESERVED_MEM 1023
 	u64 reserved[FWDATA_RESERVED_MEM];
 	/* Do not add new fields below this line */
 #define CGX_MAX         4
@@ -583,6 +584,7 @@ void rvu_cgx_disable_dmac_entries(struct rvu *rvu, u16 pcifunc);
 int rvu_cgx_start_stop_io(struct rvu *rvu, u16 pcifunc, bool start);
 int rvu_cgx_nix_cuml_stats(struct rvu *rvu, void *cgxd, int lmac_id, int index,
 			   int rxtxflag, u64 *stat);
+bool is_cgx_config_permitted(struct rvu *rvu, u16 pcifunc);
 
 /* SSO APIs */
 int rvu_sso_init(struct rvu *rvu);
@@ -643,11 +645,14 @@ void rvu_npc_get_mcam_counter_alloc_info(struct rvu *rvu, u16 pcifunc,
 					 int *enable_cnt);
 int npc_flow_steering_init(struct rvu *rvu, int blkaddr);
 const char *npc_get_field_name(u8 hdr);
-int rvu_npc_write_default_rule(struct rvu *rvu, int blkaddr, int nixlf,
-			       u16 pcifunc, u8 intf, struct mcam_entry *entry);
+bool rvu_npc_write_default_rule(struct rvu *rvu, int blkaddr, int nixlf,
+				u16 pcifunc, u8 intf, struct mcam_entry *entry,
+				int *entry_index);
 int npc_mcam_verify_channel(struct rvu *rvu, u16 pcifunc, u8 intf, u16 channel);
 int npc_get_bank(struct npc_mcam *mcam, int index);
 void npc_mcam_enable_flows(struct rvu *rvu, u16 target);
+void npc_enable_mcam_entry(struct rvu *rvu, struct npc_mcam *mcam,
+			   int blkaddr, int index, bool enable);
 
 /* CPT APIs */
 int rvu_cpt_init(struct rvu *rvu);
@@ -657,6 +662,10 @@ void rvu_cpt_unregister_interrupts(struct rvu *rvu);
 /* TIM APIs */
 int rvu_tim_init(struct rvu *rvu);
 int rvu_tim_lf_teardown(struct rvu *rvu, u16 pcifunc, int lf, int slot);
+
+/* SDP APIs */
+int rvu_sdp_init(struct rvu *rvu);
+bool is_sdp_pf(u16 pcifunc);
 
 /* CONFIG_DEBUG_FS*/
 #ifdef CONFIG_DEBUG_FS
