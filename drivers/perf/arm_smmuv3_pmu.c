@@ -36,6 +36,7 @@
 
 #include <linux/acpi.h>
 #include <linux/acpi_iort.h>
+#include <linux/of.h>
 #include <linux/bitfield.h>
 #include <linux/bitops.h>
 #include <linux/cpuhotplug.h>
@@ -280,8 +281,13 @@ static int smmu_pmu_apply_event_filter(struct smmu_pmu *smmu_pmu,
 
 	/* Requested settings same as current global settings*/
 	if (span == smmu_pmu->global_filter_span &&
-	    sid == smmu_pmu->global_filter_sid)
+	    sid == smmu_pmu->global_filter_sid) {
+		if (idx == 0)
+			smmu_pmu_set_event_filter(event, idx, span, sid);
+		else
+			smmu_pmu_set_event_filter(event, idx, 0, 0);
 		return 0;
+	}
 
 	if (!bitmap_empty(smmu_pmu->used_counters, num_ctrs))
 		return -EAGAIN;
@@ -829,9 +835,16 @@ static void smmu_pmu_shutdown(struct platform_device *pdev)
 	smmu_pmu_disable(&smmu_pmu->pmu);
 }
 
+static const struct of_device_id smmu_pmu_of_match[] = {
+	{ .compatible = "arm,smmu-pmu-v3", },
+	{ },
+};
+MODULE_DEVICE_TABLE(of, smmu_pmu_of_match);
+
 static struct platform_driver smmu_pmu_driver = {
 	.driver = {
 		.name = "arm-smmu-v3-pmcg",
+		.of_match_table	= of_match_ptr(smmu_pmu_of_match),
 	},
 	.probe = smmu_pmu_probe,
 	.remove = smmu_pmu_remove,

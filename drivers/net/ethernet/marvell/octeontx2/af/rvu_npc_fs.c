@@ -856,7 +856,8 @@ static void npc_update_tx_entry(struct rvu *rvu, struct rvu_pfvf *pfvf,
 static int npc_install_flow(struct rvu *rvu, int blkaddr, u16 target,
 			       int nixlf, struct rvu_pfvf *pfvf,
 			       struct npc_install_flow_req *req,
-			       struct npc_install_flow_rsp *rsp, bool enable)
+			       struct npc_install_flow_rsp *rsp, bool enable,
+			       bool pf_set_vfs_mac)
 {
 	u64 features, installed_features, missing_features = 0;
 	struct rvu_npc_mcam_rule *def_rule = pfvf->def_rule;
@@ -899,15 +900,17 @@ static int npc_install_flow(struct rvu *rvu, int blkaddr, u16 target,
 			npc_update_flow(rvu, entry, missing_features,
 					&def_rule->packet, &def_rule->mask,
 					&dummy, req->intf);
-		entry_index = rvu_npc_write_default_rule(rvu, blkaddr,
-							 nixlf, target,
-							 NIX_INTF_RX, entry);
+		enable = rvu_npc_write_default_rule(rvu, blkaddr,
+						    nixlf, target,
+						    NIX_INTF_RX, entry,
+						    &entry_index);
 		installed_features = req->features | missing_features;
 	} else if (req->default_rule && !req->append) {
 		/* overwrite default rule */
-		entry_index = rvu_npc_write_default_rule(rvu, blkaddr,
-							 nixlf, target,
-							 NIX_INTF_RX, entry);
+		enable = rvu_npc_write_default_rule(rvu, blkaddr,
+						    nixlf, target,
+						    NIX_INTF_RX, entry,
+						    &entry_index);
 	} else if (msg_from_vf) {
 		/* normal rule - include default rule also to it for VF */
 		npc_update_flow(rvu, entry, missing_features, &def_rule->packet,
@@ -975,6 +978,10 @@ update_rule:
 	if (req->default_rule)
 		pfvf->def_rule = rule;
 
+	/* VF's MAC address is being changed via PF  */
+	if (pf_set_vfs_mac)
+		ether_addr_copy(pfvf->mac_addr, req->packet.dmac);
+
 	return 0;
 }
 
@@ -985,6 +992,7 @@ int rvu_mbox_handler_npc_install_flow(struct rvu *rvu,
 	bool from_vf = !!(req->hdr.pcifunc & RVU_PFVF_FUNC_MASK);
 	int blkaddr, nixlf, err;
 	struct rvu_pfvf *pfvf;
+	bool pf_set_vfs_mac = false;
 	bool enable = true;
 	u16 target;
 
@@ -1006,8 +1014,11 @@ int rvu_mbox_handler_npc_install_flow(struct rvu *rvu,
 	if (!req->hdr.pcifunc)
 		target = req->vf;
 	/* PF installing for its VF */
-	else if (!from_vf && req->vf)
+	else if (!from_vf && req->vf) {
 		target = (req->hdr.pcifunc & ~RVU_PFVF_FUNC_MASK) | req->vf;
+		pf_set_vfs_mac = req->default_rule &&
+				(req->features & BIT_ULL(NPC_DMAC));
+	}
 	/* msg received from PF/VF */
 	else
 		target = req->hdr.pcifunc;
@@ -1045,7 +1056,7 @@ int rvu_mbox_handler_npc_install_flow(struct rvu *rvu,
 		return -EINVAL;
 
 	return npc_install_flow(rvu, blkaddr, target, nixlf, pfvf,
-				req, rsp, enable);
+				req, rsp, enable, pf_set_vfs_mac);
 }
 
 static int npc_delete_flow(struct rvu *rvu, u16 entry, u16 pcifunc)
@@ -1134,6 +1145,13 @@ void npc_mcam_enable_flows(struct rvu *rvu, u16 target)
 	list_for_each_entry(rule, &mcam->mcam_rules, list) {
 		if (rule->intf == NIX_INTF_RX &&
 		    rule->rx_action.pf_func == target && !rule->enable) {
+			if (rule->default_rule) {
+				npc_enable_mcam_entry(rvu, mcam, blkaddr,
+						      rule->entry, true);
+				rule->enable = true;
+				continue;
+			}
+
 			if (rule->rx_action.op == NIX_RX_ACTION_DEFAULT) {
 				if (!pfvf->def_rule)
 					continue;

@@ -60,8 +60,6 @@ enum nix_makr_fmt_indexes {
 	NIX_MARK_CFG_MAX,
 };
 
-#define NIX_TX_PKIND	63ULL
-
 /* For now considering MC resources needed for broadcast
  * pkt replication only. i.e 256 HWVFs + 12 PFs.
  */
@@ -183,7 +181,8 @@ static int nix_interface_init(struct rvu *rvu, u16 pcifunc, int type, int nixlf)
 	int err;
 
 	pf = rvu_get_pf(pcifunc);
-	if (!is_pf_cgxmapped(rvu, pf) && type != NIX_INTF_TYPE_LBK)
+	if (!is_pf_cgxmapped(rvu, pf) && type != NIX_INTF_TYPE_LBK &&
+	    type != NIX_INTF_TYPE_SDP)
 		return 0;
 
 	switch (type) {
@@ -219,6 +218,15 @@ static int nix_interface_init(struct rvu *rvu, u16 pcifunc, int type, int nixlf)
 		pfvf->rx_chan_base = NIX_CHAN_LBK_CHX(0, vf);
 		pfvf->tx_chan_base = vf & 0x1 ? NIX_CHAN_LBK_CHX(0, vf - 1) :
 						NIX_CHAN_LBK_CHX(0, vf + 1);
+		pfvf->rx_chan_cnt = 1;
+		pfvf->tx_chan_cnt = 1;
+		rvu_npc_install_promisc_entry(rvu, pcifunc, nixlf,
+					      pfvf->rx_chan_base, false);
+		break;
+	case NIX_INTF_TYPE_SDP:
+		/* Added single interface and single channel support for now */
+		pfvf->rx_chan_base = NIX_CHAN_SDP_CHX(0);
+		pfvf->tx_chan_base = pfvf->rx_chan_base;
 		pfvf->rx_chan_cnt = 1;
 		pfvf->tx_chan_cnt = 1;
 		rvu_npc_install_promisc_entry(rvu, pcifunc, nixlf,
@@ -955,10 +963,10 @@ int rvu_mbox_handler_nix_lf_alloc(struct rvu *rvu,
 				  struct nix_lf_alloc_rsp *rsp)
 {
 	int nixlf, qints, hwctx_size, intf, err, rc = 0;
+	struct rvu_pfvf *pfvf, *parent_pf;
 	struct rvu_hwinfo *hw = rvu->hw;
 	u16 pcifunc = req->hdr.pcifunc;
 	struct rvu_block *block;
-	struct rvu_pfvf *pfvf;
 	u64 cfg, ctx_cfg;
 	int blkaddr;
 
@@ -968,6 +976,7 @@ int rvu_mbox_handler_nix_lf_alloc(struct rvu *rvu,
 	if (req->way_mask)
 		req->way_mask &= 0xFFFF;
 
+	parent_pf = &rvu->pf[rvu_get_pf(pcifunc)];
 	pfvf = rvu_get_pfvf(rvu, pcifunc);
 	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NIX, pcifunc);
 	if (!pfvf->nixlf || blkaddr < 0)
@@ -1125,10 +1134,13 @@ int rvu_mbox_handler_nix_lf_alloc(struct rvu *rvu,
 	rvu_write64(rvu, blkaddr, NIX_AF_LFX_RX_CFG(nixlf), req->rx_cfg);
 
 	/* Configure pkind for TX parse config, 63 from npc_profile */
-	cfg = NIX_TX_PKIND;
+	cfg = NPC_TX_DEF_PKIND;
 	rvu_write64(rvu, blkaddr, NIX_AF_LFX_TX_PARSE_CFG(nixlf), cfg);
 
 	intf = is_afvf(pcifunc) ? NIX_INTF_TYPE_LBK : NIX_INTF_TYPE_CGX;
+	if (is_sdp_pf(pcifunc))
+		intf = NIX_INTF_TYPE_SDP;
+
 	err = nix_interface_init(rvu, pcifunc, intf, nixlf);
 	if (err)
 		goto free_mem;
@@ -1163,6 +1175,7 @@ exit:
 	cfg = rvu_read64(rvu, blkaddr, NIX_AF_CONST2);
 	rsp->qints = ((cfg >> 12) & 0xFFF);
 	rsp->cints = ((cfg >> 24) & 0xFFF);
+	rsp->hw_rx_tstamp_en = parent_pf->hw_rx_tstamp_en;
 	return rc;
 }
 
@@ -2882,6 +2895,7 @@ int rvu_mbox_handler_nix_set_mac_addr(struct rvu *rvu,
 				      struct nix_set_mac_addr *req,
 				      struct msg_rsp *rsp)
 {
+	bool from_vf = !!(req->hdr.pcifunc & RVU_PFVF_FUNC_MASK);
 	struct rvu_hwinfo *hw = rvu->hw;
 	u16 pcifunc = req->hdr.pcifunc;
 	struct rvu_pfvf *pfvf;
@@ -2896,7 +2910,10 @@ int rvu_mbox_handler_nix_set_mac_addr(struct rvu *rvu,
 	if (nixlf < 0)
 		return NIX_AF_ERR_AF_LF_INVALID;
 
-	ether_addr_copy(pfvf->mac_addr, req->mac_addr);
+	/* Skip updating mac addr if request is from vf */
+	if (!from_vf)
+		ether_addr_copy(pfvf->mac_addr, req->mac_addr);
+
 
 	rvu_npc_install_ucast_entry(rvu, pcifunc, nixlf,
 				    pfvf->rx_chan_base, req->mac_addr);

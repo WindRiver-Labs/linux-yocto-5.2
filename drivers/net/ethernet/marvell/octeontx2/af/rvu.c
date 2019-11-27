@@ -617,7 +617,10 @@ setup_vfmsix:
 	 */
 	cfg = rvu_read64(rvu, BLKADDR_RVUM, RVU_PRIV_CONST);
 	max_msix = cfg & 0xFFFFF;
-	phy_addr = rvu_read64(rvu, BLKADDR_RVUM, RVU_AF_MSIXTR_BASE);
+	if (rvu->fwdata && rvu->fwdata->msixtr_base)
+		phy_addr = rvu->fwdata->msixtr_base;
+	else
+		phy_addr = rvu_read64(rvu, BLKADDR_RVUM, RVU_AF_MSIXTR_BASE);
 	/* Register save */
 	rvu->msixtr_base_phy = phy_addr;
 	iova = dma_map_resource(rvu->dev, phy_addr,
@@ -699,6 +702,8 @@ static void rvu_setup_pfvf_macaddress(struct rvu *rvu)
 			mac = &rvu->fwdata->pf_macs[pf];
 			if (*mac)
 				u64_to_ether_addr(*mac, pfvf->mac_addr);
+			else
+				eth_random_addr(pfvf->mac_addr);
 		} else {
 			eth_random_addr(pfvf->mac_addr);
 		}
@@ -711,6 +716,8 @@ static void rvu_setup_pfvf_macaddress(struct rvu *rvu)
 				mac = &rvu->fwdata->vf_macs[hwvf];
 				if (*mac)
 					u64_to_ether_addr(*mac, pfvf->mac_addr);
+				else
+					eth_random_addr(pfvf->mac_addr);
 			} else {
 				eth_random_addr(pfvf->mac_addr);
 			}
@@ -904,6 +911,8 @@ init:
 
 	mutex_init(&rvu->rsrc_lock);
 
+	rvu_fwdata_init(rvu);
+
 	err = rvu_setup_msix_resources(rvu);
 	if (err)
 		return err;
@@ -926,8 +935,6 @@ init:
 		 */
 		rvu_scan_block(rvu, block);
 	}
-
-	rvu_fwdata_init(rvu);
 
 	err = rvu_npc_init(rvu);
 	if (err)
@@ -957,6 +964,10 @@ init:
 		goto cgx_err;
 
 	err = rvu_cpt_init(rvu);
+	if (err)
+		goto cgx_err;
+
+	err = rvu_sdp_init(rvu);
 	if (err)
 		goto cgx_err;
 
@@ -1337,11 +1348,11 @@ int rvu_mbox_handler_attach_resources(struct rvu *rvu,
 		goto exit;
 
 	/* Now attach the requested resources */
-	if (attach->npalf)
-		rvu_attach_block(rvu, pcifunc, BLKTYPE_NPA, 1);
-
 	if (attach->nixlf)
 		rvu_attach_block(rvu, pcifunc, BLKTYPE_NIX, 1);
+
+	if (attach->npalf)
+		rvu_attach_block(rvu, pcifunc, BLKTYPE_NPA, 1);
 
 	if (attach->sso) {
 		/* RVU func doesn't know which exact LF or slot is attached

@@ -31,6 +31,8 @@ enum npc_kpu_la_ltype {
 	NPC_LT_LA_IH_8_ETHER,
 	NPC_LT_LA_IH_4_ETHER,
 	NPC_LT_LA_IH_2_ETHER,
+	NPC_LT_LA_HIGIG2_ETHER,
+	NPC_LT_LA_IH_NIX_HIGIG2_ETHER,
 	NPC_LT_LA_CUSTOM0 = 0xE,
 	NPC_LT_LA_CUSTOM1 = 0xF,
 };
@@ -135,6 +137,13 @@ enum npc_kpu_lh_ltype {
 	NPC_LT_LH_TU_AH,
 	NPC_LT_LH_CUSTOM0 = 0xE,
 	NPC_LT_LH_CUSTOM1 = 0xF,
+};
+
+enum npc_pkind_type {
+	NPC_TX_HIGIG_PKIND = 60ULL,
+	NPC_RX_HIGIG_PKIND,
+	NPC_RX_EDSA_PKIND,
+	NPC_TX_DEF_PKIND,
 };
 
 struct npc_kpu_profile_cam {

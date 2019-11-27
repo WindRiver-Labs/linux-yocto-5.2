@@ -18,28 +18,26 @@
 #include "otx2_txrx.h"
 #include "otx2_ptp.h"
 
+#define CQE_ADDR(CQ, idx) ((CQ)->cqe_base + ((CQ)->cqe_size * (idx)))
+
+static inline struct nix_cqe_hdr_s *otx2_get_next_cqe(struct otx2_cq_queue *cq)
+{
+	struct nix_cqe_hdr_s *cqe_hdr;
+
+	cqe_hdr = (struct nix_cqe_hdr_s *)CQE_ADDR(cq, cq->cq_head);
+	if (cqe_hdr->cqe_type == NIX_XQE_TYPE_INVALID)
+		return NULL;
+
+	cq->cq_head++;
+	cq->cq_head &= (cq->cqe_cnt - 1);
+
+	return cqe_hdr;
+}
+
 /* Flush SQE written to LMT to SQB */
 static inline u64 otx2_lmt_flush(uint64_t addr)
 {
 	return atomic64_fetch_xor_relaxed(0, (atomic64_t *)addr);
-}
-
-static inline u64 otx2_nix_cq_op_status(struct otx2_nic *pfvf, int cq_idx)
-{
-	u64 incr = (u64)cq_idx << 32;
-	atomic64_t *ptr;
-	u64 status;
-
-	ptr = (__force atomic64_t *)(pfvf->reg_base + NIX_LF_CQ_OP_STATUS);
-
-	status = atomic64_fetch_add_relaxed(incr, ptr);
-
-	/* Barrier to prevent speculative reads of CQEs and their
-	 * processing before above load of CQ_STATUS returns.
-	 */
-	dma_rmb();
-
-	return status;
 }
 
 static inline unsigned int frag_num(unsigned int i)
@@ -86,17 +84,17 @@ static void otx2_dma_unmap_skb_frags(struct otx2_nic *pfvf, struct sg_list *sg)
 }
 
 static void otx2_snd_pkt_handler(struct otx2_nic *pfvf,
-				 struct otx2_cq_queue *cq, void *cqe,
+				 struct otx2_cq_queue *cq,
+				 struct otx2_snd_queue *sq,
+				 struct nix_cqe_hdr_s *cqe_hdr,
 				 int budget, int *tx_pkts, int *tx_bytes)
 {
-	struct nix_cqe_hdr_s *cqe_hdr = (struct nix_cqe_hdr_s *)cqe;
 	struct nix_send_comp_s *snd_comp;
 	struct sk_buff *skb = NULL;
-	struct otx2_snd_queue *sq;
 	struct sg_list *sg;
-	int sqe_id;
 
-	snd_comp = (struct nix_send_comp_s *)(cqe + sizeof(*cqe_hdr));
+	snd_comp = (struct nix_send_comp_s *)
+			((void *)cqe_hdr + sizeof(*cqe_hdr));
 	if (snd_comp->status) {
 		/* tx packet error handling*/
 		if (netif_msg_tx_err(pfvf)) {
@@ -108,16 +106,14 @@ static void otx2_snd_pkt_handler(struct otx2_nic *pfvf,
 
 	/* Barrier, so that update to sq by other cpus is visible */
 	smp_mb();
-	sq = &pfvf->qset.sq[cq->cint_idx];
-	sqe_id = snd_comp->sqe_id;
-	sg = &sq->sg[sqe_id];
+	sg = &sq->sg[snd_comp->sqe_id];
 
 	skb = (struct sk_buff *)sg->skb;
 	if (!skb)
 		return;
 
 	if (skb_shinfo(skb)->tx_flags & SKBTX_IN_PROGRESS) {
-		u64 timestamp = ((u64 *)sq->timestamps->base)[sqe_id];
+		u64 timestamp = ((u64 *)sq->timestamps->base)[snd_comp->sqe_id];
 
 		if (timestamp != 1) {
 			u64 tsns;
@@ -139,6 +135,24 @@ static void otx2_snd_pkt_handler(struct otx2_nic *pfvf,
 	otx2_dma_unmap_skb_frags(pfvf, sg);
 	napi_consume_skb(skb, budget);
 	sg->skb = (u64)NULL;
+}
+
+static inline void otx2_set_taginfo(struct nix_rx_parse_s *parse,
+				    struct sk_buff *skb)
+{
+	/* Check if VLAN is present, captured and stripped from packet */
+	if (parse->vtag0_valid && parse->vtag0_gone) {
+		skb_frag_t *frag0 = &skb_shinfo(skb)->frags[0];
+
+		/* Is the tag captured STAG or CTAG ? */
+		if (((struct ethhdr *)skb_frag_address(frag0))->h_proto ==
+		    htons(ETH_P_8021Q))
+			__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021AD),
+					       parse->vtag0_tci);
+		else
+			__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q),
+					       parse->vtag0_tci);
+	}
 }
 
 static inline void otx2_set_rxhash(struct otx2_nic *pfvf,
@@ -164,78 +178,66 @@ static inline void otx2_set_rxhash(struct otx2_nic *pfvf,
 	skb_set_hash(skb, hash, hash_type);
 }
 
-static void otx2_skb_add_frag(struct otx2_nic *pfvf,
-			      struct sk_buff *skb, u64 iova, int len)
+static inline void otx2_set_rxtstamp(struct otx2_nic *pfvf,
+				     struct sk_buff *skb, void *data)
+{
+	u64 tsns;
+	int err;
+
+	if (!(pfvf->flags & OTX2_FLAG_RX_TSTAMP_ENABLED))
+		return;
+
+	/* The first 8 bytes is the timestamp */
+	err = otx2_ptp_tstamp2time(pfvf, be64_to_cpu(*(u64 *)data), &tsns);
+	if (err)
+		return;
+
+	skb_hwtstamps(skb)->hwtstamp = ns_to_ktime(tsns);
+}
+
+static void otx2_skb_add_frag(struct otx2_nic *pfvf, struct sk_buff *skb,
+			      u64 iova, int len, struct nix_rx_parse_s *parse)
 {
 	struct page *page;
+	int off = 0;
 	void *va;
 
 	va = phys_to_virt(otx2_iova_to_phys(pfvf->iommu_domain, iova));
+
+	if (!skb_shinfo(skb)->nr_frags) {
+		/* Check if data starts at some nonzero offset
+		 * from the start of the buffer.  For now the
+		 * only possible offset is 8 bytes in the case
+		 * where packet is prepended by a timestamp.
+		 */
+		if (parse->laptr) {
+			otx2_set_rxtstamp(pfvf, skb, va);
+			off = 8;
+		}
+		off += pfvf->xtra_hdr;
+	}
+
 	page = virt_to_page(va);
 	skb_add_rx_frag(skb, skb_shinfo(skb)->nr_frags, page,
-			va - page_address(page), len, RCV_FRAG_LEN);
+			va - page_address(page) + off, len - off, RCV_FRAG_LEN);
 
 	dma_unmap_page_attrs(pfvf->dev, iova - OTX2_HEAD_ROOM, RCV_FRAG_LEN,
 			     DMA_FROM_DEVICE, DMA_ATTR_SKIP_CPU_SYNC);
 }
 
-static inline struct sk_buff *
-otx2_get_rcv_skb(struct otx2_nic *pfvf, u64 iova, int len)
-{
-	struct sk_buff *skb;
-	void *va;
-
-	iova -= OTX2_HEAD_ROOM;
-	va = phys_to_virt(otx2_iova_to_phys(pfvf->iommu_domain, iova));
-	skb = build_skb(va, RCV_FRAG_LEN);
-	if (!skb) {
-		put_page(virt_to_page(va));
-		return NULL;
-	}
-
-	skb_reserve(skb, OTX2_HEAD_ROOM);
-	skb_put(skb, len);
-
-	dma_unmap_page_attrs(pfvf->dev, iova, RCV_FRAG_LEN,
-			     DMA_FROM_DEVICE, DMA_ATTR_SKIP_CPU_SYNC);
-	prefetch(skb->data);
-	return skb;
-}
-
-static inline void otx2_set_rxtstamp(struct otx2_nic *pfvf, struct sk_buff *skb)
-{
-	u64 tsns;
-	int err;
-
-	if (!pfvf->hw_rx_tstamp)
-		return;
-
-	/* The first 8 bytes is the timestamp */
-	err = otx2_ptp_tstamp2time(pfvf, be64_to_cpu(*(u64 *)skb->data), &tsns);
-	if (err)
-		goto done;
-
-	skb_hwtstamps(skb)->hwtstamp = ns_to_ktime(tsns);
-
-done:
-	__skb_pull(skb, 8);
-}
-
 static inline bool otx2_check_rcv_errors(struct otx2_nic *pfvf,
-					 struct otx2_cq_queue *cq, void *cqe)
+					 struct nix_rx_parse_s *parse, int qidx)
 {
 	struct otx2_drv_stats *stats = &pfvf->hw.drv_stats;
-	struct nix_rx_parse_s *parse;
 	struct nix_rx_sg_s *sg;
 	void *start, *end;
 	u64 *iova;
 	int seg;
 
-	parse = (struct nix_rx_parse_s *)(cqe + sizeof(struct nix_cqe_hdr_s));
 	if (netif_msg_rx_err(pfvf))
 		netdev_err(pfvf->netdev,
 			   "RQ%d: Error pkt with errlev:0x%x errcode:0x%x\n",
-			   cq->cq_idx, parse->errlev, parse->errcode);
+			   qidx, parse->errlev, parse->errcode);
 
 	if (parse->errlev == NPC_ERRLVL_RE) {
 		switch (parse->errcode) {
@@ -280,7 +282,7 @@ static inline bool otx2_check_rcv_errors(struct otx2_nic *pfvf,
 		return false;
 	}
 
-	start = cqe + sizeof(struct nix_cqe_hdr_s) + sizeof(*parse);
+	start = (void *)parse + sizeof(*parse);
 	end = start + ((parse->desc_sizem1 + 1) * 16);
 	while ((start + sizeof(*sg)) < end) {
 		sg = (struct nix_rx_sg_s *)start;
@@ -291,7 +293,7 @@ static inline bool otx2_check_rcv_errors(struct otx2_nic *pfvf,
 			return false;
 
 		for (seg = 0; seg < sg->segs; seg++) {
-			otx2_aura_freeptr(pfvf, cq->cq_idx, *iova & ~0x07ULL);
+			otx2_aura_freeptr(pfvf, qidx, *iova & ~0x07ULL);
 			iova++;
 		}
 		if (sg->segs == 1)
@@ -303,10 +305,10 @@ static inline bool otx2_check_rcv_errors(struct otx2_nic *pfvf,
 }
 
 static void otx2_rcv_pkt_handler(struct otx2_nic *pfvf,
-				 struct otx2_cq_queue *cq, void *cqe)
+				 struct napi_struct *napi,
+				 struct otx2_cq_queue *cq,
+				 struct nix_cqe_hdr_s *cqe_hdr)
 {
-	struct nix_cqe_hdr_s *cqe_hdr = (struct nix_cqe_hdr_s *)cqe;
-	struct otx2_qset *qset = &pfvf->qset;
 	struct nix_rx_parse_s *parse;
 	struct sk_buff *skb = NULL;
 	struct nix_rx_sg_s *sg;
@@ -316,14 +318,18 @@ static void otx2_rcv_pkt_handler(struct otx2_nic *pfvf,
 	u64 *iova;
 
 	/* CQE_HDR_S for a Rx pkt is always followed by RX_PARSE_S */
-	parse = (struct nix_rx_parse_s *)(cqe + sizeof(*cqe_hdr));
+	parse = (struct nix_rx_parse_s *)((void *)cqe_hdr + sizeof(*cqe_hdr));
 	if (parse->errlev || parse->errcode) {
-		if (otx2_check_rcv_errors(pfvf, cq, cqe))
+		if (otx2_check_rcv_errors(pfvf, parse, cq->cq_idx))
 			return;
 	}
 
-	start = cqe + sizeof(*cqe_hdr) + sizeof(*parse);
+	start = (void *)parse + sizeof(*parse);
 	end = start + ((parse->desc_sizem1 + 1) * 16);
+
+	skb = napi_get_frags(napi);
+	if (!skb)
+		return;
 
 	/* Run through the each NIX_RX_SG_S subdc and frame the skb */
 	while ((start + sizeof(*sg)) < end) {
@@ -333,24 +339,10 @@ static void otx2_rcv_pkt_handler(struct otx2_nic *pfvf,
 
 		for (seg = 0; seg < sg->segs; seg++) {
 			len = sg_lens[frag_num(seg)];
-			/* Starting IOVA's 2:0 bits give alignment
-			 * bytes after which packet data starts.
-			 */
-			if (!skb) {
-				skb = otx2_get_rcv_skb(pfvf, *iova, len);
-				/* check if data starts at some nonzero offset
-				 * from the start of the buffer.  For now the
-				 * only possible offset is 8 bytes in the case
-				 * the packet data are prepended by a timestamp.
-				 */
-				if (parse->laptr)
-					otx2_set_rxtstamp(pfvf, skb);
-			} else {
-				otx2_skb_add_frag(pfvf, skb, *iova, len);
-			}
+			otx2_skb_add_frag(pfvf, skb, *iova, len, parse);
 			iova++;
-			cq->pool_ptrs++;
 		}
+		cq->pool_ptrs += sg->segs;
 
 		/* When SEGS = 1, only one IOVA is followed by NIX_RX_SG_S.
 		 * When SEGS >= 2, three IOVAs will follow NIX_RX_SG_S,
@@ -362,118 +354,44 @@ static void otx2_rcv_pkt_handler(struct otx2_nic *pfvf,
 			start += sizeof(*sg) + (3 * sizeof(u64));
 	}
 
-	if (!skb)
-		return;
-
-	if (netif_msg_pktdata(pfvf) && !skb_is_nonlinear(skb)) {
-		netdev_info(pfvf->netdev, "skb 0x%p, len=%d\n", skb, skb->len);
-		print_hex_dump(KERN_DEBUG, "RX:", DUMP_PREFIX_OFFSET, 16, 1,
-			       skb->data, skb->len, true);
-	}
-
 	otx2_set_rxhash(pfvf, cqe_hdr, skb);
 
 	skb_record_rx_queue(skb, cq->cq_idx);
-	skb->protocol = eth_type_trans(skb, pfvf->netdev);
 	if (pfvf->netdev->features & NETIF_F_RXCSUM)
 		skb->ip_summed = CHECKSUM_UNNECESSARY;
 
-	/* This holds true on condition RX VLAN offloads are enabled and
-	 * 802.1AD or 802.1Q VLANs were found in frame.
-	 */
-	if (parse->vtag0_gone) {
-		if (skb->protocol == htons(ETH_P_8021Q))
-			__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021AD),
-					       parse->vtag0_tci);
-		else
-			__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q),
-					       parse->vtag0_tci);
-	}
+	otx2_set_taginfo(parse, skb);
 
-	napi_gro_receive(&qset->napi[cq->cint_idx].napi, skb);
+	napi_gro_frags(napi);
 }
 
-#define CQE_ADDR(CQ, idx) ((CQ)->cqe_base + ((CQ)->cqe_size * (idx)))
-
-int otx2_napi_handler(struct otx2_cq_queue *cq,
-		      struct otx2_nic *pfvf, int budget)
+static inline int otx2_rx_napi_handler(struct otx2_nic *pfvf,
+				       struct napi_struct *napi,
+				       struct otx2_cq_queue *cq, int budget)
 {
 	struct otx2_pool *rbpool = cq->rbpool;
-	int processed_cqe = 0, workdone = 0;
-	int tx_pkts = 0, tx_bytes = 0;
 	struct nix_cqe_hdr_s *cqe_hdr;
-	struct netdev_queue *txq;
-	u64 cq_status;
+	int processed_cqe = 0;
 	s64 bufptr;
 
-	/* If the pending CQE > 64 skip CQ status read */
-	if (cq->pend_cqe >= budget)
-		goto process_cqe;
-
-	cq_status = otx2_nix_cq_op_status(pfvf, cq->cq_idx);
-	if (cq_status & BIT_ULL(63)) {
-		dev_err(pfvf->dev, "CQ operation error");
-		pfvf->intf_down = true;
-		schedule_work(&pfvf->reset_task);
-		return 0;
-	}
-	if (cq_status & BIT_ULL(46)) {
-		dev_err(pfvf->dev, "CQ stopped due to error");
-		pfvf->intf_down = true;
-		schedule_work(&pfvf->reset_task);
-		return 0;
-	}
-
-	cq->cq_head = (cq_status >> 20) & 0xFFFFF;
-	cq->cq_tail = cq_status & 0xFFFFF;
-
-	/* Since multiple CQs may be mapped to same CINT,
-	 * check if there are valid CQEs in this CQ.
-	 */
-	if (cq->cq_head == cq->cq_tail)
-		return 0;
-process_cqe:
-	cq->pend_cqe = 0;
-	while (cq->cq_head != cq->cq_tail) {
-		if (workdone >= budget) {
-			/* Calculate number of pending CQEs */
-			if (cq->cq_tail < cq->cq_head)
-				cq->pend_cqe = (cq->cqe_cnt - cq->cq_head)
-						+ cq->cq_tail;
-			else
-				cq->pend_cqe = cq->cq_tail - cq->cq_head;
+	/* Make sure HW writes to CQ are done */
+	dma_rmb();
+	while (processed_cqe < budget) {
+		cqe_hdr = otx2_get_next_cqe(cq);
+		if (!cqe_hdr) {
+			if (!processed_cqe)
+				return 0;
 			break;
 		}
+		otx2_rcv_pkt_handler(pfvf, napi, cq, cqe_hdr);
 
-		cqe_hdr = (struct nix_cqe_hdr_s *)CQE_ADDR(cq, cq->cq_head);
-		cq->cq_head++;
-		cq->cq_head &= (cq->cqe_cnt - 1);
-
-		switch (cqe_hdr->cqe_type) {
-		case NIX_XQE_TYPE_RX:
-			/* Receive packet handler*/
-			otx2_rcv_pkt_handler(pfvf, cq, cqe_hdr);
-			workdone++;
-			break;
-		case NIX_XQE_TYPE_SEND:
-			otx2_snd_pkt_handler(pfvf, cq, cqe_hdr, budget,
-					     &tx_pkts, &tx_bytes);
-		}
+		cqe_hdr->cqe_type = NIX_XQE_TYPE_INVALID;
 		processed_cqe++;
 	}
 
+	/* Free CQEs to HW */
 	otx2_write64(pfvf, NIX_LF_CQ_OP_DOOR,
 		     ((u64)cq->cq_idx << 32) | processed_cqe);
-
-	if (tx_pkts) {
-		txq = netdev_get_tx_queue(pfvf->netdev, cq->cint_idx);
-		netdev_tx_completed_queue(txq, tx_pkts, tx_bytes);
-		/* Check if queue was stopped earlier due to ring full */
-		smp_mb();
-		if (netif_carrier_ok(pfvf->netdev) &&
-		    netif_tx_queue_stopped(txq))
-			netif_tx_wake_queue(txq);
-	}
 
 	if (!cq->pool_ptrs)
 		return 0;
@@ -500,48 +418,88 @@ process_cqe:
 	}
 	otx2_get_page(rbpool);
 
-	return workdone;
+	return processed_cqe;
 }
 
-int otx2_poll(struct napi_struct *napi, int budget)
+static inline int otx2_tx_napi_handler(struct otx2_nic *pfvf,
+				       struct otx2_cq_queue *cq, int budget)
+{
+	struct nix_cqe_hdr_s *cqe_hdr;
+	int tx_pkts = 0, tx_bytes = 0;
+	struct otx2_snd_queue *sq;
+	struct netdev_queue *txq;
+	int processed_cqe = 0;
+
+	sq = &pfvf->qset.sq[cq->cint_idx];
+
+	/* Make sure HW writes to CQ are done */
+	dma_rmb();
+	while (processed_cqe < budget) {
+		cqe_hdr = otx2_get_next_cqe(cq);
+		if (!cqe_hdr) {
+			if (!processed_cqe)
+				return 0;
+			break;
+		}
+		otx2_snd_pkt_handler(pfvf, cq, sq, cqe_hdr, budget,
+				     &tx_pkts, &tx_bytes);
+
+		cqe_hdr->cqe_type = NIX_XQE_TYPE_INVALID;
+		processed_cqe++;
+	}
+
+	/* Free CQEs to HW */
+	otx2_write64(pfvf, NIX_LF_CQ_OP_DOOR,
+		     ((u64)cq->cq_idx << 32) | processed_cqe);
+
+	if (tx_pkts) {
+		txq = netdev_get_tx_queue(pfvf->netdev, cq->cint_idx);
+		netdev_tx_completed_queue(txq, tx_pkts, tx_bytes);
+		/* Check if queue was stopped earlier due to ring full */
+		smp_mb();
+		if (netif_tx_queue_stopped(txq) &&
+		    netif_carrier_ok(pfvf->netdev))
+			netif_tx_wake_queue(txq);
+	}
+	return 0;
+}
+
+int otx2_napi_handler(struct napi_struct *napi, int budget)
 {
 	struct otx2_cq_poll *cq_poll;
 	int workdone = 0, cq_idx, i;
 	struct otx2_cq_queue *cq;
 	struct otx2_qset *qset;
 	struct otx2_nic *pfvf;
-	u64 qcount;
 
 	cq_poll = container_of(napi, struct otx2_cq_poll, napi);
 	pfvf = (struct otx2_nic *)cq_poll->dev;
 	qset = &pfvf->qset;
 
-	for (i = 0; i < MAX_CQS_PER_CNT; i++) {
+	for (i = 0; i < CQS_PER_CINT; i++) {
 		cq_idx = cq_poll->cq_ids[i];
 		if (cq_idx == CINT_INVALID_CQ)
 			continue;
 		cq = &qset->cq[cq_idx];
-		qcount = otx2_read64(pfvf, NIX_LF_CINTX_CNT(cq_poll->cint_idx));
-		qcount = (qcount >> 32) & 0xFFFF;
-		/* If the RQ refill WQ task is running, skip napi
-		 * scheduler for this queue.
-		 */
-		if (cq->refill_task_sched)
-			continue;
-		workdone += otx2_napi_handler(cq, pfvf, budget);
-		if (workdone && qcount == 1)
-			break;
+		if (cq->cq_type == CQ_RX) {
+			/* If the RQ refill WQ task is running, skip napi
+			 * scheduler for this queue.
+			 */
+			if (cq->refill_task_sched)
+				continue;
+			workdone += otx2_rx_napi_handler(pfvf, napi,
+							 cq, budget);
+		} else {
+			workdone += otx2_tx_napi_handler(pfvf, cq, budget);
+		}
 	}
 
 	/* Clear the IRQ */
 	otx2_write64(pfvf, NIX_LF_CINTX_INT(cq_poll->cint_idx), BIT_ULL(0));
 
-	if (workdone < budget) {
-		/* Exit polling */
-		napi_complete(napi);
-
+	if (workdone < budget && napi_complete_done(napi, workdone)) {
 		/* If interface is going down, don't re-enable IRQ */
-		if (pfvf->intf_down)
+		if (pfvf->flags & OTX2_FLAG_INTF_DOWN)
 			return workdone;
 
 		/* Re-enable interrupts */
@@ -682,13 +640,18 @@ static void otx2_sqe_add_hdr(struct otx2_nic *pfvf, struct otx2_snd_queue *sq,
 {
 	int proto = 0;
 
+	/* Check if SQE was framed before, if yes then no need to
+	 * set these constants again anf again.
+	 */
+	if (!sqe_hdr->total) {
+		/* Don't free Tx buffers to Aura */
+		sqe_hdr->df = 1;
+		sqe_hdr->aura = sq->aura_id;
+		/* Post a CQE Tx after pkt transmission */
+		sqe_hdr->pnc = 1;
+		sqe_hdr->sq = qidx;
+	}
 	sqe_hdr->total = skb->len;
-	/* Don't free Tx buffers to Aura */
-	sqe_hdr->df = 1;
-	sqe_hdr->aura = sq->aura_id;
-	/* Post a CQE Tx after pkt transmission */
-	sqe_hdr->pnc = 1;
-	sqe_hdr->sq = qidx;
 	/* Set SQE identifier which will be used later for freeing SKB */
 	sqe_hdr->sqe_id = sq->head;
 
@@ -971,8 +934,10 @@ bool otx2_sq_append_skb(struct net_device *netdev, struct otx2_snd_queue *sq,
 		return true;
 	}
 
-	/* Set SQE's SEND_HDR */
-	memset(sq->sqe_base, 0, sq->sqe_size);
+	/* Set SQE's SEND_HDR.
+	 * Do not clear the first 64bit as it contains constant info.
+	 */
+	memset(sq->sqe_base + 8, 0, sq->sqe_size - 8);
 	sqe_hdr = (struct nix_sqe_hdr_s *)(sq->sqe_base);
 	otx2_sqe_add_hdr(pfvf, sq, sqe_hdr, skb, qidx);
 	offset = sizeof(*sqe_hdr);
@@ -1002,6 +967,84 @@ fail:
 	return false;
 }
 EXPORT_SYMBOL(otx2_sq_append_skb);
+
+void otx2_cleanup_rx_cqes(struct otx2_nic *pfvf, struct otx2_cq_queue *cq)
+{
+	struct nix_cqe_hdr_s *cqe_hdr;
+	struct nix_rx_parse_s *parse;
+	struct nix_rx_sg_s *sg;
+	int processed_cqe = 0;
+	void *start, *end;
+	u64 *iova, pa;
+	int seg;
+
+	/* Make sure HW writes to CQ are done */
+	dma_rmb();
+	while ((cqe_hdr = otx2_get_next_cqe(cq))) {
+		parse = (struct nix_rx_parse_s *)
+				((void *)cqe_hdr + sizeof(*cqe_hdr));
+		start = (void *)parse + sizeof(*parse);
+		end = start + ((parse->desc_sizem1 + 1) * 16);
+		while ((start + sizeof(*sg)) < end) {
+			sg = (struct nix_rx_sg_s *)start;
+			iova = (void *)sg + sizeof(*sg);
+			for (seg = 0; seg < sg->segs; seg++) {
+				/* Free IOVA */
+				*iova -= OTX2_HEAD_ROOM;
+				pa = otx2_iova_to_phys(pfvf->iommu_domain,
+						       *iova);
+				dma_unmap_page_attrs(pfvf->dev, *iova,
+						     RCV_FRAG_LEN,
+						     DMA_FROM_DEVICE,
+						     DMA_ATTR_SKIP_CPU_SYNC);
+				put_page(virt_to_page(phys_to_virt(pa)));
+				iova++;
+			}
+			start += sizeof(*sg);
+			start += (sg->segs == 1) ?
+				  sizeof(u64) : 3 * sizeof(u64);
+		}
+		cqe_hdr->cqe_type = NIX_XQE_TYPE_INVALID;
+		processed_cqe++;
+	}
+
+	/* Free CQEs to HW */
+	otx2_write64(pfvf, NIX_LF_CQ_OP_DOOR,
+		     ((u64)cq->cq_idx << 32) | processed_cqe);
+}
+
+void otx2_cleanup_tx_cqes(struct otx2_nic *pfvf, struct otx2_cq_queue *cq)
+{
+	struct nix_send_comp_s *snd_comp;
+	struct nix_cqe_hdr_s *cqe_hdr;
+	struct sk_buff *skb = NULL;
+	struct otx2_snd_queue *sq;
+	int processed_cqe = 0;
+	struct sg_list *sg;
+
+	sq = &pfvf->qset.sq[cq->cint_idx];
+
+	/* Make sure HW writes to CQ are done */
+	dma_rmb();
+	while ((cqe_hdr = otx2_get_next_cqe(cq))) {
+		snd_comp = (struct nix_send_comp_s *)
+				((void *)cqe_hdr + sizeof(*cqe_hdr));
+		sg = &sq->sg[snd_comp->sqe_id];
+		skb = (struct sk_buff *)sg->skb;
+		if (skb) {
+			otx2_dma_unmap_skb_frags(pfvf, sg);
+			dev_kfree_skb_any(skb);
+			sg->skb = (u64)NULL;
+		}
+
+		cqe_hdr->cqe_type = NIX_XQE_TYPE_INVALID;
+		processed_cqe++;
+	}
+
+	/* Free CQEs to HW */
+	otx2_write64(pfvf, NIX_LF_CQ_OP_DOOR,
+		     ((u64)cq->cq_idx << 32) | processed_cqe);
+}
 
 int otx2_rxtx_enable(struct otx2_nic *pfvf, bool enable)
 {

@@ -38,9 +38,6 @@ enum {
 	RVU_VF_INT_VEC_MBOX = 0x0,
 };
 
-static int otx2vf_open(struct net_device *netdev);
-static int otx2vf_stop(struct net_device *netdev);
-
 static int otx2vf_change_mtu(struct net_device *netdev, int new_mtu)
 {
 	bool if_up = netif_running(netdev);
@@ -262,7 +259,7 @@ static void otx2vf_disable_mbox_intr(struct otx2_nic *vf)
 	free_irq(vector, vf);
 }
 
-static int otx2vf_register_mbox_intr(struct otx2_nic *vf)
+static int otx2vf_register_mbox_intr(struct otx2_nic *vf, bool probe_pf)
 {
 	struct otx2_hw *hw = &vf->hw;
 	struct msg_req *req;
@@ -285,6 +282,9 @@ static int otx2vf_register_mbox_intr(struct otx2_nic *vf)
 	 */
 	otx2_write64(vf, RVU_VF_INT, BIT_ULL(0));
 	otx2_write64(vf, RVU_VF_INT_ENA_W1S, BIT_ULL(0));
+
+	if (!probe_pf)
+		return 0;
 
 	/* Check mailbox communication with PF */
 	req = otx2_mbox_alloc_msg_ready(&vf->mbox);
@@ -369,7 +369,7 @@ exit:
 	return err;
 }
 
-static int otx2vf_open(struct net_device *netdev)
+int otx2vf_open(struct net_device *netdev)
 {
 	struct otx2_nic *vf;
 	int err;
@@ -388,11 +388,13 @@ static int otx2vf_open(struct net_device *netdev)
 
 	return 0;
 }
+EXPORT_SYMBOL(otx2vf_open);
 
-static int otx2vf_stop(struct net_device *netdev)
+int otx2vf_stop(struct net_device *netdev)
 {
 	return otx2_stop(netdev);
 }
+EXPORT_SYMBOL(otx2vf_stop);
 
 static netdev_tx_t otx2vf_xmit(struct sk_buff *skb, struct net_device *netdev)
 {
@@ -401,8 +403,9 @@ static netdev_tx_t otx2vf_xmit(struct sk_buff *skb, struct net_device *netdev)
 	struct otx2_snd_queue *sq;
 	struct netdev_queue *txq;
 
-	/* Check for minimum packet length */
-	if (skb->len <= ETH_HLEN) {
+	/* Check for minimum and maximum packet length */
+	if (skb->len <= ETH_HLEN ||
+	    (!skb_shinfo(skb)->gso_size && skb->len > vf->max_frs)) {
 		dev_kfree_skb(skb);
 		return NETDEV_TX_OK;
 	}
@@ -459,6 +462,30 @@ static const struct net_device_ops otx2vf_netdev_ops = {
 	.ndo_features_check = otx2_features_check,
 };
 
+static int otx2vf_realloc_msix_vectors(struct otx2_nic *vf)
+{
+	struct otx2_hw *hw = &vf->hw;
+	int num_vec, err;
+
+	num_vec = hw->nix_msixoff;
+	num_vec += NIX_LF_CINT_VEC_START + hw->max_queues;
+
+	otx2vf_disable_mbox_intr(vf);
+	pci_free_irq_vectors(hw->pdev);
+	pci_free_irq_vectors(hw->pdev);
+	err = pci_alloc_irq_vectors(hw->pdev, num_vec, num_vec, PCI_IRQ_MSIX);
+	if (err < 0) {
+		dev_err(vf->dev, "%s: Failed to realloc %d IRQ vectors\n",
+			__func__, num_vec);
+		return err;
+	}
+
+	err = otx2vf_register_mbox_intr(vf, false);
+	if (err)
+		return err;
+	return 0;
+}
+
 static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	int num_vec = pci_msix_vec_count(pdev);
@@ -508,7 +535,7 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	vf->pdev = pdev;
 	vf->dev = dev;
 	vf->iommu_domain = iommu_get_domain_for_dev(dev);
-	vf->intf_down = true;
+	vf->flags |= OTX2_FLAG_INTF_DOWN;
 	hw = &vf->hw;
 	hw->pdev = vf->pdev;
 	hw->rx_queues = qcount;
@@ -545,7 +572,7 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err_free_irq_vectors;
 
 	/* Register mailbox interrupt */
-	err = otx2vf_register_mbox_intr(vf);
+	err = otx2vf_register_mbox_intr(vf, true);
 	if (err)
 		goto err_mbox_destroy;
 
@@ -553,6 +580,10 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	err = otx2_attach_npa_nix(vf);
 	if (err)
 		goto err_disable_mbox_intr;
+
+	err = otx2vf_realloc_msix_vectors(vf);
+	if (err)
+		goto err_mbox_destroy;
 
 	err = otx2_set_real_num_queues(netdev, qcount, qcount);
 	if (err)
