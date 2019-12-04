@@ -1620,7 +1620,7 @@ static int io_poll_add(struct io_kiocb *req, const struct io_uring_sqe *sqe)
 }
 
 static int io_req_defer(struct io_ring_ctx *ctx, struct io_kiocb *req,
-			const struct io_uring_sqe *sqe)
+			struct sqe_submit *s)
 {
 	struct io_uring_sqe *sqe_copy;
 
@@ -1638,7 +1638,8 @@ static int io_req_defer(struct io_ring_ctx *ctx, struct io_kiocb *req,
 		return 0;
 	}
 
-	memcpy(sqe_copy, sqe, sizeof(*sqe_copy));
+	memcpy(&req->submit, s, sizeof(*s));
+	memcpy(sqe_copy, s->sqe, sizeof(*sqe_copy));
 	req->submit.sqe = sqe_copy;
 
 	INIT_WORK(&req->work, io_sq_wq_submit_work);
@@ -1953,7 +1954,7 @@ static int io_submit_sqe(struct io_ring_ctx *ctx, struct sqe_submit *s,
 	if (unlikely(ret))
 		goto out;
 
-	ret = io_req_defer(ctx, req, s->sqe);
+	ret = io_req_defer(ctx, req, s);
 	if (ret) {
 		if (ret == -EIOCBQUEUED)
 			ret = 0;
