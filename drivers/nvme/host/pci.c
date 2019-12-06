@@ -73,13 +73,13 @@ static const struct kernel_param_ops queue_count_ops = {
 	.get = param_get_int,
 };
 
-static int write_queues;
+static unsigned int write_queues;
 module_param_cb(write_queues, &queue_count_ops, &write_queues, 0644);
 MODULE_PARM_DESC(write_queues,
 	"Number of queues to use for writes. If not set, reads and writes "
 	"will share a queue set.");
 
-static int poll_queues = 0;
+static unsigned int poll_queues = 0;
 module_param_cb(poll_queues, &queue_count_ops, &poll_queues, 0644);
 MODULE_PARM_DESC(poll_queues, "Number of queues to use for polled IO.");
 
