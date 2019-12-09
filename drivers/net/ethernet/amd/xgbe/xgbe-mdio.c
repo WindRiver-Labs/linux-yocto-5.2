@@ -1343,9 +1343,11 @@ static void xgbe_phy_status(struct xgbe_prv_data *pdata)
 
 	pdata->phy.link = pdata->phy_if.phy_impl.link_status(pdata,
 							     &an_restart);
+
 	if (an_restart) {
 		xgbe_phy_config_aneg(pdata);
-		return;
+		if(XGBE_MODE_KR != pdata->phy_if.phy_impl.cur_mode(pdata))
+			return;
 	}
 
 	if (pdata->phy.link) {
@@ -1364,7 +1366,7 @@ static void xgbe_phy_status(struct xgbe_prv_data *pdata)
 		if (test_bit(XGBE_LINK_INIT, &pdata->dev_state)) {
 			xgbe_check_link_timeout(pdata);
 
-			if (link_aneg)
+			if ((link_aneg) && (XGBE_MODE_KR != pdata->phy_if.phy_impl.cur_mode(pdata)))
 				return;
 		}
 
