@@ -381,7 +381,7 @@ struct hns_roce_mr_table {
 struct hns_roce_wq {
 	u64		*wrid;     /* Work request ID */
 	spinlock_t	lock;
-	int		wqe_cnt;  /* WQE num */
+	u32		wqe_cnt;  /* WQE num */
 	u32		max_post;
 	int		max_gs;
 	int		offset;
@@ -613,7 +613,6 @@ struct hns_roce_qp {
 	u8			sdb_en;
 	u32			doorbell_qpn;
 	__le32			sq_signal_bits;
-	u32			sq_next_wqe;
 	int			sq_max_wqes_per_wr;
 	int			sq_spare_wqes;
 	struct hns_roce_wq	sq;
