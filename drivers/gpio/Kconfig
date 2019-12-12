@@ -544,6 +544,7 @@ config GPIO_THUNDERX
 	depends on PCI_MSI
 	select IRQ_DOMAIN_HIERARCHY
 	select IRQ_FASTEOI_HIERARCHY_HANDLERS
+	select GPIOLIB_IRQCHIP
 	help
 	  Say yes here to support the on-chip GPIO lines on the ThunderX
 	  and OCTEON-TX families of SoCs.
