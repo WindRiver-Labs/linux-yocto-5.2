@@ -577,6 +577,53 @@ static int vc4_plane_allocate_lbm(struct drm_plane_state *state)
 	return 0;
 }
 
+/* The colorspace conversion matrices are held in 3 entries in the dlist.
+ * Create an array of them, with entries for each full and limited mode, and
+ * each supported colorspace.
+ */
+#define VC4_LIMITED_RANGE	0
+#define VC4_FULL_RANGE		1
+
+static const u32 colorspace_coeffs[2][DRM_COLOR_ENCODING_MAX][3] = {
+	{
+		/* Limited range */
+		{
+			/* BT601 */
+			SCALER_CSC0_ITR_R_601_5,
+			SCALER_CSC1_ITR_R_601_5,
+			SCALER_CSC2_ITR_R_601_5,
+		}, {
+			/* BT709 */
+			SCALER_CSC0_ITR_R_709_3,
+			SCALER_CSC1_ITR_R_709_3,
+			SCALER_CSC2_ITR_R_709_3,
+		}, {
+			/* BT2020. Not supported yet - copy 601 */
+			SCALER_CSC0_ITR_R_601_5,
+			SCALER_CSC1_ITR_R_601_5,
+			SCALER_CSC2_ITR_R_601_5,
+		}
+	}, {
+		/* Full range */
+		{
+			/* JFIF */
+			SCALER_CSC0_JPEG_JFIF,
+			SCALER_CSC1_JPEG_JFIF,
+			SCALER_CSC2_JPEG_JFIF,
+		}, {
+			/* BT709 */
+			SCALER_CSC0_ITR_R_709_3_FR,
+			SCALER_CSC1_ITR_R_709_3_FR,
+			SCALER_CSC2_ITR_R_709_3_FR,
+		}, {
+			/* BT2020. Not supported yet - copy JFIF */
+			SCALER_CSC0_JPEG_JFIF,
+			SCALER_CSC1_JPEG_JFIF,
+			SCALER_CSC2_JPEG_JFIF,
+		}
+	}
+};
+
 /* Writes out a full display list for an active plane to the plane's
  * private dlist state.
  */
@@ -590,6 +637,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	const struct hvs_format *format = vc4_get_hvs_format(fb->format->format);
 	u64 base_format_mod = fourcc_mod_broadcom_mod(fb->modifier);
 	int num_planes = drm_format_num_planes(format->drm);
+	bool hflip = false, vflip = false;
 	u32 h_subsample, v_subsample;
 	bool mix_plane_alpha;
 	bool covers_screen;
@@ -601,6 +649,24 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 
 	if (vc4_state->dlist_initialized)
 		return 0;
+
+	ret = vc4_plane_setup_clipping_and_scaling(state);
+	if (ret)
+		return ret;
+
+	rotation = drm_rotation_simplify(state->rotation,
+					 DRM_MODE_ROTATE_0 |
+					 DRM_MODE_REFLECT_X |
+					 DRM_MODE_REFLECT_Y);
+
+	if ((rotation & DRM_MODE_ROTATE_MASK) == DRM_MODE_ROTATE_180) {
+		hflip = true;
+		vflip = true;
+	}
+	if (rotation & DRM_MODE_REFLECT_X)
+		hflip ^= true;
+	if (rotation & DRM_MODE_REFLECT_Y)
+		vflip ^= true;
 
 	ret = vc4_plane_setup_clipping_and_scaling(state);
 	if (ret)
@@ -623,15 +689,15 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 	h_subsample = drm_format_horz_chroma_subsampling(format->drm);
 	v_subsample = drm_format_vert_chroma_subsampling(format->drm);
 
-	rotation = drm_rotation_simplify(state->rotation,
-					 DRM_MODE_ROTATE_0 |
-					 DRM_MODE_REFLECT_X |
-					 DRM_MODE_REFLECT_Y);
-
-	/* We must point to the last line when Y reflection is enabled. */
-	src_y = vc4_state->src_y;
-	if (rotation & DRM_MODE_REFLECT_Y)
-		src_y += vc4_state->src_h[0] - 1;
+	if (!vflip)
+		src_y = vc4_state->src_y;
+	else
+		/* When vflipped the image offset needs to be
+		 * the start of the last line of the image, and
+		 * the pitch will be subtracted from the offset.
+		 */
+		src_y = vc4_state->src_y +
+			vc4_state->src_h[0] - 1;
 
 	switch (base_format_mod) {
 	case DRM_FORMAT_MOD_LINEAR:
@@ -691,7 +757,7 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 		 * definitely required (I guess it's also related to the "going
 		 * backward" situation).
 		 */
-		if (rotation & DRM_MODE_REFLECT_Y) {
+		if (vflip) {
 			y_off = tile_h_mask - y_off;
 			pitch0 = SCALER_PITCH0_TILE_LINE_DIR;
 		} else {
@@ -789,7 +855,9 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 			VC4_SET_FIELD(tiling, SCALER_CTL0_TILING) |
 			(vc4_state->is_unity ? SCALER_CTL0_UNITY : 0) |
 			VC4_SET_FIELD(scl0, SCALER_CTL0_SCL0) |
-			VC4_SET_FIELD(scl1, SCALER_CTL0_SCL1));
+			VC4_SET_FIELD(scl1, SCALER_CTL0_SCL1) |
+			(vflip ? SCALER_CTL0_VFLIP : 0) |
+			(hflip ? SCALER_CTL0_HFLIP : 0));
 
 	/* Position Word 0: Image Positions and Alpha Value */
 	vc4_state->pos0_offset = vc4_state->dlist_count;
@@ -858,9 +926,20 @@ static int vc4_plane_mode_set(struct drm_plane *plane,
 
 	/* Colorspace conversion words */
 	if (vc4_state->is_yuv) {
-		vc4_dlist_write(vc4_state, SCALER_CSC0_ITR_R_601_5);
-		vc4_dlist_write(vc4_state, SCALER_CSC1_ITR_R_601_5);
-		vc4_dlist_write(vc4_state, SCALER_CSC2_ITR_R_601_5);
+		enum drm_color_encoding color_encoding = state->color_encoding;
+		enum drm_color_range color_range = state->color_range;
+		const u32 *ccm;
+
+		if (color_encoding >= DRM_COLOR_ENCODING_MAX)
+			color_encoding = DRM_COLOR_YCBCR_BT601;
+		if (color_range >= DRM_COLOR_RANGE_MAX)
+			color_range = DRM_COLOR_YCBCR_LIMITED_RANGE;
+
+		ccm = colorspace_coeffs[color_range][color_encoding];
+
+		vc4_dlist_write(vc4_state, ccm[0]);
+		vc4_dlist_write(vc4_state, ccm[1]);
+		vc4_dlist_write(vc4_state, ccm[2]);
 	}
 
 	vc4_state->lbm_offset = 0;
@@ -1263,6 +1342,20 @@ struct drm_plane *vc4_plane_init(struct drm_device *dev,
 	drm_plane_helper_add(plane, &vc4_plane_helper_funcs);
 
 	drm_plane_create_alpha_property(plane);
+	drm_plane_create_rotation_property(plane, DRM_MODE_ROTATE_0,
+					   DRM_MODE_ROTATE_0 |
+					   DRM_MODE_ROTATE_180 |
+					   DRM_MODE_REFLECT_X |
+					   DRM_MODE_REFLECT_Y);
+
+	drm_plane_create_color_properties(plane,
+					  BIT(DRM_COLOR_YCBCR_BT601) |
+					  BIT(DRM_COLOR_YCBCR_BT709),
+					  BIT(DRM_COLOR_YCBCR_LIMITED_RANGE) |
+					  BIT(DRM_COLOR_YCBCR_FULL_RANGE),
+					  DRM_COLOR_YCBCR_BT709,
+					  DRM_COLOR_YCBCR_LIMITED_RANGE);
+
 	drm_plane_create_rotation_property(plane, DRM_MODE_ROTATE_0,
 					   DRM_MODE_ROTATE_0 |
 					   DRM_MODE_ROTATE_180 |
