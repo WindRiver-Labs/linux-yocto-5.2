@@ -824,6 +824,7 @@ static void xgbe_an37_state_machine(struct xgbe_prv_data *pdata)
 static void xgbe_an73_state_machine(struct xgbe_prv_data *pdata)
 {
 	enum xgbe_an cur_state = pdata->an_state;
+	int phy_reset = 0;
 
 	if (!pdata->an_int)
 		return;
@@ -890,18 +891,27 @@ again:
 		xgbe_an73_clear_interrupts(pdata);
 	}
 
+	/* Bug fix for AN failure in KR mode */
+	if ((pdata->an_state == XGBE_AN_NO_LINK) || (pdata->an_state == XGBE_AN_ERROR)) {
+		phy_reset = 1;
+	}
+
 	if (pdata->an_state >= XGBE_AN_COMPLETE) {
 		pdata->an_result = pdata->an_state;
 		pdata->an_state = XGBE_AN_READY;
 		pdata->kr_state = XGBE_RX_BPA;
 		pdata->kx_state = XGBE_RX_BPA;
 		pdata->an_start = 0;
-
 		if (pdata->phy_if.phy_impl.an_post)
 			pdata->phy_if.phy_impl.an_post(pdata);
-
 		netif_dbg(pdata, link, pdata->netdev, "CL73 AN result: %s\n",
 			  xgbe_state_as_string(pdata->an_result));
+	/* Bug fix for AN failure in KR mode */
+		if(phy_reset) {
+			xgbe_kr_mode(pdata);
+			pdata->phy_if.phy_reset(pdata);
+			netif_dbg(pdata, link, pdata->netdev, " PHY Reset\n");
+		}
 	}
 
 	if (cur_state != pdata->an_state)
@@ -1180,11 +1190,12 @@ static int xgbe_phy_config_fixed(struct xgbe_prv_data *pdata)
 	return 0;
 }
 
+/* caller should hold an_mutex */
 static int __xgbe_phy_config_aneg(struct xgbe_prv_data *pdata, bool set_mode)
 {
 	int ret;
 
-	mutex_lock(&pdata->an_mutex);
+
 
 	set_bit(XGBE_LINK_INIT, &pdata->dev_state);
 	pdata->link_check = jiffies;
@@ -1252,7 +1263,7 @@ out:
 	else
 		clear_bit(XGBE_LINK_ERR, &pdata->dev_state);
 
-	mutex_unlock(&pdata->an_mutex);
+
 
 	return ret;
 }
@@ -1332,6 +1343,8 @@ static void xgbe_phy_status(struct xgbe_prv_data *pdata)
 	unsigned int link_aneg;
 	int an_restart;
 
+	mutex_lock(&pdata->an_mutex);
+
 	if (test_bit(XGBE_LINK_ERR, &pdata->dev_state)) {
 		netif_carrier_off(pdata->netdev);
 
@@ -1346,13 +1359,14 @@ static void xgbe_phy_status(struct xgbe_prv_data *pdata)
 
 	if (an_restart) {
 		xgbe_phy_config_aneg(pdata);
-		if(XGBE_MODE_KR != pdata->phy_if.phy_impl.cur_mode(pdata))
-			return;
+		mutex_unlock(&pdata->an_mutex);
+		return;
 	}
 
 	if (pdata->phy.link) {
 		if (link_aneg && !xgbe_phy_aneg_done(pdata)) {
 			xgbe_check_link_timeout(pdata);
+			mutex_unlock(&pdata->an_mutex);
 			return;
 		}
 
@@ -1360,23 +1374,29 @@ static void xgbe_phy_status(struct xgbe_prv_data *pdata)
 
 		if (test_bit(XGBE_LINK_INIT, &pdata->dev_state))
 			clear_bit(XGBE_LINK_INIT, &pdata->dev_state);
-
 		netif_carrier_on(pdata->netdev);
 	} else {
 		if (test_bit(XGBE_LINK_INIT, &pdata->dev_state)) {
 			xgbe_check_link_timeout(pdata);
-
-			if ((link_aneg) && (XGBE_MODE_KR != pdata->phy_if.phy_impl.cur_mode(pdata)))
+			/* Bug fix for AN failure in KR mode */
+			if ((link_aneg) && ((XGBE_MODE_KR != pdata->phy_if.phy_impl.cur_mode(pdata)) && (XGBE_MODE_KX_1000 != pdata->phy_if.phy_impl.cur_mode(pdata)))) {
+				mutex_unlock(&pdata->an_mutex);
 				return;
+			}
 		}
 
 		xgbe_phy_status_result(pdata);
 
 		netif_carrier_off(pdata->netdev);
+		/* Bug fix for AN failure in KR mode */
+		if ((link_aneg) && ((XGBE_MODE_KR == pdata->phy_if.phy_impl.cur_mode(pdata)) || (XGBE_MODE_KX_1000== pdata->phy_if.phy_impl.cur_mode(pdata)))) {
+			xgbe_phy_config_aneg(pdata);
+		}
 	}
 
 adjust_link:
 	xgbe_phy_adjust_link(pdata);
+	mutex_unlock(&pdata->an_mutex);
 }
 
 static void xgbe_phy_stop(struct xgbe_prv_data *pdata)
@@ -1455,8 +1475,10 @@ static int xgbe_phy_start(struct xgbe_prv_data *pdata)
 
 	xgbe_an_init(pdata);
 	xgbe_an_enable_interrupts(pdata);
-
-	return xgbe_phy_config_aneg(pdata);
+	mutex_lock(&pdata->an_mutex);
+	ret = xgbe_phy_config_aneg(pdata);
+	mutex_unlock(&pdata->an_mutex);
+	return ret;
 
 err_irq:
 	if (pdata->dev_irq != pdata->an_irq)
