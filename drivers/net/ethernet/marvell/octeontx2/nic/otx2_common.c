@@ -359,7 +359,7 @@ dma_addr_t otx2_alloc_rbuf(struct otx2_nic *pfvf, struct otx2_pool *pool,
 
 	/* Allocate a new page */
 	pool->page = alloc_pages(gfp | __GFP_COMP | __GFP_NOWARN, 0);
-	if (!pool->page)
+	if (unlikely(!pool->page))
 		return -ENOMEM;
 
 	pool->page_offset = 0;
@@ -367,7 +367,7 @@ ret:
 	iova = (u64)dma_map_page_attrs(pfvf->dev, pool->page,
 				       pool->page_offset, pool->rbsize,
 				       DMA_FROM_DEVICE, DMA_ATTR_SKIP_CPU_SYNC);
-	if (dma_mapping_error(pfvf->dev, iova)) {
+	if (unlikely(dma_mapping_error(pfvf->dev, iova))) {
 		if (!pool->page_offset)
 			__free_pages(pool->page, 0);
 		pool->page = NULL;
@@ -1247,6 +1247,14 @@ int otx2_attach_npa_nix(struct otx2_nic *pfvf)
 		otx2_mbox_unlock(&pfvf->mbox);
 		return err;
 	}
+
+	pfvf->nix_blkaddr = BLKADDR_NIX0;
+
+	/* If the platform has two NIX blocks then LF may be
+	 * allocated from NIX1.
+	 */
+	if (otx2_read64(pfvf, RVU_PF_BLOCK_ADDRX_DISC(BLKADDR_NIX1)) & 0x1FFULL)
+		pfvf->nix_blkaddr = BLKADDR_NIX1;
 
 	/* Get NPA and NIX MSIX vector offsets */
 	msix = otx2_mbox_alloc_msg_msix_offset(&pfvf->mbox);
