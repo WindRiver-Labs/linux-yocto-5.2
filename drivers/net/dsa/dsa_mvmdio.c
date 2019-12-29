@@ -53,7 +53,7 @@ enum mv_reg_type {
  */
 static int dsa_mvmdio_read_mdio(unsigned char phy, unsigned char reg)
 {
-	return mv_mii_bus->read(mv_mii_bus, phy, reg);
+	return mdiobus_read(mv_mii_bus, phy, reg);
 }
 
 /* Write regular phy register that is connected on mdio bus.
@@ -63,7 +63,7 @@ static int dsa_mvmdio_write_mdio(unsigned char phy,
 				 unsigned char reg,
 				 unsigned short val)
 {
-	return mv_mii_bus->write(mv_mii_bus, phy, reg, val);
+	return mdiobus_write(mv_mii_bus, phy, reg, val);
 }
 
 /* Read extended phy register that connected on xmdio bus.
@@ -73,7 +73,7 @@ static int dsa_mvmdio_read_xmdio(unsigned char phy,
 				 unsigned char dev,
 				 unsigned char reg)
 {
-	return mv_xmii_bus->read(mv_xmii_bus, phy, (dev << 16) | reg);
+	return mdiobus_read(mv_mii_bus, phy, (dev << 16) | reg);
 }
 
 /* Write extended phy register that is connected on xmdio bus.
@@ -84,7 +84,7 @@ static int dsa_mvmdio_write_xmdio(unsigned char phy,
 				  unsigned char reg,
 				  unsigned short val)
 {
-	return mv_xmii_bus->write(mv_xmii_bus, phy, (dev << 16) | reg, val);
+	return mdiobus_write(mv_mii_bus, phy, (dev << 16) | reg, val);
 }
 
 /* Read switch register that is connected on mdio bus.
@@ -99,7 +99,7 @@ static int dsa_mvmdio_read_register(unsigned char dev, unsigned char reg)
 	unsigned short cmd_data;
 
 	if (mv_phy_addr == 0)
-		return mv_mii_bus->read(mv_mii_bus, dev, reg);
+		return mdiobus_read(mv_mii_bus, phy, (dev << 16) | reg);
 
 	/* Write to SMI Command Register */
 	cmd_data = (1 << MV_SMIBUSY_OFFSET) |
@@ -108,13 +108,13 @@ static int dsa_mvmdio_read_register(unsigned char dev, unsigned char reg)
 		((dev & MV_DEVAD_MASK) << MV_DEVAD_OFFSET) |
 		((reg & MV_REGAD_MASK) << MV_REGAD_OFFSET);
 
-	ret = mv_mii_bus->write(mv_mii_bus, mv_phy_addr, MV_PHY_CMD_REG,
-				cmd_data);
+	ret = mdiobus_write(mv_mii_bus, mv_phy_addr, MV_PHY_CMD_REG,
+			    cmd_data);
 	if (ret < 0)
 		return ret;
 
 	/* Read from SMI Data Register */
-	ret = mv_mii_bus->read(mv_mii_bus, mv_phy_addr, MV_PHY_DATA_REG);
+	ret = mdiobus_read(mv_mii_bus, mv_phy_addr, MV_PHY_DATA_REG);
 
 	return ret;
 }
@@ -133,10 +133,10 @@ static int dsa_mvmdio_write_register(unsigned char dev,
 	unsigned short cmd_data;
 
 	if (mv_phy_addr == 0)
-		return mv_mii_bus->write(mv_mii_bus, dev, reg, data);
+		return mdiobus_write(mv_mii_bus, dev, reg, data);
 
 	/* Write data to SMI Data Register */
-	ret = mv_mii_bus->write(mv_mii_bus, mv_phy_addr, MV_PHY_DATA_REG, data);
+	ret = mdiobus_write(mv_mii_bus, mv_phy_addr, MV_PHY_DATA_REG, data);
 	if (ret < 0)
 		return ret;
 
@@ -148,8 +148,8 @@ static int dsa_mvmdio_write_register(unsigned char dev,
 		((dev & MV_DEVAD_MASK) << MV_DEVAD_OFFSET) |
 		((reg & MV_REGAD_MASK) << MV_REGAD_OFFSET);
 
-	ret = mv_mii_bus->write(mv_mii_bus, mv_phy_addr, MV_PHY_CMD_REG,
-				cmd_data);
+	ret = mdiobus_write(mv_mii_bus, mv_phy_addr, MV_PHY_CMD_REG,
+			    cmd_data);
 
 	return ret;
 }
