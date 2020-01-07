@@ -216,6 +216,15 @@ static int imx_irqsteer_probe(struct platform_device *pdev)
 	irqsteer_data->inited = false;
 	spin_lock_init(&irqsteer_data->lock);
 
+	ret = clk_prepare_enable(irqsteer_data->ipg_clk);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to enable ipg clk: %d\n", ret);
+		return ret;
+	}
+
+	/* steer IRQs into configured channel */
+	writel_relaxed(BIT(irqsteer_data->channum), irqsteer_data->regs + CHANCTRL);
+
 	irqsteer_data->domain = irq_domain_add_linear(np,
 						 irqsteer_data->channum * 32,
 						 &imx_irqsteer_domain_ops,
@@ -223,7 +232,8 @@ static int imx_irqsteer_probe(struct platform_device *pdev)
 	if (!irqsteer_data->domain) {
 		dev_err(&irqsteer_data->pdev->dev,
 			"failed to create IRQ domain\n");
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto out;
 	}
 
 	irq_set_chained_handler_and_data(irqsteer_data->irq,
@@ -234,6 +244,10 @@ static int imx_irqsteer_probe(struct platform_device *pdev)
 
 	pm_runtime_enable(&pdev->dev);
 	return 0;
+
+out:
+	clk_disable_unprepare(irqsteer_data->ipg_clk);
+	return ret;
 }
 
 static int imx_irqsteer_remove(struct platform_device *pdev)
