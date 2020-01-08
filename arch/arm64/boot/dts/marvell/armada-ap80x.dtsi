@@ -225,22 +225,22 @@
 				status = "disabled";
 			};
 
-			uio_xor0 {
+			uio_xor0: uio-xor0 {
 				compatible = "marvell,uio-xor-v2";
 				xor_access = <&xor0>;
 			};
 
-			uio_xor1 {
+			uio_xor1: uio-xor1 {
 				compatible = "marvell,uio-xor-v2";
 				xor_access = <&xor1>;
 			};
 
-			uio_xor2 {
+			uio_xor2: uio-xor2 {
 				compatible = "marvell,uio-xor-v2";
 				xor_access = <&xor2>;
 			};
 
-			uio_xor3 {
+			uio_xor3: uio-xor3 {
 				compatible = "marvell,uio-xor-v2";
 				xor_access = <&xor3>;
 			};
