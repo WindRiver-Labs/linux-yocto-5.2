@@ -283,11 +283,11 @@ static bool s10_is_ecc_enable(void)
 	arm_smccc_smc(INTEL_SIP_SMC_REG_READ, S10_ECCCTRL1_OFST, 0, 0, 0,
 		      0, 0, 0, &result);
 
-	if (A10_ECCCTRL1_ECC_EN & result.a1 == A10_ECCCTRL1_ECC_EN)
+	if ((A10_ECCCTRL1_ECC_EN & result.a1) == A10_ECCCTRL1_ECC_EN)
 		return true;
 	else {
 		edac_printk(KERN_ERR, EDAC_MC,
-			    "No ECC/ECC disabled [0x%08X]\n", result.a1);
+			    "No ECC/ECC disabled [0x%08lX]\n", result.a1);
 		return false;
 	}
 }
