@@ -112,6 +112,8 @@
 	pinctrl-names = "default";
 	bus-width = <8>;
 	vqmmc-supply = <&ap0_reg_sd_vccq>;
+	mmc-ddr-1_8v;
+	mmc-hs400-1_8v;
 	status = "okay";
 };
 
