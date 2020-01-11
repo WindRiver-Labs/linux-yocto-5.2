@@ -245,10 +245,13 @@ static void sock_map_free(struct bpf_map *map)
 		struct sock *sk;
 
 		sk = xchg(psk, NULL);
-		if (sk)
+		if (sk) {
+			lock_sock(sk);
 			rcu_read_lock();
 			sock_map_unref(sk, psk);
+			release_sock(sk);
 			rcu_read_unlock();
+		}
 	}
 	raw_spin_unlock_bh(&stab->lock);
 
@@ -867,7 +870,9 @@ static void sock_hash_free(struct bpf_map *map)
 		hlist_for_each_entry_safe(elem, node, &bucket->head, node) {
 			hlist_del_rcu(&elem->node);
 			rcu_read_lock();
+			lock_sock(elem->sk);
 			sock_map_unref(elem->sk, elem);
+			release_sock(elem->sk);
 			rcu_read_unlock();
 		}
 		raw_spin_unlock_bh(&bucket->lock);
