@@ -668,6 +668,7 @@ static const struct dev_pm_ops sdhci_xenon_dev_pm_ops = {
 
 static const struct of_device_id sdhci_xenon_dt_ids[] = {
 	{ .compatible = "marvell,armada-ap806-sdhci",},
+	{ .compatible = "marvell,armada-ap807-sdhci",},
 	{ .compatible = "marvell,armada-cp110-sdhci",},
 	{ .compatible = "marvell,armada-3700-sdhci",},
 	{}
