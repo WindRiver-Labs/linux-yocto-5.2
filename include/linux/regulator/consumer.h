@@ -583,7 +583,7 @@ static inline int regulator_list_voltage(struct regulator *regulator, unsigned s
 }
 
 static inline bool
-regulator_is_equal(struct regulator *reg1, struct regulator *reg2);
+regulator_is_equal(struct regulator *reg1, struct regulator *reg2)
 {
 	return false;
 }
