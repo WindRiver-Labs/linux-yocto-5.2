@@ -494,6 +494,7 @@ static void felix_tx_clean(struct ocelot *ocelot)
 
 			list_del(pos);
 			devm_kfree(ocelot->dev, entry);
+			break;
 		}
 
 		if (likely(skb)) {
