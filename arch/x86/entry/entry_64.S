@@ -664,7 +664,7 @@ GLOBAL(swapgs_restore_regs_and_return_to_usermode)
 
 /* Returning to kernel space */
 retint_kernel:
-#ifdef CONFIG_PREEMPTION
+#ifdef CONFIG_PREEMPT
 	/* Interrupts are off */
 	/* Check if we need preemption */
 	btl	$9, EFLAGS(%rsp)		/* were interrupts off? */
@@ -1115,7 +1115,7 @@ ENTRY(xen_do_hypervisor_callback)		/* do_hypervisor_callback(struct *pt_regs) */
 	call	xen_evtchn_do_upcall
 	LEAVE_IRQ_STACK
 
-#ifndef CONFIG_PREEMPTION
+#ifndef CONFIG_PREEMPT
 	call	xen_maybe_preempt_hcall
 #endif
 	jmp	error_exit
