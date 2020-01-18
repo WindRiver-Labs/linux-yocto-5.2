@@ -82,4 +82,25 @@ config MDIO_DEBUGFS
 	help
 	provides debugfs support to initiate mdio commands via smc call
 	to the atf.
+
+config OCTEONTX2_SDEI_GHES
+	bool "OcteonTX2 Generic Hardware Error Source (GHES) support"
+	depends on ARM_SDE_INTERFACE
+	help
+	  Select this option to enable support for RAS Generic Hardware Error
+	  Source (GHES) reporting.
+	  This will allow RAS errors that are detected by the OcteonTX2 to
+	  be reported using kernel logging.
+
+config OCTEONTX2_SDEI_GHES_DEBUG
+	bool "OcteonTX2 Generic Hardware Error Source (GHES) verbose debug msgs"
+	depends on OCTEONTX2_SDEI_GHES
+	help
+	  Say Y here if you want the OcteonTX2 GHES support to
+	  write verbose debug messages to the system log.  Select this
+	  if you are having a problem with the OcteonTX2 GHES support
+	  and want to see more details.
+
+	  If you are unsure about this, say N here.
+
 endmenu

@@ -2,3 +2,4 @@
 obj-y		+= octeontx2-rm/
 obj-y		+= octeontx2-dpi/
 obj-$(CONFIG_MDIO_DEBUGFS) += mdio_debugfs.o
+obj-y		+= octeontx2-ghes/
