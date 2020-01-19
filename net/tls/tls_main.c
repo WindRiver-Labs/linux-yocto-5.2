@@ -258,6 +258,7 @@ void tls_ctx_free(struct tls_context *ctx)
 
 	memzero_explicit(&ctx->crypto_send, sizeof(ctx->crypto_send));
 	memzero_explicit(&ctx->crypto_recv, sizeof(ctx->crypto_recv));
+	mutex_destroy(&ctx->tx_lock);
 	kfree(ctx);
 }
 
@@ -603,6 +604,7 @@ static struct tls_context *create_ctx(struct sock *sk)
 	if (!ctx)
 		return NULL;
 
+	mutex_init(&ctx->tx_lock);
 	icsk->icsk_ulp_data = ctx;
 	ctx->setsockopt = sk->sk_prot->setsockopt;
 	ctx->getsockopt = sk->sk_prot->getsockopt;
@@ -825,6 +827,7 @@ static int __init tls_register(void)
 {
 	tls_sw_proto_ops = inet_stream_ops;
 	tls_sw_proto_ops.splice_read = tls_sw_splice_read;
+	tls_sw_proto_ops.sendpage_locked   = tls_sw_sendpage_locked,
 
 #ifdef CONFIG_TLS_DEVICE
 	tls_device_init();
