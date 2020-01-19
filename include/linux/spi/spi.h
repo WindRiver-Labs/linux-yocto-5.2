@@ -124,6 +124,7 @@ void spi_statistics_add_transfer_stats(struct spi_statistics *stats,
  *	not using a GPIO line)
  * @word_delay_usecs: microsecond delay to be inserted between consecutive
  *	words of a transfer
+ * @multi_die: Flash device with multiple dies.
  *
  * @statistics: statistics for the spi_device
  *
@@ -172,6 +173,7 @@ struct spi_device {
 	int			cs_gpio;	/* LEGACY: chip select gpio */
 	struct gpio_desc	*cs_gpiod;	/* chip select gpio desc */
 	uint8_t			word_delay_usecs; /* inter-word delay */
+	bool			multi_die;	/* flash with multiple dies*/
 
 	/* the statistics */
 	struct spi_statistics	statistics;
