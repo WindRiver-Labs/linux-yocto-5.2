@@ -1,4 +1,4 @@
-#!/usr/usr/bin/awk -f
+#!/usr/bin/awk -f
 # SPDX-License-Identifier: GPL-2.0
 
 # Modify SRCU for formal verification. The first argument should be srcu.h and
