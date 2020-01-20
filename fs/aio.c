@@ -2093,7 +2093,6 @@ SYSCALL_DEFINE6(io_pgetevents,
 		const struct __aio_sigset __user *, usig)
 {
 	struct __aio_sigset	ksig = { NULL, };
-	sigset_t		ksigmask, sigsaved;
 	struct timespec64	ts;
 	bool interrupted;
 	int ret;
@@ -2104,14 +2103,14 @@ SYSCALL_DEFINE6(io_pgetevents,
 	if (usig && copy_from_user(&ksig, usig, sizeof(ksig)))
 		return -EFAULT;
 
-	ret = set_user_sigmask(ksig.sigmask, &ksigmask, &sigsaved, ksig.sigsetsize);
+	ret = set_user_sigmask(ksig.sigmask, ksig.sigsetsize);
 	if (ret)
 		return ret;
 
 	ret = do_io_getevents(ctx_id, min_nr, nr, events, timeout ? &ts : NULL);
 
 	interrupted = signal_pending(current);
-	restore_user_sigmask(ksig.sigmask, &sigsaved, interrupted);
+	restore_saved_sigmask_unless(interrupted);
 	if (interrupted && !ret)
 		ret = -ERESTARTNOHAND;
 
@@ -2129,7 +2128,6 @@ SYSCALL_DEFINE6(io_pgetevents_time32,
 		const struct __aio_sigset __user *, usig)
 {
 	struct __aio_sigset	ksig = { NULL, };
-	sigset_t		ksigmask, sigsaved;
 	struct timespec64	ts;
 	bool interrupted;
 	int ret;
@@ -2141,14 +2139,14 @@ SYSCALL_DEFINE6(io_pgetevents_time32,
 		return -EFAULT;
 
 
-	ret = set_user_sigmask(ksig.sigmask, &ksigmask, &sigsaved, ksig.sigsetsize);
+	ret = set_user_sigmask(ksig.sigmask, ksig.sigsetsize);
 	if (ret)
 		return ret;
 
 	ret = do_io_getevents(ctx_id, min_nr, nr, events, timeout ? &ts : NULL);
 
 	interrupted = signal_pending(current);
-	restore_user_sigmask(ksig.sigmask, &sigsaved, interrupted);
+	restore_saved_sigmask_unless(interrupted);
 	if (interrupted && !ret)
 		ret = -ERESTARTNOHAND;
 
@@ -2182,7 +2180,7 @@ SYSCALL_DEFINE5(io_getevents_time32, __u32, ctx_id,
 #ifdef CONFIG_COMPAT
 
 struct __compat_aio_sigset {
-	compat_sigset_t __user	*sigmask;
+	compat_uptr_t		sigmask;
 	compat_size_t		sigsetsize;
 };
 
@@ -2196,8 +2194,7 @@ COMPAT_SYSCALL_DEFINE6(io_pgetevents,
 		struct old_timespec32 __user *, timeout,
 		const struct __compat_aio_sigset __user *, usig)
 {
-	struct __compat_aio_sigset ksig = { NULL, };
-	sigset_t ksigmask, sigsaved;
+	struct __compat_aio_sigset ksig = { 0, };
 	struct timespec64 t;
 	bool interrupted;
 	int ret;
@@ -2208,14 +2205,14 @@ COMPAT_SYSCALL_DEFINE6(io_pgetevents,
 	if (usig && copy_from_user(&ksig, usig, sizeof(ksig)))
 		return -EFAULT;
 
-	ret = set_compat_user_sigmask(ksig.sigmask, &ksigmask, &sigsaved, ksig.sigsetsize);
+	ret = set_compat_user_sigmask(compat_ptr(ksig.sigmask), ksig.sigsetsize);
 	if (ret)
 		return ret;
 
 	ret = do_io_getevents(ctx_id, min_nr, nr, events, timeout ? &t : NULL);
 
 	interrupted = signal_pending(current);
-	restore_user_sigmask(ksig.sigmask, &sigsaved, interrupted);
+	restore_saved_sigmask_unless(interrupted);
 	if (interrupted && !ret)
 		ret = -ERESTARTNOHAND;
 
@@ -2232,8 +2229,7 @@ COMPAT_SYSCALL_DEFINE6(io_pgetevents_time64,
 		struct __kernel_timespec __user *, timeout,
 		const struct __compat_aio_sigset __user *, usig)
 {
-	struct __compat_aio_sigset ksig = { NULL, };
-	sigset_t ksigmask, sigsaved;
+	struct __compat_aio_sigset ksig = { 0, };
 	struct timespec64 t;
 	bool interrupted;
 	int ret;
@@ -2244,14 +2240,14 @@ COMPAT_SYSCALL_DEFINE6(io_pgetevents_time64,
 	if (usig && copy_from_user(&ksig, usig, sizeof(ksig)))
 		return -EFAULT;
 
-	ret = set_compat_user_sigmask(ksig.sigmask, &ksigmask, &sigsaved, ksig.sigsetsize);
+	ret = set_compat_user_sigmask(compat_ptr(ksig.sigmask), ksig.sigsetsize);
 	if (ret)
 		return ret;
 
 	ret = do_io_getevents(ctx_id, min_nr, nr, events, timeout ? &t : NULL);
 
 	interrupted = signal_pending(current);
-	restore_user_sigmask(ksig.sigmask, &sigsaved, interrupted);
+	restore_saved_sigmask_unless(interrupted);
 	if (interrupted && !ret)
 		ret = -ERESTARTNOHAND;
 
