@@ -2384,6 +2384,16 @@ static int prepare_vmcs02(struct kvm_vcpu *vcpu, struct vmcs12 *vmcs12,
 				entry_failure_code))
 		return -EINVAL;
 
+	/*
+	 * Immediately write vmcs02.GUEST_CR3.  It will be propagated to vmcs12
+	 * on nested VM-Exit, which can occur without actually running L2 and
+	 * thus without hitting vmx_set_cr3(), e.g. if L1 is entering L2 with
+	 * vmcs12.GUEST_ACTIVITYSTATE=HLT, in which case KVM will intercept the
+	 * transition to HLT instead of running L2.
+	 */
+	if (enable_ept)
+		vmcs_writel(GUEST_CR3, vmcs12->guest_cr3);
+
 	if (!enable_ept)
 		vcpu->arch.walk_mmu->inject_page_fault = vmx_inject_page_fault_nested;
 

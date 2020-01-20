@@ -429,7 +429,7 @@ static void dwmac4_set_filter(struct mac_device_info *hw,
 			/* The upper 6 bits of the calculated CRC are used to
 			 * index the content of the Hash Table Reg 0 and 1.
 			 */
-			int bit_nr =
+			u32 bit_nr =
 				(bitrev32(~crc32_le(~0, ha->addr, 6)) >> 26);
 			/* The most significant bit determines the register
 			 * to use while the other 5 bits determines the bit
