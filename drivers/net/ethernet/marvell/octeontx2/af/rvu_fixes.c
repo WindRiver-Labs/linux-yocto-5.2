@@ -822,7 +822,8 @@ ssize_t rvu_nix_get_tx_stall_counters(struct rvu *rvu,
 	struct rvu_block *block;
 	struct nix_hw *nix_hw;
 	int blkaddr, len, lf;
-	char kbuf[2000];
+	char *kbuf;
+	int size = 2000;
 
 	if (*ppos)
 		return 0;
@@ -839,10 +840,14 @@ ssize_t rvu_nix_get_tx_stall_counters(struct rvu *rvu,
 	if (!tx_stall)
 		return -EFAULT;
 
-	len = snprintf(kbuf, sizeof(kbuf), "\n  NIX transmit stall stats\n");
-	len += snprintf(kbuf + len, sizeof(kbuf),
+	kbuf = kmalloc(size, GFP_KERNEL);
+	if (!kbuf)
+		return -ENOMEM;
+
+	len = snprintf(kbuf, size, "\n  NIX transmit stall stats\n");
+	len += snprintf(kbuf + len, size,
 			"\t\tPolled: \t\t%lld\n", tx_stall->poll_cntr);
-	len += snprintf(kbuf + len, sizeof(kbuf),
+	len += snprintf(kbuf + len, size,
 			"\t\tTx stall detected: \t%lld\n\n",
 			tx_stall->stalled_cntr);
 
@@ -859,11 +864,14 @@ ssize_t rvu_nix_get_tx_stall_counters(struct rvu *rvu,
 	mutex_unlock(&rvu->rsrc_lock);
 
 	if (len > 0) {
-		if (copy_to_user(buffer, kbuf, len))
+		if (copy_to_user(buffer, kbuf, len)) {
+			kfree(kbuf);
 			return -EFAULT;
+		}
 	}
 
 	*ppos += len;
+	kfree(kbuf);
 	return len;
 }
 
