@@ -77,6 +77,7 @@ extern const u32 barrier_pkt[4];
 #define CSETR_QUIRK_BUFFSIZE_8BX	(0x1U << 0) /* 8 byte size multiplier */
 #define CSETR_QUIRK_SECURE_BUFF		(0x1U << 1) /* Trace buffer is Secure */
 #define CSETR_QUIRK_RESET_CTL_REG	(0x1U << 2) /* Reset CTL on reset */
+#define CSETR_QUIRK_NO_STOP_FLUSH	(0x0U << 3) /* No Stop on flush */
 #define CSETM_QUIRK_SW_SYNC		(0x1U << 4) /* No Hardware sync */
 #define CSETM_QUIRK_TREAT_ETMv43	(0x1U << 5) /* ETMv4.2 as ETMv4.3 */
 
