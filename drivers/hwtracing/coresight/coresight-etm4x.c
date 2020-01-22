@@ -624,6 +624,16 @@ static void etm4_init_arch_data(void *info)
 
 	/* base architecture of trace unit */
 	etmidr1 = readl_relaxed(drvdata->base + TRCIDR1);
+
+	/*
+	 * OcteonTx2 h/w reports ETMv4.2 but it supports Ignore Packet
+	 * feature of ETMv4.3, Treat this h/w as ETMv4.3 compatible.
+	 */
+	if (drvdata->etm_options & CSETM_QUIRK_TREAT_ETMv43) {
+		etmidr1 &= ~0xF0;
+		etmidr1 |= 0x30;
+	}
+
 	/*
 	 * TRCARCHMIN, bits[7:4] architecture the minor version number
 	 * TRCARCHMAJ, bits[11:8] architecture major versin number
@@ -1146,6 +1156,9 @@ static int etm4_probe(struct amba_device *adev, const struct amba_id *id)
 
 	etm4_init_trace_id(drvdata);
 	etm4_set_default(&drvdata->config);
+
+	/* Enable fixes for Silicon issues */
+	drvdata->etm_options = coresight_get_etm_quirks(OCTEONTX_CN9XXX_ETM);
 
 	pdata = coresight_get_platform_data(dev);
 	if (IS_ERR(pdata)) {

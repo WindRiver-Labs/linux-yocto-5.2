@@ -2081,6 +2081,17 @@ static u32 etmv4_cross_read(const struct device *dev, u32 offset)
 	 * accessing the ETMv4 trace core registers
 	 */
 	smp_call_function_single(drvdata->cpu, do_smp_cross_read, &reg, 1);
+
+	/*
+	 * OcteonTx2 h/w reports ETMv4.2 but it supports Ignore Packet
+	 * feature of ETMv4.3, Treat this h/w as ETMv4.3 compatible.
+	 */
+	if ((offset == TRCIDR1) &&
+	    (drvdata->etm_options & CSETM_QUIRK_TREAT_ETMv43)) {
+		reg.data &= ~0xF0;
+		reg.data |= 0x30;
+	}
+
 	return reg.data;
 }
 
