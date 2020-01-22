@@ -16,7 +16,8 @@ u32 coresight_get_etr_quirks(unsigned int id)
 				     MIDR_CPU_VAR_REV(0, 0),
 				     MIDR_CPU_VAR_REV(2, 0)))
 		options |= CSETR_QUIRK_BUFFSIZE_8BX |
-			CSETR_QUIRK_RESET_CTL_REG;
+			CSETR_QUIRK_RESET_CTL_REG |
+			CSETR_QUIRK_NO_STOP_FLUSH;
 
 	if (id == OCTEONTX_CN9XXX_ETR)
 		options |= CSETR_QUIRK_SECURE_BUFF;
