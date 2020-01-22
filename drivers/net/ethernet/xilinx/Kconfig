@@ -19,6 +19,7 @@ if NET_VENDOR_XILINX
 config XILINX_EMACLITE
 	tristate "Xilinx 10/100 Ethernet Lite support"
 	select PHYLIB
+	depends on HAS_IOMEM
 	---help---
 	  This driver supports the 10/100 Ethernet Lite from Xilinx.
 
