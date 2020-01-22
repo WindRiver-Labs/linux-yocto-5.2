@@ -360,9 +360,27 @@ static ssize_t buffer_size_store(struct device *dev,
 
 static DEVICE_ATTR_RW(buffer_size);
 
+static ssize_t tracebuffer_size_store(struct device *dev,
+			     struct device_attribute *attr,
+			     const char *buf, size_t size)
+{
+	return -EINVAL;
+}
+
+static ssize_t tracebuffer_size_show(struct device *dev,
+				 struct device_attribute *attr, char *buf)
+{
+	struct tmc_drvdata *drvdata = dev_get_drvdata(dev->parent);
+	unsigned long val = drvdata->size;
+
+	return sprintf(buf, "%#lx\n", val);
+}
+static DEVICE_ATTR_RW(tracebuffer_size);
+
 static struct attribute *coresight_tmc_attrs[] = {
 	&dev_attr_trigger_cntr.attr,
 	&dev_attr_buffer_size.attr,
+	&dev_attr_tracebuffer_size.attr,
 	NULL,
 };
 
@@ -496,11 +514,24 @@ static int tmc_probe(struct amba_device *adev, const struct amba_id *id)
 	drvdata->pid = -1;
 
 	if (drvdata->config_type == TMC_CONFIG_TYPE_ETR) {
-		drvdata->size = tmc_etr_get_default_buffer_size(dev);
+		if (drvdata->etr_options & CSETR_QUIRK_SECURE_BUFF) {
+			if (tmc_get_cpu_tracebufsize(drvdata, &drvdata->size) ||
+			    !drvdata->size) {
+				dev_info(&drvdata->csdev->dev,
+					 "Secure tracebuffer not available\n");
+				ret = -ENOMEM;
+				goto out;
+			}
+		} else  {
+			drvdata->size = tmc_etr_get_default_buffer_size(dev);
+		}
+
 		if (dev->fwnode)
 			drvdata->cache_lock_en =
 				fwnode_property_read_bool(dev->fwnode,
 							       "cache-lock");
+		/* Keep cache lock disabled by default */
+		drvdata->cache_lock_en = false;
 	} else
 		drvdata->size = readl_relaxed(drvdata->base + TMC_RSZ) * 4;
 
