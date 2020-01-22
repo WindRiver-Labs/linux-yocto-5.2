@@ -121,6 +121,11 @@ static int tmc_open(struct inode *inode, struct file *file)
 	struct tmc_drvdata *drvdata = container_of(file->private_data,
 						   struct tmc_drvdata, miscdev);
 
+	if (drvdata->buf == NULL) {
+		drvdata->mode = CS_MODE_READ_PREVBOOT;
+		dev_info(drvdata->dev, "TMC read mode for previous boot\n");
+	}
+
 	ret = tmc_read_prepare(drvdata);
 	if (ret)
 		return ret;
