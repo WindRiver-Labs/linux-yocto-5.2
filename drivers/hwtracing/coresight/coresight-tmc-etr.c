@@ -193,9 +193,10 @@ static void tmc_etr_insert_sync(struct tmc_drvdata *drvdata)
 	int err = 0, len;
 	u64 rwp;
 
-	/* We have two contenders for ETM control.
+	/* We have three contenders for ETM control.
 	 * 1. User initiated ETM control
 	 * 2. Timer sync initiated ETM control
+	 * 3. No stop on flush initated ETM control
 	 * They all run in an atomic context and that too in
 	 * the same core. Either on a core in which ETM is associated
 	 * or in the primary core thereby mutually exclusive.
@@ -1997,6 +1998,31 @@ const struct coresight_ops tmc_etr_cs_ops = {
 	.sink_ops	= &tmc_etr_sink_ops,
 };
 
+
+/* APIs to manage ETM start/stop when ETR stop on flush is broken */
+
+void tmc_flushstop_etm_off(void *data)
+{
+	struct tmc_drvdata *drvdata = data;
+	struct coresight_device *sdev = drvdata->etm_source;
+
+	if (sdev->hw_state == USR_START) {
+		source_ops(sdev)->disable_raw(sdev);
+		sdev->hw_state = SW_STOP;
+	}
+}
+
+void tmc_flushstop_etm_on(void *data)
+{
+	struct tmc_drvdata *drvdata = data;
+	struct coresight_device *sdev = drvdata->etm_source;
+
+	if (sdev->hw_state == SW_STOP) { /* Restore the user configured state */
+		source_ops(sdev)->enable_raw(sdev);
+		sdev->hw_state = USR_START;
+	}
+}
+
 int tmc_read_prepare_etr(struct tmc_drvdata *drvdata)
 {
 	int ret = 0;
@@ -2005,6 +2031,10 @@ int tmc_read_prepare_etr(struct tmc_drvdata *drvdata)
 	/* config types are set a boot time and never change */
 	if (WARN_ON_ONCE(drvdata->config_type != TMC_CONFIG_TYPE_ETR))
 		return -EINVAL;
+
+	if (drvdata->etr_options & CSETR_QUIRK_NO_STOP_FLUSH)
+		smp_call_function_single(drvdata->rc_cpu, tmc_flushstop_etm_off,
+					 drvdata, true);
 
 	spin_lock_irqsave(&drvdata->spinlock, flags);
 	if (drvdata->reading) {
@@ -2029,6 +2059,13 @@ int tmc_read_prepare_etr(struct tmc_drvdata *drvdata)
 	drvdata->reading = true;
 out:
 	spin_unlock_irqrestore(&drvdata->spinlock, flags);
+
+	if (ret && drvdata->etr_options & CSETR_QUIRK_NO_STOP_FLUSH) {
+		dev_warn(&drvdata->csdev->dev, "ETM wrongly stopped\n");
+		/* Restore back on error */
+		smp_call_function_single(drvdata->rc_cpu, tmc_flushstop_etm_on,
+					 drvdata, true);
+	}
 
 	return ret;
 }
@@ -2068,5 +2105,8 @@ int tmc_read_unprepare_etr(struct tmc_drvdata *drvdata)
 	if (sysfs_buf)
 		tmc_etr_free_sysfs_buf(sysfs_buf);
 
+	if (drvdata->etr_options & CSETR_QUIRK_NO_STOP_FLUSH)
+		smp_call_function_single(drvdata->rc_cpu, tmc_flushstop_etm_on,
+					drvdata, true);
 	return 0;
 }

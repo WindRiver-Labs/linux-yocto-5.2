@@ -46,8 +46,12 @@ void tmc_flush_and_stop(struct tmc_drvdata *drvdata)
 	u32 ffcr;
 
 	ffcr = readl_relaxed(drvdata->base + TMC_FFCR);
-	ffcr |= TMC_FFCR_STOP_ON_FLUSH;
-	writel_relaxed(ffcr, drvdata->base + TMC_FFCR);
+
+	if (!(drvdata->etr_options & CSETR_QUIRK_NO_STOP_FLUSH)) {
+		/* Its assumed that ETM is stopped as an alternative */
+		ffcr |= TMC_FFCR_STOP_ON_FLUSH;
+		writel_relaxed(ffcr, drvdata->base + TMC_FFCR);
+	}
 	ffcr |= BIT(TMC_FFCR_FLUSHMAN_BIT);
 	writel_relaxed(ffcr, drvdata->base + TMC_FFCR);
 	/* Ensure flush completes */
@@ -57,7 +61,8 @@ void tmc_flush_and_stop(struct tmc_drvdata *drvdata)
 		"timeout while waiting for completion of Manual Flush\n");
 	}
 
-	tmc_wait_for_tmcready(drvdata);
+	if (!(drvdata->etr_options & CSETR_QUIRK_NO_STOP_FLUSH))
+		tmc_wait_for_tmcready(drvdata);
 }
 
 void tmc_enable_hw(struct tmc_drvdata *drvdata)
