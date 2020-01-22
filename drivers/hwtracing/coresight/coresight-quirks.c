@@ -23,3 +23,13 @@ u32 coresight_get_etr_quirks(unsigned int id)
 
 	return options;
 }
+
+u32 coresight_get_etm_quirks(unsigned int id)
+{
+	u32 options = 0; /* reset */
+
+	if (id == OCTEONTX_CN9XXX_ETM)
+		options |= CSETM_QUIRK_TREAT_ETMv43;
+
+	return options;
+}

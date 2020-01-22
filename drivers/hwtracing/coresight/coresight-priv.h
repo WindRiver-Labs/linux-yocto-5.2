@@ -70,11 +70,14 @@ extern const u32 barrier_pkt[4];
 
 /* Marvell OcteonTx CN9xxx device */
 #define OCTEONTX_CN9XXX_ETR		0x000cc213
+/* Marvell OcteonTx CN9xxx ETM device */
+#define OCTEONTX_CN9XXX_ETM		0x000cc210
 
 /* Coresight Hardware quirks */
 #define CSETR_QUIRK_BUFFSIZE_8BX	(0x1U << 0) /* 8 byte size multiplier */
 #define CSETR_QUIRK_SECURE_BUFF		(0x1U << 1) /* Trace buffer is Secure */
 #define CSETR_QUIRK_RESET_CTL_REG	(0x1U << 2) /* Reset CTL on reset */
+#define CSETM_QUIRK_TREAT_ETMv43	(0x1U << 5) /* ETMv4.2 as ETMv4.3 */
 
 enum etm_addr_type {
 	ETM_ADDR_TYPE_NONE,
@@ -211,5 +214,6 @@ static inline void *coresight_get_uci_data(const struct amba_id *id)
 
 /* Coresight ETM/ETR hardware quirks */
 u32 coresight_get_etr_quirks(unsigned int id);
+u32 coresight_get_etm_quirks(unsigned int id);
 
 #endif
