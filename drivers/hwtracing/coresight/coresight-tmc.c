@@ -470,6 +470,13 @@ static int tmc_probe(struct amba_device *adev, const struct amba_id *id)
 	/* Enable fixes for Silicon issues */
 	drvdata->etr_options = coresight_get_etr_quirks(OCTEONTX_CN9XXX_ETR);
 
+	/* Update the smp target cpu */
+	drvdata->rc_cpu = is_etm_sync_mode_sw_global() ? SYNC_GLOBAL_CORE :
+		drvdata->cpu;
+	/* Used for SW sync insertion(global mode) */
+	if (!is_etm_sync_mode_hw())
+		tmc_etr_add_cpumap(drvdata);
+
 	devid = readl_relaxed(drvdata->base + CORESIGHT_DEVID);
 	drvdata->config_type = BMVAL(devid, 6, 7);
 	drvdata->memwidth = tmc_get_memwidth(devid);

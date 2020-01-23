@@ -190,6 +190,20 @@ struct etr_buf {
 };
 
 /**
+ * struct etr_tsync_data - Timer based sync insertion data management
+ * @syncs_per_fill:	syncs inserted per buffer wrap
+ * @prev_rwp:		writepointer for the last sync insertion
+ * @len_thold:		Buffer length threshold for inserting syncs
+ * @tick:		Tick interval in ns
+ */
+struct etr_tsync_data {
+	int syncs_per_fill;
+	u64 prev_rwp;
+	u64 len_thold;
+	u64 tick;
+};
+
+/**
  * struct tmc_drvdata - specifics associated to an TMC component
  * @base:	memory mapped base address for this component.
  * @csdev:	component vitals needed by the framework.
@@ -215,6 +229,12 @@ struct etr_buf {
  * @idr_mutex:	Access serialisation for idr.
  * @sysfs_buf:	SYSFS buffer for ETR.
  * @perf_buf:	PERF buffer for ETR.
+ * @rc_cpu:	The cpu on which remote function calls can be run
+ *		In certain kernel configurations, some cores are not expected
+ *		to be interrupted and we need a fallback target cpu.
+ * @etm_source:	ETM source associated with this ETR
+ * @etr_tsync_data: Timer based sync insertion data
+ * @timer:	Timer for initiating sync insertion
  */
 struct tmc_drvdata {
 	void __iomem		*base;
@@ -242,6 +262,10 @@ struct tmc_drvdata {
 	struct mutex		idr_mutex;
 	struct etr_buf		*sysfs_buf;
 	struct etr_buf		*perf_buf;
+	int			rc_cpu;
+	void			*etm_source;
+	struct etr_tsync_data	tsync_data;
+	struct hrtimer		timer;
 };
 
 struct etr_buf_operations {
@@ -303,6 +327,7 @@ ssize_t tmc_etb_get_sysfs_trace(struct tmc_drvdata *drvdata,
 /* ETR functions */
 int tmc_read_prepare_etr(struct tmc_drvdata *drvdata);
 int tmc_read_unprepare_etr(struct tmc_drvdata *drvdata);
+void tmc_etr_add_cpumap(struct tmc_drvdata *drvdata);
 extern const struct coresight_ops tmc_etr_cs_ops;
 ssize_t tmc_etr_get_sysfs_trace(struct tmc_drvdata *drvdata,
 				loff_t pos, size_t len, char **bufpp);
