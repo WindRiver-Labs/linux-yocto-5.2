@@ -51,3 +51,4 @@ obj-$(CONFIG_FIELDBUS_DEV)     += fieldbus/
 obj-$(CONFIG_KPC2000)		+= kpc2000/
 obj-$(CONFIG_XILINX_FCLK)	+= fclk/
 obj-$(CONFIG_XLNX_SYNC)		+= xlnxsync/
+obj-$(CONFIG_XLNX_TSMUX)	+= xlnx_tsmux/
