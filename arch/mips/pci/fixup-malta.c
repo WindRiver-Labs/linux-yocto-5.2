@@ -143,7 +143,7 @@ DECLARE_PCI_FIXUP_HEADER(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82371AB,
 	 malta_piix_func1_fixup);
 
 /* Use the io resource allocated by YAMON */
-static void __init malta_pcnet32_ioports_fixup(struct pci_dev *pdev)
+static void malta_pcnet32_ioports_fixup(struct pci_dev *pdev)
 {
 	u32 check = 0, new = 0x1060;
 
