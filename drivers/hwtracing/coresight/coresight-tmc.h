@@ -138,14 +138,6 @@ enum tmc_mem_intf_width {
 #define OCTEONTX_CN9XXX_ETR_CAPS	\
 	(TMC_ETR_SAVE_RESTORE)
 
-/* Marvell OcteonTx CN9xxx device */
-#define OCTEONTX_CN9XXX_ETR		0x000cc213
-
-/* Marvell OcteonTx CN9xxx HW issues */
-#define CORESIGHT_OPTS_BUFFSIZE_8BX	(0x1U << 0) /* 8 byte size multiplier */
-#define CORESIGHT_OPTS_SECURE_BUFF	(0x1U << 1) /* Trace buffer is Secure */
-#define CORESIGHT_OPTS_RESET_CTL_REG	(0x1U << 2) /* Reset CTL on reset */
-
 /* SMC call ids for managing the secure trace buffer */
 
 /* Args: x1 - size, x2 - cpu, x3 - llc lock flag
