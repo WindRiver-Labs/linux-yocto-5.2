@@ -151,7 +151,7 @@ static ssize_t tmc_read(struct file *file, char __user *data, size_t len,
 	if (actual <= 0)
 		return 0;
 
-	if ((drvdata->etr_options & CORESIGHT_OPTS_SECURE_BUFF) &&
+	if ((drvdata->etr_options & CSETR_QUIRK_SECURE_BUFF) &&
 		tmc_copy_secure_buffer(drvdata, bufp, len))
 		return -EFAULT;
 
@@ -425,11 +425,8 @@ static int tmc_probe(struct amba_device *adev, const struct amba_id *id)
 
 	drvdata->cpu = pdata ? pdata->cpu : 0;
 
-	/* Enable options for Silicon issues */
-	if (id->id == OCTEONTX_CN9XXX_ETR)
-		drvdata->etr_options = CORESIGHT_OPTS_BUFFSIZE_8BX |
-					CORESIGHT_OPTS_SECURE_BUFF |
-					CORESIGHT_OPTS_RESET_CTL_REG;
+	/* Enable fixes for Silicon issues */
+	drvdata->etr_options = coresight_get_etr_quirks(OCTEONTX_CN9XXX_ETR);
 
 	devid = readl_relaxed(drvdata->base + CORESIGHT_DEVID);
 	drvdata->config_type = BMVAL(devid, 6, 7);
