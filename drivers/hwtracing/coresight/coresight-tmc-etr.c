@@ -610,7 +610,7 @@ static int tmc_etr_alloc_flat_buf(struct tmc_drvdata *drvdata,
 		return -ENOMEM;
 	}
 
-	if (!(drvdata->etr_options & CORESIGHT_OPTS_SECURE_BUFF))
+	if (!(drvdata->etr_options & CSETR_QUIRK_SECURE_BUFF))
 		goto skip_secure_buffer;
 
 	/* Register driver allocated dma buffer for necessary
@@ -973,14 +973,14 @@ static void __tmc_etr_enable_hw(struct tmc_drvdata *drvdata)
 
 	CS_UNLOCK(drvdata->base);
 
-	if (drvdata->etr_options & CORESIGHT_OPTS_RESET_CTL_REG)
+	if (drvdata->etr_options & CSETR_QUIRK_RESET_CTL_REG)
 		tmc_disable_hw(drvdata);
 
 	/* Wait for TMCSReady bit to be set */
 	tmc_wait_for_tmcready(drvdata);
 
 	writel_relaxed(etr_buf->size / 4, drvdata->base + TMC_RSZ);
-	if (drvdata && CORESIGHT_OPTS_BUFFSIZE_8BX)
+	if (drvdata && CSETR_QUIRK_BUFFSIZE_8BX)
 		writel_relaxed(etr_buf->size / 8, drvdata->base + TMC_RSZ);
 	else
 		writel_relaxed(etr_buf->size / 4, drvdata->base + TMC_RSZ);
@@ -1000,7 +1000,7 @@ static void __tmc_etr_enable_hw(struct tmc_drvdata *drvdata)
 		axictl |= TMC_AXICTL_SCT_GAT_MODE;
 
 	writel_relaxed(axictl, drvdata->base + TMC_AXICTL);
-	if (drvdata->etr_options & CORESIGHT_OPTS_SECURE_BUFF)
+	if (drvdata->etr_options & CSETR_QUIRK_SECURE_BUFF)
 		tmc_write_dba(drvdata, etr_buf->s_paddr);
 	else
 		tmc_write_dba(drvdata, etr_buf->hwaddr);
@@ -1011,7 +1011,7 @@ static void __tmc_etr_enable_hw(struct tmc_drvdata *drvdata)
 	 */
 	if (tmc_etr_has_cap(drvdata, TMC_ETR_SAVE_RESTORE)) {
 		tmc_write_rrp(drvdata, etr_buf->hwaddr);
-		if (drvdata->etr_options & CORESIGHT_OPTS_SECURE_BUFF)
+		if (drvdata->etr_options & CSETR_QUIRK_SECURE_BUFF)
 			tmc_write_rwp(drvdata, etr_buf->s_paddr);
 		else
 			tmc_write_rwp(drvdata, etr_buf->hwaddr);
