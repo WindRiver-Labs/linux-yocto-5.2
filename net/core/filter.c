@@ -2244,7 +2244,7 @@ BPF_CALL_4(bpf_msg_pull_data, struct sk_msg *, msg, u32, start,
 	 * account for the headroom.
 	 */
 	bytes_sg_total = start - offset + bytes;
-	if (!msg->sg.copy[i] && bytes_sg_total <= len)
+	if (!test_bit(i, &msg->sg.copy) && bytes_sg_total <= len)
 		goto out;
 
 	/* At this point we need to linearize multiple scatterlist
@@ -2298,7 +2298,7 @@ BPF_CALL_4(bpf_msg_pull_data, struct sk_msg *, msg, u32, start,
 	WARN_ON_ONCE(last_sge == first_sge);
 	shift = last_sge > first_sge ?
 		last_sge - first_sge - 1 :
-		MAX_SKB_FRAGS - first_sge + last_sge - 1;
+		NR_MSG_FRAG_IDS - first_sge + last_sge - 1;
 	if (!shift)
 		goto out;
 
@@ -2307,8 +2307,8 @@ BPF_CALL_4(bpf_msg_pull_data, struct sk_msg *, msg, u32, start,
 	do {
 		u32 move_from;
 
-		if (i + shift >= MAX_MSG_FRAGS)
-			move_from = i + shift - MAX_MSG_FRAGS;
+		if (i + shift >= NR_MSG_FRAG_IDS)
+			move_from = i + shift - NR_MSG_FRAG_IDS;
 		else
 			move_from = i + shift;
 		if (move_from == msg->sg.end)
@@ -2322,7 +2322,7 @@ BPF_CALL_4(bpf_msg_pull_data, struct sk_msg *, msg, u32, start,
 	} while (1);
 
 	msg->sg.end = msg->sg.end - shift > msg->sg.end ?
-		      msg->sg.end - shift + MAX_MSG_FRAGS :
+		      msg->sg.end - shift + NR_MSG_FRAG_IDS :
 		      msg->sg.end - shift;
 out:
 	msg->data = sg_virt(&msg->sg.data[first_sge]) + start - offset;
@@ -2449,7 +2449,7 @@ BPF_CALL_4(bpf_msg_push_data, struct sk_msg *, msg, u32, start,
 	/* Place newly allocated data buffer */
 	sk_mem_charge(msg->sk, len);
 	msg->sg.size += len;
-	msg->sg.copy[new] = false;
+	__clear_bit(new, &msg->sg.copy);
 	sg_set_page(&msg->sg.data[new], page, len + copy, 0);
 	if (rsge.length) {
 		get_page(sg_page(&rsge));
