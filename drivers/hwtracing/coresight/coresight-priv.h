@@ -77,7 +77,36 @@ extern const u32 barrier_pkt[4];
 #define CSETR_QUIRK_BUFFSIZE_8BX	(0x1U << 0) /* 8 byte size multiplier */
 #define CSETR_QUIRK_SECURE_BUFF		(0x1U << 1) /* Trace buffer is Secure */
 #define CSETR_QUIRK_RESET_CTL_REG	(0x1U << 2) /* Reset CTL on reset */
+#define CSETM_QUIRK_SW_SYNC		(0x1U << 4) /* No Hardware sync */
 #define CSETM_QUIRK_TREAT_ETMv43	(0x1U << 5) /* ETMv4.2 as ETMv4.3 */
+
+/* ETM sync insertion modes
+ * 1. MODE_HW
+ *    Sync insertion is done by hardware without any software intervention
+ *
+ * 2. MODE_SW_GLOBAL
+ *    sync insertion runs from common timer handler on primary core
+ *
+ * 3. MODE_SW_PER_CORE
+ *    sync insertion runs from per core timer handler
+ *
+ * When hardware doesn't support sync insertion, we fall back to software based
+ * ones. Typically, GLOBAL mode would be preferred when the traced cores are
+ * running performance critical applications and cannot be interrupted,
+ * but at the same time there would be a small loss of trace data during the
+ * insertion sequence as well.
+ *
+ * For the sake of simplicity, in GLOBAL mode, common timer handler is
+ * always expected to run on primary core(core 0).
+ */
+#define SYNC_GLOBAL_CORE	0 /* Core 0 */
+
+enum etm_sync_mode {
+	SYNC_MODE_INVALID,
+	SYNC_MODE_HW,
+	SYNC_MODE_SW_GLOBAL,
+	SYNC_MODE_SW_PER_CORE,
+};
 
 enum etm_addr_type {
 	ETM_ADDR_TYPE_NONE,
@@ -216,4 +245,11 @@ static inline void *coresight_get_uci_data(const struct amba_id *id)
 u32 coresight_get_etr_quirks(unsigned int id);
 u32 coresight_get_etm_quirks(unsigned int id);
 
+/* ETM software sync insertion */
+bool is_etm_sync_mode_hw(void);
+bool is_etm_sync_mode_sw_global(void);
+
+void coresight_etm_active_enable(int cpu);
+void coresight_etm_active_disable(int cpu);
+cpumask_t coresight_etm_active_list(void);
 #endif

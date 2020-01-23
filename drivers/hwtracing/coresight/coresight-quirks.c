@@ -33,3 +33,74 @@ u32 coresight_get_etm_quirks(unsigned int id)
 
 	return options;
 }
+
+bool is_etm_has_hw_sync(void)
+{
+	/* Check if hardware supports sync insertion */
+	if (midr_is_cpu_model_range(read_cpuid_id(),
+				     MIDR_MRVL_OCTEONTX2_96XX,
+				     MIDR_CPU_VAR_REV(0, 0),
+				     MIDR_CPU_VAR_REV(3, 0)) ||
+	    midr_is_cpu_model_range(read_cpuid_id(),
+				     MIDR_MRVL_OCTEONTX2_95XX,
+				     MIDR_CPU_VAR_REV(0, 0),
+				     MIDR_CPU_VAR_REV(2, 0)))
+		return false;
+	else
+		return true;
+}
+
+/* APIs for choosing the sync insertion mode */
+static int coresight_get_etm_sync_mode(void)
+{
+	/* Check if hardware supports sync insertion */
+	if (is_etm_has_hw_sync())
+		return SYNC_MODE_HW;
+
+	/* Find the software based sync insertion mode */
+#ifdef CONFIG_TASK_ISOLATION
+	return SYNC_MODE_SW_GLOBAL;
+#else
+	return SYNC_MODE_SW_PER_CORE;
+#endif
+}
+
+/* APIs for enabling fixes for CSETR_QUIRK_SW_SYNC
+ *
+ * Note: Driver options are not used as done in other quirks,
+ * since the fix is spread across multiple(ETM/ETR) driver files.
+ */
+
+bool is_etm_sync_mode_hw(void)
+{
+	return coresight_get_etm_sync_mode() == SYNC_MODE_HW;
+}
+
+bool is_etm_sync_mode_sw_global(void)
+{
+	return coresight_get_etm_sync_mode() == SYNC_MODE_SW_GLOBAL;
+}
+
+/* Support functions for managing active ETM list used by
+ * global mode sync insertion.
+ *
+ * Note: It is assumed that all accessor functions
+ * on etm_active_list should be called in a atomic context
+ */
+
+static cpumask_t etm_active_list; /* Bitmap of active ETMs cpu wise */
+
+void coresight_etm_active_enable(int cpu)
+{
+	cpumask_set_cpu(cpu, &etm_active_list);
+}
+
+void coresight_etm_active_disable(int cpu)
+{
+	cpumask_clear_cpu(cpu, &etm_active_list);
+}
+
+cpumask_t coresight_etm_active_list(void)
+{
+	return etm_active_list;
+}

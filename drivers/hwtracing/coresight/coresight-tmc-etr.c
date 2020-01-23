@@ -109,6 +109,222 @@ struct etr_sg_table {
 	dma_addr_t		hwaddr;
 };
 
+/* SW mode sync insertion interval
+ *
+ * Sync insertion interval for 1M is based on assumption of
+ * trace data generated at  4bits/cycle ,cycle period of 0.4 ns
+ * and atleast 4 syncs per buffer wrap.
+ *
+ * One limitation of fixing only 4 syncs per buffer wrap is that
+ * we might loose 1/4 of the initial buffer data due to lack of sync.
+ * But on the other hand, we could reduce the sync insertion frequency
+ * by increasing the buffer size which seems to be a good compromise.
+ */
+#define SYNC_TICK_NS_PER_MB 200000 /* 200us */
+#define SYNCS_PER_FILL 4
+
+/* Global mode timer management */
+
+/**
+ * struct tmc_etr_tsync_global - Global mode timer
+ * @drvdata_cpumap:	cpu to tmc drvdata map
+ * @timer:		global timer shared by all cores
+ * @tick:		gloabl timer tick period
+ * @active_count:	timer reference count
+ */
+static struct tmc_etr_tsync_global {
+	struct tmc_drvdata *drvdata_cpumap[NR_CPUS];
+	struct hrtimer	timer;
+	int active_count;
+	u64 tick;
+} tmc_etr_tsync_global;
+
+/* Accessor functions for tsync global */
+void tmc_etr_add_cpumap(struct tmc_drvdata *drvdata)
+{
+	tmc_etr_tsync_global.drvdata_cpumap[drvdata->cpu] = drvdata;
+}
+
+static inline struct tmc_drvdata *cpu_to_tmcdrvdata(int cpu)
+{
+	return tmc_etr_tsync_global.drvdata_cpumap[cpu];
+}
+
+static inline struct hrtimer *tmc_etr_tsync_global_timer(void)
+{
+	return &tmc_etr_tsync_global.timer;
+}
+
+static inline void tmc_etr_tsync_global_tick(u64 tick)
+{
+	tmc_etr_tsync_global.tick = tick;
+}
+
+/* Refernence counting is assumed to be always called from
+ * an atomic context.
+ */
+static inline int tmc_etr_tsync_global_addref(void)
+{
+	return ++tmc_etr_tsync_global.active_count;
+}
+
+static inline int tmc_etr_tsync_global_delref(void)
+{
+	return --tmc_etr_tsync_global.active_count;
+}
+
+/* Sync insertion API */
+static void tmc_etr_insert_sync(struct tmc_drvdata *drvdata)
+{
+	struct coresight_device *sdev = drvdata->etm_source;
+	struct etr_tsync_data *syncd = &drvdata->tsync_data;
+	int err = 0, len;
+	u64 rwp;
+
+	/* We have two contenders for ETM control.
+	 * 1. User initiated ETM control
+	 * 2. Timer sync initiated ETM control
+	 * They all run in an atomic context and that too in
+	 * the same core. Either on a core in which ETM is associated
+	 * or in the primary core thereby mutually exclusive.
+	 *
+	 * To avoid any sync insertion while ETM is disabled by
+	 * user, we rely on the device hw_state.
+	 * Like for example, hrtimer being in active state even
+	 * after ETM is disabled by user.
+	 */
+	if (sdev->hw_state != USR_START)
+		return;
+
+	rwp = tmc_read_rwp(drvdata);
+	if (!syncd->prev_rwp)
+		goto sync_insert;
+
+	if (syncd->prev_rwp <= rwp) {
+		len = rwp - syncd->prev_rwp;
+	} else { /* Buffer wrapped */
+		goto sync_insert;
+	}
+
+	/* Check if we reached buffer threshold */
+	if (len < syncd->len_thold)
+		goto skip_insert;
+
+	/* Software based sync insertion procedure */
+sync_insert:
+	/* Disable source */
+	if (likely(sdev && source_ops(sdev)->disable_raw))
+		source_ops(sdev)->disable_raw(sdev);
+	else
+		err = -EINVAL;
+
+	/* Enable source */
+	if (likely(sdev && source_ops(sdev)->enable_raw))
+		source_ops(sdev)->enable_raw(sdev);
+	else
+		err = -EINVAL;
+
+	if (!err) {
+		/* Mark the write pointer of sync insertion */
+		syncd->prev_rwp = tmc_read_rwp(drvdata);
+	}
+
+skip_insert:
+	return;
+}
+
+/* Timer handler APIs */
+
+static enum hrtimer_restart tmc_etr_timer_handler_percore(struct hrtimer *t)
+{
+	struct tmc_drvdata *drvdata;
+
+	drvdata = container_of(t, struct tmc_drvdata, timer);
+	hrtimer_forward_now(t, ns_to_ktime(drvdata->tsync_data.tick));
+	tmc_etr_insert_sync(drvdata);
+	return HRTIMER_RESTART;
+}
+
+static enum hrtimer_restart tmc_etr_timer_handler_global(struct hrtimer *t)
+{
+	cpumask_t active_mask;
+	int cpu;
+
+	hrtimer_forward_now(t, ns_to_ktime(tmc_etr_tsync_global.tick));
+
+	active_mask = coresight_etm_active_list();
+	/* Run sync insertions for all active ETMs */
+	for_each_cpu(cpu, &active_mask)
+		tmc_etr_insert_sync(cpu_to_tmcdrvdata(cpu));
+
+	return HRTIMER_RESTART;
+}
+
+/* Timer setup API common for both global and per core mode
+ *
+ * Global mode: Timer gets started only if its not active already.
+ *		Number of users managed by reference counting.
+ * Percore mode: Timer gets started always
+ *
+ * Always executed in an atomic context either in IPI handler
+ * on a remote core or with irqs disabled in the local core
+ */
+static void tmc_etr_timer_setup(void *data)
+{
+	struct tmc_drvdata *drvdata = data;
+	struct hrtimer *timer;
+	bool mode_global;
+	u64 tick;
+
+	tick = drvdata->tsync_data.tick;
+	mode_global = is_etm_sync_mode_sw_global();
+	if (mode_global) {
+		if (tmc_etr_tsync_global_addref() == 1) {
+			/* Start only if we are the first user */
+			tmc_etr_tsync_global_tick(tick); /* Configure tick */
+		} else {
+			dev_dbg(drvdata->dev, "global timer active already\n");
+			return;
+		}
+	}
+
+	timer = mode_global ?
+		tmc_etr_tsync_global_timer() : &drvdata->timer;
+	hrtimer_init(timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	timer->function = mode_global ?
+		tmc_etr_timer_handler_global : tmc_etr_timer_handler_percore;
+	dev_dbg(drvdata->dev, "Starting sync timer, mode:%s period:%lld ns\n",
+		mode_global ? "global" : "percore", tick);
+	hrtimer_start(timer, ns_to_ktime(tick), HRTIMER_MODE_REL_PINNED);
+}
+
+/* Timer cancel API common for both global and per core mode
+ *
+ * Global mode: Timer gets cancelled only if there are no other users
+ * Percore mode: Timer gets cancelled always
+ *
+ * Always executed in an atomic context either in IPI handler
+ * on a remote core or with irqs disabled in the local core
+ */
+static void tmc_etr_timer_cancel(void *data)
+{
+	struct tmc_drvdata *drvdata = data;
+	struct hrtimer *timer;
+	bool mode_global;
+
+	mode_global = is_etm_sync_mode_sw_global();
+	if (mode_global) {
+		if (tmc_etr_tsync_global_delref() != 0) {
+			/* Nothing to do if we are not the last user */
+			return;
+		}
+	}
+
+	timer = mode_global ?
+		tmc_etr_tsync_global_timer() : &drvdata->timer;
+	hrtimer_cancel(timer);
+}
+
 /*
  * tmc_etr_sg_table_entries: Total number of table entries required to map
  * @nr_pages system pages.
@@ -1151,6 +1367,20 @@ static int tmc_enable_etr_sink_sysfs(struct coresight_device *csdev)
 	struct tmc_drvdata *drvdata = dev_get_drvdata(csdev->dev.parent);
 	struct etr_buf *sysfs_buf = NULL, *new_buf = NULL, *free_buf = NULL;
 
+	if (!is_etm_sync_mode_hw()) {
+		/* Calculate parameters for sync insertion */
+		drvdata->tsync_data.len_thold =
+			drvdata->size / (SYNCS_PER_FILL);
+		drvdata->tsync_data.tick =
+			(drvdata->size / SZ_1M) * SYNC_TICK_NS_PER_MB;
+		drvdata->tsync_data.prev_rwp = 0;
+		if (!drvdata->tsync_data.tick) {
+			drvdata->tsync_data.tick = SYNC_TICK_NS_PER_MB;
+			dev_warn(drvdata->dev,
+				 "Trace bufer size not sufficient, sync insertion can fail\n");
+		}
+	}
+
 	/*
 	 * If we are enabling the ETR from disabled state, we need to make
 	 * sure we have a buffer with the right size. The etr_buf is not reset
@@ -1206,6 +1436,10 @@ static int tmc_enable_etr_sink_sysfs(struct coresight_device *csdev)
 out:
 	spin_unlock_irqrestore(&drvdata->spinlock, flags);
 
+
+	if (!ret && !is_etm_sync_mode_hw())
+		smp_call_function_single(drvdata->rc_cpu, tmc_etr_timer_setup,
+					 drvdata, true);
 	/* Free memory outside the spinlock if need be */
 	if (free_buf)
 		tmc_etr_free_sysfs_buf(free_buf);
@@ -1656,8 +1890,26 @@ static int tmc_disable_etr_sink(struct coresight_device *csdev)
 
 	spin_unlock_irqrestore(&drvdata->spinlock, flags);
 
+	if (!is_etm_sync_mode_hw())
+		smp_call_function_single(drvdata->rc_cpu, tmc_etr_timer_cancel,
+					 drvdata, true);
+
 	dev_dbg(drvdata->dev, "TMC-ETR disabled\n");
 	return 0;
+}
+
+void tmc_register_source(struct coresight_device *csdev, void *source)
+{
+	struct tmc_drvdata *drvdata = dev_get_drvdata(csdev->dev.parent);
+
+	drvdata->etm_source = source;
+}
+
+void tmc_unregister_source(struct coresight_device *csdev)
+{
+	struct tmc_drvdata *drvdata = dev_get_drvdata(csdev->dev.parent);
+
+	drvdata->etm_source = NULL;
 }
 
 static const struct coresight_ops_sink tmc_etr_sink_ops = {
@@ -1666,6 +1918,8 @@ static const struct coresight_ops_sink tmc_etr_sink_ops = {
 	.alloc_buffer	= tmc_alloc_etr_buffer,
 	.update_buffer	= tmc_update_etr_buffer,
 	.free_buffer	= tmc_free_etr_buffer,
+	.register_source = tmc_register_source,
+	.unregister_source = tmc_unregister_source,
 };
 
 const struct coresight_ops tmc_etr_cs_ops = {
