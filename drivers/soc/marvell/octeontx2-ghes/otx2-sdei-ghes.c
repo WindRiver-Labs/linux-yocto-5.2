@@ -40,9 +40,11 @@ static struct acpi_table_hest *hest;
 static struct otx2_ghes_event *event_list;
 
 #define PCI_VENDOR_ID_CAVIUM            0x177d
+#define PCI_DEVICE_ID_OCTEONTX2_LMC     0xa022
 #define PCI_DEVICE_ID_OCTEONTX2_MCC     0xa070
 #define PCI_DEVICE_ID_OCTEONTX2_MDC     0xa073
 static const struct pci_device_id sdei_ghes_otx2_pci_tbl[] = {
+	{ PCI_DEVICE(PCI_VENDOR_ID_CAVIUM, PCI_DEVICE_ID_OCTEONTX2_LMC) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_CAVIUM, PCI_DEVICE_ID_OCTEONTX2_MCC) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_CAVIUM, PCI_DEVICE_ID_OCTEONTX2_MDC) },
 	{ 0, },
@@ -61,7 +63,6 @@ static int sdei_ghes_callback(u32 event_id, struct pt_regs *regs, void *arg)
 	size_t idx;
 
 	ghes_drv = arg;
-
 
 	for (idx = 0; idx < ghes_drv->event_count; idx++) {
 		event = &ghes_drv->event_list[idx];
@@ -579,6 +580,7 @@ static int __init sdei_ghes_driver_init(void)
 	}
 
 	platform_driver_register(&sdei_ghes_drv);
+
 	/* Enable MSIX for devices whose [secure] IRQ's we control.
 	 * These IRQs have been initialized by ATF.
 	 * This is required due to an errata against
@@ -601,4 +603,3 @@ device_initcall(sdei_ghes_driver_init);
 MODULE_DESCRIPTION("OcteonTX2 SDEI GHES Driver");
 MODULE_LICENSE("GPL v2");
 MODULE_ALIAS("platform:" DRV_NAME);
-
