@@ -760,16 +760,19 @@ static irqreturn_t fsl_edma_tx_handler(int irq, void *dev_id)
 {
 	struct fsl_edma_engine *fsl_edma = dev_id;
 	unsigned int intr, ch;
-	struct edma_regs *regs = &fsl_edma->regs;
+	void __iomem *base_addr;
 	struct fsl_edma_chan *fsl_chan;
 
-	intr = edma_readl(fsl_edma, regs->intl);
+	base_addr = fsl_edma->membase;
+
+	intr = edma_readl(fsl_edma, base_addr + EDMA_INTR);
 	if (!intr)
 		return IRQ_NONE;
 
 	for (ch = 0; ch < fsl_edma->n_chans; ch++) {
 		if (intr & (0x1 << ch)) {
-			edma_writeb(fsl_edma, EDMA_CINT_CINT(ch), regs->cint);
+			edma_writeb(fsl_edma, EDMA_CINT_CINT(ch),
+				base_addr + EDMA_CINT);
 
 			fsl_chan = &fsl_edma->chans[ch];
 
@@ -836,16 +839,16 @@ static irqreturn_t fsl_edma_err_handler(int irq, void *dev_id)
 {
 	struct fsl_edma_engine *fsl_edma = dev_id;
 	unsigned int err, ch;
-	struct edma_regs *regs = &fsl_edma->regs;
 
-	err = edma_readl(fsl_edma, regs->errl);
+	err = edma_readl(fsl_edma, fsl_edma->membase + EDMA_ERR);
 	if (!err)
 		return IRQ_NONE;
 
 	for (ch = 0; ch < fsl_edma->n_chans; ch++) {
 		if (err & (0x1 << ch)) {
 			fsl_edma_disable_request(&fsl_edma->chans[ch]);
-			edma_writeb(fsl_edma, EDMA_CERR_CERR(ch), regs->cerr);
+			edma_writeb(fsl_edma, EDMA_CERR_CERR(ch),
+				fsl_edma->membase + EDMA_CERR);
 			fsl_edma->chans[ch].status = DMA_ERROR;
 			fsl_edma->chans[ch].idle = true;
 		}
@@ -1001,7 +1004,7 @@ fsl_edma_irq_init(struct platform_device *pdev, struct fsl_edma_engine *fsl_edma
 	}
 
 	for (i = 0; i < socdata->n_irqs; i++) {
-		if (socdata->irqs[i].irqno >= 0)
+		if (socdata->irqs[i].irqno >= 0) {
 			ret = devm_request_irq(&pdev->dev,
 				       socdata->irqs[i].irqno,
 				       socdata->irqs[i].irqhandler,
@@ -1014,6 +1017,7 @@ fsl_edma_irq_init(struct platform_device *pdev, struct fsl_edma_engine *fsl_edma
 					socdata->irqs[i].name);
 				return  ret;
 			}
+		}
 	}
 
 	return 0;
@@ -1156,17 +1160,6 @@ static inline int is_vf610_edma(struct fsl_edma_engine *data)
 	return data->socdata == &fsl_edma_vf610_data;
 }
 
-static void fsl_edma_irq_exit(
-		struct platform_device *pdev, struct fsl_edma_engine *fsl_edma)
-{
-	if (fsl_edma->txirq == fsl_edma->errirq) {
-		devm_free_irq(&pdev->dev, fsl_edma->txirq, fsl_edma);
-	} else {
-		devm_free_irq(&pdev->dev, fsl_edma->txirq, fsl_edma);
-		devm_free_irq(&pdev->dev, fsl_edma->errirq, fsl_edma);
-	}
-}
-
 static void fsl_disable_clocks(struct fsl_edma_engine *fsl_edma, int nr_clocks)
 {
 	int i;
@@ -1183,7 +1176,6 @@ static int fsl_edma_probe(struct platform_device *pdev)
 	struct fsl_edma_engine *fsl_edma;
 	struct fsl_edma_chan *fsl_chan;
 	struct fsl_edma_hw_tcd *hw_tcd;
-	struct edma_regs *regs;
 	struct resource *res;
 	int len, chans;
 	int ret, i;
@@ -1200,7 +1192,6 @@ static int fsl_edma_probe(struct platform_device *pdev)
 	if (!fsl_edma)
 		return -ENOMEM;
 
-	fsl_edma->version = v1;
 	fsl_edma->n_chans = chans;
 	fsl_edma->socdata = of_id->data;
 	mutex_init(&fsl_edma->fsl_edma_mutex);
@@ -1209,9 +1200,6 @@ static int fsl_edma_probe(struct platform_device *pdev)
 	fsl_edma->membase = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(fsl_edma->membase))
 		return PTR_ERR(fsl_edma->membase);
-
-	fsl_edma_setup_regs(fsl_edma);
-	regs = &fsl_edma->regs;
 
 	for (i = 0; i < DMAMUX_NR; i++) {
 		char clkname[32];
@@ -1249,7 +1237,6 @@ static int fsl_edma_probe(struct platform_device *pdev)
 		fsl_chan->pm_state = RUNNING;
 		fsl_chan->slave_id = 0;
 		fsl_chan->idle = true;
-		fsl_chan->dma_dir = DMA_NONE;
 		fsl_chan->vchan.desc_free = fsl_edma_free_desc;
 		vchan_init(&fsl_chan->vchan, &fsl_edma->dma_dev);
 
@@ -1333,7 +1320,6 @@ static int fsl_edma_remove(struct platform_device *pdev)
 	struct device_node *np = pdev->dev.of_node;
 	struct fsl_edma_engine *fsl_edma = platform_get_drvdata(pdev);
 
-	fsl_edma_irq_exit(pdev, fsl_edma);
 	fsl_edma_cleanup_vchan(&fsl_edma->dma_dev);
 	fsl_edma_irq_exit(pdev, fsl_edma);
 	fsl_edma_cleanup_vchan(&fsl_edma->dma_dev);
@@ -1357,7 +1343,7 @@ static int fsl_edma_suspend_late(struct device *dev)
 		/* Make sure chan is idle or will force disable. */
 		if (unlikely(!fsl_chan->idle)) {
 			dev_warn(dev, "WARN: There is non-idle channel.");
-			fsl_edma_disable_request(fsl_chan);
+			fsl_edma->socdata->ops->edma_disable_request(fsl_chan);
 			fsl_edma_chan_mux(fsl_chan, 0, false);
 		}
 
@@ -1372,7 +1358,6 @@ static int fsl_edma_resume_early(struct device *dev)
 {
 	struct fsl_edma_engine *fsl_edma = dev_get_drvdata(dev);
 	struct fsl_edma_chan *fsl_chan;
-	struct edma_regs *regs = &fsl_edma->regs;
 	struct fsl_edma_hw_tcd *hw_tcd;
 	int i;
 
@@ -1388,7 +1373,7 @@ static int fsl_edma_resume_early(struct device *dev)
 			fsl_edma_chan_mux(fsl_chan, fsl_chan->slave_id, true);
 	}
 
-	fsl_edma_enable_arbitration(fsl_edma);
+	fsl_edma->socdata->ops->edma_enable_arbitration(fsl_edma);
 
 	return 0;
 }
