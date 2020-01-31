@@ -261,6 +261,16 @@ static enum hrtimer_restart tmc_etr_timer_handler_global(struct hrtimer *t)
 	return HRTIMER_RESTART;
 }
 
+/* Timer init API common for both global and per core mode */
+void tmc_etr_timer_init(struct tmc_drvdata *drvdata)
+{
+	struct hrtimer *timer;
+
+	timer = is_etm_sync_mode_sw_global() ?
+		tmc_etr_tsync_global_timer() : &drvdata->timer;
+	hrtimer_init(timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+}
+
 /* Timer setup API common for both global and per core mode
  *
  * Global mode: Timer gets started only if its not active already.
@@ -291,7 +301,6 @@ static void tmc_etr_timer_setup(void *data)
 
 	timer = mode_global ?
 		tmc_etr_tsync_global_timer() : &drvdata->timer;
-	hrtimer_init(timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	timer->function = mode_global ?
 		tmc_etr_timer_handler_global : tmc_etr_timer_handler_percore;
 	dev_dbg(drvdata->dev, "Starting sync timer, mode:%s period:%lld ns\n",
@@ -1966,7 +1975,9 @@ int tmc_read_prepare_etr(struct tmc_drvdata *drvdata)
 
 	if (drvdata->mode == CS_MODE_READ_PREVBOOT) {
 		/* Initialize drvdata for reading trace data from last boot */
-		tmc_enable_etr_sink_sysfs(drvdata->csdev);
+		ret = tmc_enable_etr_sink_sysfs(drvdata->csdev);
+		if (ret)
+			return ret;
 		/* Update the buffer offset, len */
 		tmc_etr_sync_sysfs_buf(drvdata);
 		return 0;
