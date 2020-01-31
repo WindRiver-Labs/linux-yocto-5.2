@@ -501,9 +501,10 @@ static int tmc_probe(struct amba_device *adev, const struct amba_id *id)
 	/* Update the smp target cpu */
 	drvdata->rc_cpu = is_etm_sync_mode_sw_global() ? SYNC_GLOBAL_CORE :
 		drvdata->cpu;
-	/* Used for SW sync insertion(global mode) */
-	if (!is_etm_sync_mode_hw())
-		tmc_etr_add_cpumap(drvdata);
+	if (!is_etm_sync_mode_hw()) {
+		tmc_etr_add_cpumap(drvdata); /* Used for global sync mode */
+		tmc_etr_timer_init(drvdata);
+	}
 
 	devid = readl_relaxed(drvdata->base + CORESIGHT_DEVID);
 	drvdata->config_type = BMVAL(devid, 6, 7);
