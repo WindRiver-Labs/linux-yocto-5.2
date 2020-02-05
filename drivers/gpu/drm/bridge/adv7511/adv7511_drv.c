@@ -1353,7 +1353,7 @@ uninit_regulators:
 			dev_warn(dev,
 				"Probe failed. Remote port '%s' disabled\n",
 				remote_node->full_name);
-
+		of_changeset_destroy(&ocs);
 		of_node_put(remote_node);
 	};
 #endif
