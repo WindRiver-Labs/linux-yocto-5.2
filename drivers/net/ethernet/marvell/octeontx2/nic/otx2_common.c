@@ -126,7 +126,7 @@ void otx2_get_stats64(struct net_device *netdev,
 EXPORT_SYMBOL(otx2_get_stats64);
 
 /* Sync MAC address with RVU */
-int otx2_hw_set_mac_addr(struct otx2_nic *pfvf, struct net_device *netdev)
+int otx2_hw_set_mac_addr(struct otx2_nic *pfvf, u8 *mac)
 {
 	struct nix_set_mac_addr *req;
 	int err;
@@ -138,7 +138,7 @@ int otx2_hw_set_mac_addr(struct otx2_nic *pfvf, struct net_device *netdev)
 		return -ENOMEM;
 	}
 
-	ether_addr_copy(req->mac_addr, netdev->dev_addr);
+	ether_addr_copy(req->mac_addr, mac);
 
 	err = otx2_sync_mbox_msg(&pfvf->mbox);
 	otx2_mbox_unlock(&pfvf->mbox);
@@ -186,9 +186,14 @@ int otx2_set_mac_address(struct net_device *netdev, void *p)
 	if (!is_valid_ether_addr(addr->sa_data))
 		return -EADDRNOTAVAIL;
 
-	memcpy(netdev->dev_addr, addr->sa_data, netdev->addr_len);
-
-	otx2_hw_set_mac_addr(pfvf, netdev);
+	if (!otx2_hw_set_mac_addr(pfvf, addr->sa_data)) {
+		memcpy(netdev->dev_addr, addr->sa_data, netdev->addr_len);
+		/* update dmac field in vlan offload rule */
+		if (pfvf->flags & OTX2_FLAG_RX_VLAN_SUPPORT)
+			otx2_install_rxvlan_offload_flow(pfvf);
+	} else {
+		return -EPERM;
+	}
 
 	return 0;
 }
@@ -364,10 +369,10 @@ dma_addr_t otx2_alloc_rbuf(struct otx2_nic *pfvf, struct otx2_pool *pool,
 
 	pool->page_offset = 0;
 ret:
-	iova = (u64)dma_map_page_attrs(pfvf->dev, pool->page,
-				       pool->page_offset, pool->rbsize,
-				       DMA_FROM_DEVICE, DMA_ATTR_SKIP_CPU_SYNC);
-	if (unlikely(dma_mapping_error(pfvf->dev, iova))) {
+	iova = (u64)otx2_dma_map_page(pfvf, pool->page, pool->page_offset,
+				      pool->rbsize, DMA_FROM_DEVICE,
+				      DMA_ATTR_SKIP_CPU_SYNC);
+	if (!iova) {
 		if (!pool->page_offset)
 			__free_pages(pool->page, 0);
 		pool->page = NULL;
@@ -450,15 +455,21 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl)
 		req->num_regs++;
 		/* Set DWRR quantum */
 		req->reg[2] = NIX_AF_MDQX_SCHEDULE(schq);
-		req->regval[2] = pfvf->netdev->mtu;
+		req->regval[2] =  DFLT_RR_QTM;
 	} else if (lvl == NIX_TXSCH_LVL_TL4) {
 		parent =  hw->txschq_list[NIX_TXSCH_LVL_TL3][0];
 		req->reg[0] = NIX_AF_TL4X_PARENT(schq);
 		req->regval[0] = parent << 16;
+		req->num_regs++;
+		req->reg[1] = NIX_AF_TL4X_SCHEDULE(schq);
+		req->regval[1] = DFLT_RR_QTM;
 	} else if (lvl == NIX_TXSCH_LVL_TL3) {
 		parent = hw->txschq_list[NIX_TXSCH_LVL_TL2][0];
 		req->reg[0] = NIX_AF_TL3X_PARENT(schq);
 		req->regval[0] = parent << 16;
+		req->num_regs++;
+		req->reg[1] = NIX_AF_TL3X_SCHEDULE(schq);
+		req->regval[1] = DFLT_RR_QTM;
 	} else if (lvl == NIX_TXSCH_LVL_TL2) {
 		parent =  hw->txschq_list[NIX_TXSCH_LVL_TL1][0];
 		req->reg[0] = NIX_AF_TL2X_PARENT(schq);
@@ -466,7 +477,7 @@ int otx2_txschq_config(struct otx2_nic *pfvf, int lvl)
 
 		req->num_regs++;
 		req->reg[1] = NIX_AF_TL2X_SCHEDULE(schq);
-		req->regval[1] = TXSCH_TL1_DFLT_RR_PRIO << 24;
+		req->regval[1] = TXSCH_TL1_DFLT_RR_PRIO << 24 | DFLT_RR_QTM;
 
 		req->num_regs++;
 		req->reg[2] = NIX_AF_TL3_TL2X_LINKX_CFG(schq,
@@ -518,7 +529,7 @@ int otx2_txsch_alloc(struct otx2_nic *pfvf)
 int otx2_txschq_stop(struct otx2_nic *pfvf)
 {
 	struct nix_txsch_free_req *free_req;
-	int lvl, schq;
+	int lvl, schq, err;
 
 	otx2_mbox_lock(&pfvf->mbox);
 	/* Free the transmit schedulers */
@@ -529,7 +540,7 @@ int otx2_txschq_stop(struct otx2_nic *pfvf)
 	}
 
 	free_req->flags = TXSCHQ_FREE_ALL;
-	WARN_ON(otx2_sync_mbox_msg(&pfvf->mbox));
+	err = otx2_sync_mbox_msg(&pfvf->mbox);
 	otx2_mbox_unlock(&pfvf->mbox);
 
 	/* Clear the txschq list */
@@ -537,7 +548,7 @@ int otx2_txschq_stop(struct otx2_nic *pfvf)
 		for (schq = 0; schq < MAX_TXSCHQ_PER_FUNC; schq++)
 			pfvf->hw.txschq_list[lvl][schq] = 0;
 	}
-	return 0;
+	return err;
 }
 
 /* RED and drop levels of CQ on packet reception.
@@ -649,7 +660,7 @@ static int otx2_sq_init(struct otx2_nic *pfvf, u16 qidx, u16 sqb_aura)
 	aq->sq.ena = 1;
 	/* Only one SMQ is allocated, map all SQ's to that SMQ  */
 	aq->sq.smq = pfvf->hw.txschq_list[NIX_TXSCH_LVL_SMQ][0];
-	aq->sq.smq_rr_quantum = OTX2_MAX_MTU;
+	aq->sq.smq_rr_quantum = DFLT_RR_QTM;
 	aq->sq.default_chan = pfvf->hw.tx_chan_base;
 	aq->sq.sqe_stype = NIX_STYPE_STF; /* Cache SQB */
 	aq->sq.sqb_aura = sqb_aura;
@@ -1299,7 +1310,10 @@ void otx2_ctx_disable(struct mbox *mbox, int type, bool npa)
 
 	req->ctype = type;
 
-	WARN_ON(otx2_sync_mbox_msg(mbox));
+	if (otx2_sync_mbox_msg(mbox))
+		dev_err(mbox->pfvf->dev, "%s failed to disable context\n",
+			__func__);
+
 	otx2_mbox_unlock(mbox);
 }
 
