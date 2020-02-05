@@ -2831,6 +2831,9 @@ void dwc3_stop_active_transfer(struct dwc3_ep *dep, bool force,
 	 */
 	if (force)
 		dep->resource_index = 0;
+	
+	if (!interrupt)
+		dep->flags &= ~DWC3_EP_TRANSFER_STARTED;
 
 	if (dwc3_is_usb31(dwc) || dwc->revision < DWC3_REVISION_310A)
 		udelay(100);
