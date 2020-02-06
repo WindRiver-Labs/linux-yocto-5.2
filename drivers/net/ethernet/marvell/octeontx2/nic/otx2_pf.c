@@ -102,7 +102,6 @@ static void otx2_flr_handler(struct work_struct *work)
 	struct flr_work *flrwork = container_of(work, struct flr_work, work);
 	struct otx2_nic *pf = flrwork->pf;
 	struct msg_req *req;
-	struct msg_rsp *rsp;
 	int vf, reg = 0;
 
 	vf = flrwork - pf->flr_wrk;
@@ -122,11 +121,6 @@ static void otx2_flr_handler(struct work_struct *work)
 			reg = 1;
 			vf = vf - 64;
 		}
-		rsp = (struct  msg_rsp *)
-		      otx2_mbox_get_rsp(&pf->mbox.mbox, 0, &req->hdr);
-		otx2_mbox_unlock(&pf->mbox);
-		if (rsp->hdr.rc)
-			return;
 		/* clear transcation pending bit */
 		otx2_write64(pf, RVU_PF_VFTRPENDX(reg), BIT_ULL(vf));
 		otx2_write64(pf, RVU_PF_VFFLR_INT_ENA_W1SX(reg), BIT_ULL(vf));
@@ -377,9 +371,7 @@ static int otx2_forward_vf_mbox_msgs(struct otx2_nic *pf,
 		src_mdev = &src_mbox->dev[vf];
 		mbox_hdr = src_mbox->hwbase +
 				src_mbox->rx_start + (vf * MBOX_SIZE);
-		req_hdr = (struct mbox_hdr *)(src_mdev->mbase +
-					      src_mbox->rx_start);
-		req_hdr->num_msgs = num_msgs;
+
 		dst_mbox = &pf->mbox;
 		dst_size = dst_mbox->mbox.tx_size -
 				ALIGN(sizeof(*mbox_hdr), MBOX_MSG_ALIGN);
@@ -392,7 +384,7 @@ static int otx2_forward_vf_mbox_msgs(struct otx2_nic *pf,
 		otx2_mbox_lock(&pf->mbox);
 		dst_mdev->mbase = src_mdev->mbase;
 		dst_mdev->msg_size = mbox_hdr->msg_size;
-		dst_mdev->num_msgs = mbox_hdr->num_msgs;
+		dst_mdev->num_msgs = num_msgs;
 		err = otx2_sync_mbox_msg(dst_mbox);
 		if (err) {
 			dev_warn(pf->dev,
@@ -829,10 +821,6 @@ static void otx2_pfaf_mbox_handler(struct work_struct *work)
 	}
 
 	otx2_mbox_reset(mbox, 0);
-
-	/* Clear the IRQ */
-	smp_wmb();
-	otx2_write64(pf, RVU_PF_INT, BIT_ULL(0));
 }
 
 static void otx2_handle_link_event(struct otx2_nic *pf)
@@ -1384,7 +1372,8 @@ err_free_nix_queues:
 	otx2_free_cq_res(pf);
 	otx2_ctx_disable(mbox, NIX_AQ_CTYPE_RQ, false);
 err_free_txsch:
-	otx2_txschq_stop(pf);
+	if (otx2_txschq_stop(pf))
+		dev_err(pf->dev, "%s failed to stop TX schedulers\n", __func__);
 err_free_sq_ptrs:
 	otx2_sq_free_sqbs(pf);
 err_free_rq_ptrs:
@@ -1397,13 +1386,16 @@ err_free_nix_lf:
 	free_req = otx2_mbox_alloc_msg_nix_lf_free(mbox);
 	if (free_req) {
 		free_req->flags = NIX_LF_DISABLE_FLOWS;
-		WARN_ON(otx2_sync_mbox_msg(mbox));
+		if (otx2_sync_mbox_msg(mbox))
+			dev_err(pf->dev, "%s failed to free nixlf\n", __func__);
 	}
 err_free_npa_lf:
 	/* Reset NPA LF */
 	req = otx2_mbox_alloc_msg_npa_lf_free(mbox);
-	if (req)
-		WARN_ON(otx2_sync_mbox_msg(mbox));
+	if (req) {
+		if (otx2_sync_mbox_msg(mbox))
+			dev_err(pf->dev, "%s failed to free npalf\n", __func__);
+	}
 exit:
 	otx2_mbox_unlock(mbox);
 	return err;
@@ -1453,7 +1445,8 @@ static void otx2_free_hw_resources(struct otx2_nic *pf)
 	free_req = otx2_mbox_alloc_msg_nix_lf_free(mbox);
 	if (free_req) {
 		free_req->flags = NIX_LF_DISABLE_FLOWS;
-		WARN_ON(otx2_sync_mbox_msg(mbox));
+		if (otx2_sync_mbox_msg(mbox))
+			dev_err(pf->dev, "%s failed to free nixlf\n", __func__);
 	}
 	otx2_mbox_unlock(mbox);
 
@@ -1465,8 +1458,10 @@ static void otx2_free_hw_resources(struct otx2_nic *pf)
 	otx2_mbox_lock(mbox);
 	/* Reset NPA LF */
 	req = otx2_mbox_alloc_msg_npa_lf_free(mbox);
-	if (req)
-		WARN_ON(otx2_sync_mbox_msg(mbox));
+	if (req) {
+		if (otx2_sync_mbox_msg(mbox))
+			dev_err(pf->dev, "%s failed to free npalf\n", __func__);
+	}
 	otx2_mbox_unlock(mbox);
 }
 
@@ -2271,11 +2266,11 @@ static int otx2_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	 * So the only way to convert Rx packet's buffer address is to use
 	 * IOMMU's iova_to_phys() handler which translates the address by
 	 * walking through the translation tables.
-	 *
-	 * So check if device is binded to IOMMU, otherwise translation is
-	 * not needed.
 	 */
 	pf->iommu_domain = iommu_get_domain_for_dev(dev);
+	if (pf->iommu_domain)
+		pf->iommu_domain_type =
+			((struct iommu_domain *)pf->iommu_domain)->type;
 
 	netdev->hw_features = (NETIF_F_RXCSUM | NETIF_F_IP_CSUM |
 			       NETIF_F_IPV6_CSUM | NETIF_F_RXHASH |

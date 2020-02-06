@@ -132,10 +132,6 @@ static void otx2vf_vfaf_mbox_handler(struct work_struct *work)
 	}
 
 	otx2_mbox_reset(mbox, 0);
-
-	/* Clear the IRQ */
-	smp_wmb();
-	otx2_write64(af_mbox->pfvf, RVU_VF_INT, BIT_ULL(0));
 }
 
 static int otx2vf_process_mbox_msg_up(struct otx2_nic *vf,
@@ -535,6 +531,10 @@ static int otx2vf_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	vf->pdev = pdev;
 	vf->dev = dev;
 	vf->iommu_domain = iommu_get_domain_for_dev(dev);
+	if (vf->iommu_domain)
+		vf->iommu_domain_type =
+			((struct iommu_domain *)vf->iommu_domain)->type;
+
 	vf->flags |= OTX2_FLAG_INTF_DOWN;
 	hw = &vf->hw;
 	hw->pdev = vf->pdev;

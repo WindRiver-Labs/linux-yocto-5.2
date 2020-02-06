@@ -14,6 +14,7 @@
 #include <linux/pci.h>
 #include <linux/ptp_clock_kernel.h>
 #include <linux/timecounter.h>
+#include <linux/iommu.h>
 
 #include <mbox.h>
 #include "otx2_reg.h"
@@ -145,7 +146,7 @@ struct  mbox {
 	struct work_struct	mbox_up_wrk;
 	struct otx2_nic		*pfvf;
 	void			*bbuf_base; /* Bounce buffer for mbox memory */
-	atomic_t		lock;	/* serialize mailbox access */
+	struct mutex		lock;	/* serialize mailbox access */
 	int			num_msgs; /*mbox number of messages*/
 	int			up_num_msgs;/* mbox_up number of messages*/
 };
@@ -236,6 +237,7 @@ struct otx2_nic {
 	void __iomem		*reg_base;
 	struct net_device	*netdev;
 	void			*iommu_domain;
+	u16			iommu_domain_type;
 	u16			xtra_hdr;
 	u16			max_frs;
 
@@ -427,18 +429,17 @@ static inline void otx2_sync_mbox_bbuf(struct otx2_mbox *mbox, int devid)
 
 static inline void otx2_mbox_lock_init(struct mbox *mbox)
 {
-	atomic_set(&mbox->lock, 0);
+	mutex_init(&mbox->lock);
 }
 
 static inline void otx2_mbox_lock(struct mbox *mbox)
 {
-	while (!(atomic_add_return(1, &mbox->lock) == 1))
-		cpu_relax();
+	mutex_lock(&mbox->lock);
 }
 
 static inline void otx2_mbox_unlock(struct mbox *mbox)
 {
-	atomic_set(&mbox->lock, 0);
+	mutex_unlock(&mbox->lock);
 }
 
 /* With the absence of API for 128-bit IO memory access for arm64,
@@ -631,11 +632,40 @@ static inline int rvu_get_pf(u16 pcifunc)
 	return (pcifunc >> RVU_PFVF_PF_SHIFT) & RVU_PFVF_PF_MASK;
 }
 
+static inline dma_addr_t otx2_dma_map_page(struct otx2_nic *pfvf,
+					   struct page *page,
+					   size_t offset, size_t size,
+					   enum dma_data_direction dir,
+					   unsigned long attrs)
+{
+	dma_addr_t iova;
+
+	if (pfvf->iommu_domain_type == IOMMU_DOMAIN_IDENTITY)
+		return page_to_phys(page) + offset;
+
+	iova = dma_map_page_attrs(pfvf->dev, page,
+				  offset, size, dir, attrs);
+	if (unlikely(dma_mapping_error(pfvf->dev, iova)))
+		return (dma_addr_t)NULL;
+	return iova;
+}
+
+static inline void otx2_dma_unmap_page(struct otx2_nic *pfvf,
+				       dma_addr_t addr, size_t size,
+				       enum dma_data_direction dir,
+				       unsigned long attrs)
+{
+	if (pfvf->iommu_domain_type == IOMMU_DOMAIN_IDENTITY)
+		return;
+
+	dma_unmap_page_attrs(pfvf->dev, addr, size, dir, attrs);
+}
+
 /* MSI-X APIs */
 void otx2_free_cints(struct otx2_nic *pfvf, int n);
 void otx2_set_cints_affinity(struct otx2_nic *pfvf);
 
-int otx2_hw_set_mac_addr(struct otx2_nic *pfvf, struct net_device *netdev);
+int otx2_hw_set_mac_addr(struct otx2_nic *pfvf, u8 *mac);
 int otx2_set_mac_address(struct net_device *netdev, void *p);
 int otx2_hw_set_mtu(struct otx2_nic *pfvf, int mtu);
 void otx2_tx_timeout(struct net_device *netdev);
@@ -724,6 +754,7 @@ int otx2_remove_flow(struct otx2_nic *pfvf, u32 location);
 int otx2_prepare_flow_request(struct ethtool_rx_flow_spec *fsp,
 			      struct npc_install_flow_req *req);
 int otx2_enable_rxvlan(struct otx2_nic *pf, bool enable);
+int otx2_install_rxvlan_offload_flow(struct otx2_nic *pfvf);
 int otx2smqvf_probe(struct otx2_nic *vf);
 int otx2smqvf_remove(struct otx2_nic *vf);
 
