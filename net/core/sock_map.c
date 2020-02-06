@@ -239,7 +239,6 @@ static void sock_map_free(struct bpf_map *map)
 	int i;
 
 	synchronize_rcu();
-	rcu_read_lock();
 	raw_spin_lock_bh(&stab->lock);
 	for (i = 0; i < stab->map.max_entries; i++) {
 		struct sock **psk = &stab->sks[i];
@@ -247,10 +246,11 @@ static void sock_map_free(struct bpf_map *map)
 
 		sk = xchg(psk, NULL);
 		if (sk)
+			rcu_read_lock();
 			sock_map_unref(sk, psk);
+			rcu_read_unlock();
 	}
 	raw_spin_unlock_bh(&stab->lock);
-	rcu_read_unlock();
 
 	synchronize_rcu();
 
@@ -861,17 +861,17 @@ static void sock_hash_free(struct bpf_map *map)
 	int i;
 
 	synchronize_rcu();
-	rcu_read_lock();
 	for (i = 0; i < htab->buckets_num; i++) {
 		bucket = sock_hash_select_bucket(htab, i);
 		raw_spin_lock_bh(&bucket->lock);
 		hlist_for_each_entry_safe(elem, node, &bucket->head, node) {
 			hlist_del_rcu(&elem->node);
+			rcu_read_lock();
 			sock_map_unref(elem->sk, elem);
+			rcu_read_unlock();
 		}
 		raw_spin_unlock_bh(&bucket->lock);
 	}
-	rcu_read_unlock();
 
 	bpf_map_area_free(htab->buckets);
 	kfree(htab);
