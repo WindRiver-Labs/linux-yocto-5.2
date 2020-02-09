@@ -80,6 +80,7 @@ extern const u32 barrier_pkt[4];
 #define CSETR_QUIRK_NO_STOP_FLUSH	(0x1U << 3) /* No Stop on flush */
 #define CSETM_QUIRK_SW_SYNC		(0x1U << 4) /* No Hardware sync */
 #define CSETM_QUIRK_TREAT_ETMv43	(0x1U << 5) /* ETMv4.2 as ETMv4.3 */
+#define CSETR_QUIRK_FORCE_64B_DBA_RW	(0x1U << 6) /* 64b DBA read/write */
 
 /* ETM sync insertion modes
  * 1. MODE_HW
