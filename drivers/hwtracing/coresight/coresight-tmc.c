@@ -282,7 +282,22 @@ coresight_tmc_reg(authstatus, TMC_AUTHSTATUS);
 coresight_tmc_reg(devid, CORESIGHT_DEVID);
 coresight_tmc_reg64(rrp, TMC_RRP, TMC_RRPHI);
 coresight_tmc_reg64(rwp, TMC_RWP, TMC_RWPHI);
-coresight_tmc_reg64(dba, TMC_DBALO, TMC_DBAHI);
+
+/* To accommodate silicons that doesn't support 32 bit split reads
+ * of dba, use tmc_read_dba so that etr options can be processed.
+ */
+static ssize_t dba_show(struct device *_dev,
+			   struct device_attribute *attr, char *buf)
+{
+	struct tmc_drvdata *drvdata = dev_get_drvdata(_dev->parent);
+	u64 val;
+
+	pm_runtime_get_sync(_dev->parent);
+	val = tmc_read_dba(drvdata);
+	pm_runtime_put_sync(_dev->parent);
+	return scnprintf(buf, PAGE_SIZE, "0x%llx\n", val);
+}
+static DEVICE_ATTR_RO(dba);
 
 static struct attribute *coresight_tmc_mgmt_attrs[] = {
 	&dev_attr_rsz.attr,

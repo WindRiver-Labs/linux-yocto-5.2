@@ -338,15 +338,27 @@ ssize_t tmc_etr_get_sysfs_trace(struct tmc_drvdata *drvdata,
 				loff_t pos, size_t len, char **bufpp);
 void *tmc_etr_drvbuf_vaddr(struct tmc_drvdata *drvdata);
 
+#define is_etr_dba_force_64b_rw(options, lo_off)			\
+((((options) & CSETR_QUIRK_FORCE_64B_DBA_RW) &&				\
+	(lo_off) == TMC_DBALO) ? true : false)				\
+
 #define TMC_REG_PAIR(name, lo_off, hi_off)				\
 static inline u64							\
 tmc_read_##name(struct tmc_drvdata *drvdata)				\
 {									\
+	if (is_etr_dba_force_64b_rw(drvdata->etr_options, lo_off))	\
+		return readq(drvdata->base + lo_off);			\
+									\
 	return coresight_read_reg_pair(drvdata->base, lo_off, hi_off);	\
 }									\
 static inline void							\
 tmc_write_##name(struct tmc_drvdata *drvdata, u64 val)			\
 {									\
+	if (is_etr_dba_force_64b_rw(drvdata->etr_options, lo_off)) {	\
+		writeq(val, drvdata->base + lo_off);			\
+		return;							\
+	}								\
+									\
 	coresight_write_reg_pair(drvdata->base, val, lo_off, hi_off);	\
 }
 
