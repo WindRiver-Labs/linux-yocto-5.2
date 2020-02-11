@@ -1164,7 +1164,6 @@ void qlt_unreg_sess(struct fc_port *sess)
 		sess->nvme_flag |= NVME_FLAG_DELETING;
 		schedule_work(&sess->nvme_del_work);
 	} else {
-		INIT_WORK(&sess->free_work, qlt_free_session_done);
 		schedule_work(&sess->free_work);
 	}
 }
