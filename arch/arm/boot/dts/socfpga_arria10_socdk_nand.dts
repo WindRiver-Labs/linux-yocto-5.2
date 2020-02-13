@@ -11,10 +11,10 @@
 
 	partition@nand-boot {
 		label = "Boot and fpga data";
-		reg = <0x0 0x1C00000>;
+		reg = <0x0 0x02000000>;
 	};
 	partition@nand-rootfs {
 		label = "Root Filesystem - JFFS2";
-		reg = <0x1C00000 0x6400000>;
+		reg = <0x02000000 0x06000000>;
 	};
 };
