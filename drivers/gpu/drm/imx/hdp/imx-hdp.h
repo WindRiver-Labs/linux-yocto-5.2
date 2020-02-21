@@ -23,6 +23,7 @@
 #include <drm/drm_edid.h>
 #include <drm/drm_encoder_slave.h>
 #include <drm/drm_atomic.h>
+#include <drm/drm_probe_helper.h>
 #include <soc/imx8/sc/sci.h>
 
 #include <drm/drm_dp_helper.h>
@@ -96,9 +97,9 @@ struct hdp_clks;
 struct hdp_ops {
 	void (*fw_load)(state_struct *state);
 	int (*fw_init)(state_struct *state);
-	int (*phy_init)(state_struct *state, struct drm_display_mode *mode,
+	int (*phy_init)(state_struct *state, const struct drm_display_mode *mode,
 			int format, int color_depth);
-	void (*mode_set)(state_struct *state, struct drm_display_mode *mode,
+	void (*mode_set)(state_struct *state, const struct drm_display_mode *mode,
 			 int format, int color_depth, int max_link);
 	bool (*mode_fixup)(state_struct *state,
 			   const struct drm_display_mode *mode,
@@ -114,7 +115,7 @@ struct hdp_ops {
 	int (*pixel_link_sync_ctrl_enable)(state_struct *state);
 	int (*pixel_link_sync_ctrl_disable)(state_struct *state);
 	void (*pixel_link_mux)(state_struct *state,
-			       struct drm_display_mode *mode);
+			       const struct drm_display_mode *mode);
 	void (*pixel_engine_reset)(state_struct *state);
 
 	int (*clock_init)(struct hdp_clks *clks);

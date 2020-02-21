@@ -835,7 +835,7 @@ CDN_API_STATUS CDN_API_DPTX_Set_VIC(state_struct *state,
 }
 
 CDN_API_STATUS CDN_API_DPTX_Set_VIC_blocking(state_struct *state,
-					     struct drm_display_mode *mode,
+					     const struct drm_display_mode *mode,
 					     int bitsPerPixel,
 					     VIC_NUM_OF_LANES NumOfLanes,
 					     VIC_SYMBOL_RATE rate,

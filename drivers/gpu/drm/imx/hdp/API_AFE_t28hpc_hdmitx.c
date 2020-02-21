@@ -66,7 +66,7 @@ int pixel_clock_range_t28hpc(struct drm_display_mode *mode)
 
 int phy_cfg_hdp_t28hpc(state_struct *state,
 				int num_lanes,
-				struct drm_display_mode *mode,
+				const struct drm_display_mode *mode,
 				int bpp,
 				VIC_PXL_ENCODING_FORMAT format,
 				bool pixel_clk_from_phy)

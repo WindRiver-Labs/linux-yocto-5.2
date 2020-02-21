@@ -146,7 +146,7 @@ CDN_API_STATUS CDN_API_HDMITX_Init_blocking(state_struct *state);
  * \returns status
  */
 CDN_API_STATUS CDN_API_HDMITX_SetVic_blocking(state_struct *state,
-					      struct drm_display_mode *mode, int bpp,
+					      const struct drm_display_mode *mode, int bpp,
 					      VIC_PXL_ENCODING_FORMAT format);
 
 /**

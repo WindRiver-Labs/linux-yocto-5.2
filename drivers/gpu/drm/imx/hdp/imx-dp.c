@@ -23,7 +23,7 @@
 #include "imx-hdmi.h"
 #include "imx-dp.h"
 
-int dp_phy_init(state_struct *state, struct drm_display_mode *mode, int format,
+int dp_phy_init(state_struct *state, const struct drm_display_mode *mode, int format,
 		int color_depth)
 {
 	struct imx_hdp *hdp = state_to_imx_hdp(state);
@@ -323,7 +323,7 @@ static ssize_t dp_aux_transfer(struct drm_dp_aux *aux,
  * 1Eh (8.1Gbps)--N/A
  */
 void dp_mode_set(state_struct *state,
-			struct drm_display_mode *mode,
+			const struct drm_display_mode *mode,
 			int format,
 			int color_depth,
 			int max_link_rate)
@@ -591,7 +591,7 @@ void dp_phy_pix_engine_reset_t28hpc(state_struct *state)
 
 
 int dp_phy_init_t28hpc(state_struct *state,
-		       struct drm_display_mode *mode,
+		       const struct drm_display_mode *mode,
 		       int format,
 		       int color_depth)
 {
