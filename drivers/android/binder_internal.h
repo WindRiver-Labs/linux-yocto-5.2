@@ -19,6 +19,19 @@ struct binder_context {
 	const char *name;
 };
 
+static inline struct binder_device *binderfs_device_get(struct binder_device *dev)
+{
+	if (dev->binderfs_inode)
+		ihold(dev->binderfs_inode);
+	return dev;
+}
+
+static inline void binderfs_device_put(struct binder_device *dev)
+{
+	if (dev->binderfs_inode)
+		iput(dev->binderfs_inode);
+}
+
 /**
  * struct binder_device - information about a binder device node
  * @hlist:          list of binder devices (only used for devices requested via
