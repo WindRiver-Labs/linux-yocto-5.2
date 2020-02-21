@@ -33,7 +33,7 @@
 #define B0_SILICON_ID			0x11
 
 static int hdmi_avi_info_set(struct imx_hdp *hdp,
-				struct drm_display_mode *mode,
+				const struct drm_display_mode *mode,
 				int format)
 {
 	struct hdmi_avi_infoframe frame;
@@ -45,7 +45,7 @@ static int hdmi_avi_info_set(struct imx_hdp *hdp,
 	int ret;
 
 	/* Initialise info frame from DRM mode */
-	drm_hdmi_avi_infoframe_from_display_mode(&frame, mode, true);
+	drm_hdmi_avi_infoframe_from_display_mode(&frame, &hdp->connector, mode);
 
 	/* Set up colorimetry */
 	allowed_colorimetry = format == PXL_RGB ? RGB_ALLOWED_COLORIMETRY :
@@ -106,7 +106,7 @@ static int hdmi_avi_info_set(struct imx_hdp *hdp,
 }
 
 static int hdmi_vendor_info_set(struct imx_hdp *hdp,
-				struct drm_display_mode *mode,
+				const struct drm_display_mode *mode,
 				int format)
 {
 	struct hdmi_vendor_infoframe frame;
@@ -240,7 +240,7 @@ static int hdmi_scdc_tmds_config(struct imx_hdp *hdp)
 	return ret;
 }
 
-int hdmi_phy_init_ss28fdsoi(state_struct *state, struct drm_display_mode *mode, int format, int color_depth)
+int hdmi_phy_init_ss28fdsoi(state_struct *state, const struct drm_display_mode *mode, int format, int color_depth)
 {
 	struct imx_hdp *hdp = state_to_imx_hdp(state);
 	int ret;
@@ -269,7 +269,7 @@ int hdmi_phy_init_ss28fdsoi(state_struct *state, struct drm_display_mode *mode, 
 	return true;
 }
 
-void hdmi_mode_set_ss28fdsoi(state_struct *state, struct drm_display_mode *mode, int format, int color_depth, int temp)
+void hdmi_mode_set_ss28fdsoi(state_struct *state, const struct drm_display_mode *mode, int format, int color_depth, int temp)
 {
 	struct imx_hdp *hdp = container_of(state, struct imx_hdp, state);
 	int ret;
@@ -312,7 +312,7 @@ void hdmi_mode_set_ss28fdsoi(state_struct *state, struct drm_display_mode *mode,
 	hdmi_mode_set_vswing(state);
 }
 
-int hdmi_phy_init_t28hpc(state_struct *state, struct drm_display_mode *mode, int format, int color_depth)
+int hdmi_phy_init_t28hpc(state_struct *state, const struct drm_display_mode *mode, int format, int color_depth)
 {
 	struct imx_hdp *hdp = state_to_imx_hdp(state);
 	int ret;
@@ -379,7 +379,7 @@ void hdmi_phy_pix_engine_reset_t28hpc(state_struct *state)
 						regresp.val);
 }
 
-void hdmi_mode_set_t28hpc(state_struct *state, struct drm_display_mode *mode, int format, int color_depth, int temp)
+void hdmi_mode_set_t28hpc(state_struct *state, const struct drm_display_mode *mode, int format, int color_depth, int temp)
 {
 	struct imx_hdp *hdp = container_of(state, struct imx_hdp, state);
 	int ret;

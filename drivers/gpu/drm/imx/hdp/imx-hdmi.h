@@ -15,13 +15,13 @@
 #define _IMX_HDMI_H_
 
 int hdmi_phy_init_ss28fdsoi(state_struct *state,
-			struct drm_display_mode *mode, int format, int color_depth);
+			const struct drm_display_mode *mode, int format, int color_depth);
 void hdmi_mode_set_ss28fdsoi(state_struct *state,
-		struct drm_display_mode *mode, int format, int color_depth, int temp);
+		const struct drm_display_mode *mode, int format, int color_depth, int temp);
 int hdmi_phy_init_t28hpc(state_struct *state,
-			struct drm_display_mode *mode, int format, int color_depth);
+			const struct drm_display_mode *mode, int format, int color_depth);
 void hdmi_mode_set_t28hpc(state_struct *state,
-			struct drm_display_mode *mode, int format, int color_depth, int temp);
+			const struct drm_display_mode *mode, int format, int color_depth, int temp);
 bool hdmi_mode_fixup_t28hpc(state_struct *state,
 			    const struct drm_display_mode *mode,
 			    struct drm_display_mode *adjusted_mode);

@@ -68,7 +68,7 @@ static inline struct imx_hdp *enc_to_imx_hdp(struct drm_encoder *e)
 	return container_of(e, struct imx_hdp, encoder);
 }
 
-static inline bool imx_hdp_is_dual_mode(struct drm_display_mode *mode)
+static inline bool imx_hdp_is_dual_mode(const struct drm_display_mode *mode)
 {
 	return (mode->clock > HDP_DUAL_MODE_MIN_PCLK_RATE ||
 		mode->hdisplay > HDP_SINGLE_MODE_MAX_WIDTH) ? true : false;
@@ -192,7 +192,7 @@ int hdp_fw_init(state_struct *state)
 }
 
 static void imx8qm_pixel_link_mux(state_struct *state,
-				  struct drm_display_mode *mode)
+				  const struct drm_display_mode *mode)
 {
 	struct imx_hdp *hdp = state_to_imx_hdp(state);
 	u32 val;
@@ -725,7 +725,7 @@ void imx8qm_ipg_clock_set_rate(struct hdp_clks *clks)
 	}
 }
 
-static u8 imx_hdp_link_rate(struct drm_display_mode *mode)
+static u8 imx_hdp_link_rate(const struct drm_display_mode *mode)
 {
 	if (mode->clock < 297000)
 		return AFE_LINK_RATE_1_6;
@@ -736,7 +736,7 @@ static u8 imx_hdp_link_rate(struct drm_display_mode *mode)
 }
 
 static void imx_hdp_mode_setup(struct imx_hdp *hdp,
-			       struct drm_display_mode *mode)
+			       const struct drm_display_mode *mode)
 {
 	int ret;
 
@@ -788,8 +788,8 @@ bool imx_hdp_bridge_mode_fixup(struct drm_bridge *bridge,
 }
 
 static void imx_hdp_bridge_mode_set(struct drm_bridge *bridge,
-				    struct drm_display_mode *orig_mode,
-				    struct drm_display_mode *mode)
+				    const struct drm_display_mode *orig_mode,
+				    const struct drm_display_mode *mode)
 {
 	struct imx_hdp *hdp = bridge->driver_private;
 

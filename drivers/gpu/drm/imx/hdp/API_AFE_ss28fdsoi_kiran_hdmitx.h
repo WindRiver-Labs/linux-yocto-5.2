@@ -50,7 +50,7 @@
 #include "../../../../mxc/hdp/all.h"
 
 int phy_cfg_hdp_ss28fdsoi(state_struct *state, int num_lanes,
-				struct drm_display_mode *mode, int bpp, VIC_PXL_ENCODING_FORMAT format);
+				const struct drm_display_mode *mode, int bpp, VIC_PXL_ENCODING_FORMAT format);
 int hdmi_tx_kiran_power_configuration_seq(state_struct *state, int num_lanes);
 
 #endif
