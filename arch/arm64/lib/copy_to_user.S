@@ -19,6 +19,10 @@
  * Returns:
  *	x0 - bytes not copied
  */
+	.macro ins_nops
+	nops 7
+	.endm
+
 	.macro ldrb1 ptr, regB, val
 	ldrb  \ptr, [\regB], \val
 	.endm
@@ -55,8 +59,18 @@ end	.req	x5
 ENTRY(__arch_copy_to_user)
 	uaccess_enable_not_uao x3, x4, x5
 	add	end, x0, x2
+alternative_if_not ARM64_WORKAROUND_MRVL_38500
+	nop
+alternative_else
+	b .Lcopy_with_nops
+alternative_endif
+
 #include "copy_template.S"
 	uaccess_disable_not_uao x3, x4
+	b .Lgetout
+.Lcopy_with_nops:
+#include "copy_template_nops.S"
+.Lgetout:
 	mov	x0, #0
 	ret
 ENDPROC(__arch_copy_to_user)

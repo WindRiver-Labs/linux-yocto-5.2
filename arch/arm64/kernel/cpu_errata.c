@@ -807,6 +807,11 @@ static const struct midr_range cavium_erratum_36890_cpus[] = {
 	MIDR_RANGE(MIDR_MRVL_OCTEONTX2_95XX, 0, 0, 0, 1),
 };
 
+static const struct midr_range marvell_erratum_38500_cpus[] = {
+	/* ThunderX, T83 all passes */
+	MIDR_ALL_VERSIONS(MIDR_THUNDERX_83XX),
+};
+
 const struct arm64_cpu_capabilities arm64_errata[] = {
 #ifdef CONFIG_ARM64_WORKAROUND_CLEAN_CACHE
 	{
@@ -978,6 +983,13 @@ const struct arm64_cpu_capabilities arm64_errata[] = {
 		.capability = ARM64_WORKAROUND_CAVIUM_36890,
 		ERRATA_MIDR_RANGE_LIST(cavium_erratum_36890_cpus),
 		.cpu_enable = cpu_enable_trap_zva_access,
+	},
+#endif
+#ifdef CONFIG_MRVL_ERRATUM_38500
+	{
+		.desc = "Marvell erratum 38500",
+		.capability = ARM64_WORKAROUND_MRVL_38500,
+		ERRATA_MIDR_RANGE_LIST(marvell_erratum_38500_cpus),
 	},
 #endif
 	{
