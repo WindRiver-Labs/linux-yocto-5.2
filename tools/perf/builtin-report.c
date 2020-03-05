@@ -385,6 +385,13 @@ static int report__setup_sample_type(struct report *rep)
 				PERF_SAMPLE_BRANCH_ANY))
 		rep->nonany_branch_mode = true;
 
+#if !defined(HAVE_LIBUNWIND_SUPPORT) && !defined(HAVE_DWARF_SUPPORT)
+	if (dwarf_callchain_users) {
+		ui__warning("Please install libunwind or libdw "
+			    "development packages during the perf build.\n");
+	}
+#endif
+
 	return 0;
 }
 
