@@ -785,6 +785,23 @@ static int ov5640_power_on(struct device *dev)
 	return ret;
 }
 
+static int ov5640_power_off(void)
+{
+	if (gpo_regulator)
+		regulator_disable(gpo_regulator);
+
+	if (analog_regulator)
+		regulator_disable(analog_regulator);
+
+	if (core_regulator)
+		regulator_disable(core_regulator);
+
+	if (io_regulator)
+		regulator_disable(io_regulator);
+
+	return;
+}
+
 static s32 ov5640_write_reg(u16 reg, u8 val)
 {
 	u8 au8Buf[3] = {0};
@@ -2070,12 +2087,14 @@ static int ov5640_probe(struct i2c_client *client,
 	retval = ov5640_read_reg(OV5640_CHIP_ID_HIGH_BYTE, &chip_id_high);
 	if (retval < 0 || chip_id_high != 0x56) {
 		pr_warning("camera ov5640_mipi is not found\n");
+		ov5640_power_off();
 		clk_disable_unprepare(ov5640_data.sensor_clk);
 		return -ENODEV;
 	}
 	retval = ov5640_read_reg(OV5640_CHIP_ID_LOW_BYTE, &chip_id_low);
 	if (retval < 0 || chip_id_low != 0x40) {
 		pr_warning("camera ov5640_mipi is not found\n");
+		ov5640_power_off();
 		clk_disable_unprepare(ov5640_data.sensor_clk);
 		return -ENODEV;
 	}
