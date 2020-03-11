@@ -720,15 +720,18 @@ static int thunderx_gpio_irq_request_resources(struct irq_data *data)
 {
 	struct thunderx_line *txline = irq_data_get_irq_chip_data(data);
 	struct thunderx_gpio *txgpio = txline->txgpio;
+	struct irq_data *parent_data = data->parent_data;
 	int r;
 
 	r = gpiochip_lock_as_irq(&txgpio->chip, txline->line);
 	if (r)
 		return r;
 
-	r = irq_chip_request_resources_parent(data);
-	if (r)
-		gpiochip_unlock_as_irq(&txgpio->chip, txline->line);
+	if (parent_data && parent_data->chip->irq_request_resources) {
+		r = irq_chip_request_resources_parent(data);
+		if (r)
+			gpiochip_unlock_as_irq(&txgpio->chip, txline->line);
+	}
 
 	return r;
 }
