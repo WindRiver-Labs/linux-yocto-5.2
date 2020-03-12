@@ -441,6 +441,8 @@ enum devlink_param_generic_id {
 #define DEVLINK_INFO_VERSION_GENERIC_FW_UNDI	"fw.undi"
 /* NCSI support/handler version */
 #define DEVLINK_INFO_VERSION_GENERIC_FW_NCSI	"fw.ncsi"
+/* Firmware bundle identifier */
+#define DEVLINK_INFO_VERSION_GENERIC_FW_BUNDLE_ID	"fw.bundle_id"
 
 struct devlink_region;
 struct devlink_info_req;
