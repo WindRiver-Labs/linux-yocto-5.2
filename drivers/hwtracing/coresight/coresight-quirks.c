@@ -10,29 +10,19 @@ u32 coresight_get_etr_quirks(unsigned int id)
 	if (midr_is_cpu_model_range(read_cpuid_id(),
 				     MIDR_MRVL_OCTEONTX2_96XX,
 				     MIDR_CPU_VAR_REV(0, 0),
-				     MIDR_CPU_VAR_REV(3, 0)) ||
+				     MIDR_CPU_VAR_REV(3, 1)) ||
 	    midr_is_cpu_model_range(read_cpuid_id(),
 				     MIDR_MRVL_OCTEONTX2_95XX,
 				     MIDR_CPU_VAR_REV(0, 0),
 				     MIDR_CPU_VAR_REV(2, 0)))
-		options |= CSETR_QUIRK_BUFFSIZE_8BX |
-			CSETR_QUIRK_RESET_CTL_REG |
+		options |= CSETR_QUIRK_RESET_CTL_REG |
 			CSETR_QUIRK_NO_STOP_FLUSH;
 
 	/* Common across all Chip variants and revisions */
 	if (id == OCTEONTX_CN9XXX_ETR)
 		options |= CSETR_QUIRK_SECURE_BUFF |
+			CSETR_QUIRK_BUFFSIZE_8BX |
 			CSETR_QUIRK_FORCE_64B_DBA_RW;
-
-	return options;
-}
-
-u32 coresight_get_etm_quirks(unsigned int id)
-{
-	u32 options = 0; /* reset */
-
-	if (id == OCTEONTX_CN9XXX_ETM)
-		options |= CSETM_QUIRK_TREAT_ETMv43;
 
 	return options;
 }
@@ -43,7 +33,7 @@ bool is_etm_has_hw_sync(void)
 	if (midr_is_cpu_model_range(read_cpuid_id(),
 				     MIDR_MRVL_OCTEONTX2_96XX,
 				     MIDR_CPU_VAR_REV(0, 0),
-				     MIDR_CPU_VAR_REV(3, 0)) ||
+				     MIDR_CPU_VAR_REV(3, 1)) ||
 	    midr_is_cpu_model_range(read_cpuid_id(),
 				     MIDR_MRVL_OCTEONTX2_95XX,
 				     MIDR_CPU_VAR_REV(0, 0),
@@ -51,6 +41,19 @@ bool is_etm_has_hw_sync(void)
 		return false;
 	else
 		return true;
+}
+
+u32 coresight_get_etm_quirks(unsigned int id)
+{
+	u32 options = 0; /* reset */
+
+	if (id == OCTEONTX_CN9XXX_ETM)
+		options |= CSETM_QUIRK_TREAT_ETMv43;
+
+	if (!is_etm_has_hw_sync())
+		options |= CSETM_QUIRK_SW_SYNC;
+
+	return options;
 }
 
 /* APIs for choosing the sync insertion mode */
