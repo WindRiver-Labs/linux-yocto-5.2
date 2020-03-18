@@ -504,7 +504,7 @@ config MARVELL_OTX_BPHY_CTR
 	  user space directly without kernel's intervention.
 
 config MARVELL_LOKI
-	bool "Marvell Loki driver"
+	tristate "Marvell Loki driver"
 	default y
 	help
 	  Handles GPINT0 interrupt on Loki SoC.
