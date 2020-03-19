@@ -70,7 +70,7 @@ static int imx_sc_tsens_get_temp(void *data, int *temp)
 	 */
 	if (sciErr != SC_ERR_NONE) {
 		sciErr = sc_misc_get_temp(tsens_ipcHandle,
-			sensor_hw_id[topology_physical_package_id(smp_processor_id())],
+			sensor_hw_id[topology_physical_package_id(raw_smp_processor_id())],
 			SC_C_TEMP, &celsius, &tenths);
 		if (sciErr != SC_ERR_NONE) {
 			pr_err("read temp sensor:%d failed\n", sensor->hw_id);
