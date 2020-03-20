@@ -46,7 +46,6 @@ static int mrvl_loki_probe(struct platform_device *pdev)
 	struct mrvl_loki *ml;
 	struct device *dev = &pdev->dev;
 	struct pci_dev *bphy_pdev;
-	uint64_t regval;
 	int ret = 0;
 
 	ml = devm_kzalloc(dev, sizeof(*ml), GFP_KERNEL);
