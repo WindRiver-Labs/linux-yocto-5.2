@@ -16,12 +16,12 @@ u32 coresight_get_etr_quirks(unsigned int id)
 				     MIDR_CPU_VAR_REV(0, 0),
 				     MIDR_CPU_VAR_REV(2, 0)))
 		options |= CSETR_QUIRK_RESET_CTL_REG |
+			CSETR_QUIRK_BUFFSIZE_8BX |
 			CSETR_QUIRK_NO_STOP_FLUSH;
 
 	/* Common across all Chip variants and revisions */
 	if (id == OCTEONTX_CN9XXX_ETR)
 		options |= CSETR_QUIRK_SECURE_BUFF |
-			CSETR_QUIRK_BUFFSIZE_8BX |
 			CSETR_QUIRK_FORCE_64B_DBA_RW;
 
 	return options;
