@@ -269,6 +269,7 @@ static int m2m_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 	struct mxc_isi_dev *mxc_isi = mxc_ctx->isi_dev;
 	struct v4l2_fh *fh = &mxc_ctx->fh;
 	struct vb2_buffer *dst_vb2;
+	struct vb2_v4l2_buffer *dst_vb2_v4l2;
 	struct  v4l2_m2m_buffer *b;
 	struct mxc_isi_buffer *dst_buf;
 	unsigned long flags;
@@ -286,11 +287,12 @@ static int m2m_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 	spin_lock_irqsave(&mxc_isi->slock, flags);
 
 	/* BUF1 */
-	dst_vb2 = v4l2_m2m_next_dst_buf(fh->m2m_ctx);
-	if (!dst_vb2) {
+	dst_vb2_v4l2 = v4l2_m2m_next_dst_buf(fh->m2m_ctx);
+	if (!dst_vb2_v4l2) {
 		dev_err(&mxc_isi->pdev->dev, "%d: Null dst buf\n", __LINE__);
 		goto unlock;
 	}
+	dst_vb2 = &dst_vb2_v4l2->vb2_buf;
 	dst_vb2->state = VB2_BUF_STATE_ACTIVE;
 	dst_buf = vb2_to_isi_buffer(dst_vb2);
 	dst_buf->v4l2_buf.sequence = 0;
@@ -300,11 +302,12 @@ static int m2m_vb2_start_streaming(struct vb2_queue *q, unsigned int count)
 	list_add_tail(&b->list, &mxc_isi->m2m.out_active);
 
 	/* BUF2 */
-	dst_vb2 = v4l2_m2m_next_dst_buf(fh->m2m_ctx);
-	if (!dst_vb2) {
+	dst_vb2_v4l2 = v4l2_m2m_next_dst_buf(fh->m2m_ctx);
+	if (!dst_vb2_v4l2) {
 		dev_err(&mxc_isi->pdev->dev, "%d: Null dst buf\n", __LINE__);
 		goto unlock;
 	}
+	dst_vb2 = &dst_vb2_v4l2->vb2_buf;
 	dst_vb2->state = VB2_BUF_STATE_ACTIVE;
 	dst_buf = vb2_to_isi_buffer(dst_vb2);
 	dst_buf->v4l2_buf.sequence = 1;
@@ -1141,8 +1144,9 @@ void mxc_isi_m2m_frame_write_done(struct mxc_isi_dev *mxc_isi)
 	}
 	mxc_isi->m2m.frame_count++;
 
-	dst_vb2 = v4l2_m2m_next_dst_buf(fh->m2m_ctx);
-	if (dst_vb2) {
+	dst_vb2_v4l2 = v4l2_m2m_next_dst_buf(fh->m2m_ctx);
+	if (dst_vb2_v4l2) {
+		dst_vb2 = &dst_vb2_v4l2->vb2_buf;
 		dst_vb2->state = VB2_BUF_STATE_ACTIVE;
 		dst_buf = vb2_to_isi_buffer(dst_vb2);
 		dst_buf->v4l2_buf.sequence = mxc_isi->m2m.frame_count;
