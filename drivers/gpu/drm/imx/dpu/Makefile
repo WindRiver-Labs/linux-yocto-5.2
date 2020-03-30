@@ -1,4 +1,4 @@
-ccflags-y += -Idrivers/gpu/drm/imx
+ccflags-y += -I$(srctree)/drivers/gpu/drm/imx
 
 imx-dpu-crtc-objs := dpu-crtc.o dpu-plane.o dpu-kms.o
 imx-dpu-crtc-$(CONFIG_DEBUG_FS) := dpu-crc.o
