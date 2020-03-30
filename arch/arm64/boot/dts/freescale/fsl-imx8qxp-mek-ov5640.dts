@@ -109,7 +109,7 @@
 		};
 	};
 
-	/delete-node/max9286_mipi@6A;
+	/delete-node/max9286_mipi@6a;
 };
 
 &mipi_csi_0 {

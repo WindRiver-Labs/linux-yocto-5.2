@@ -857,7 +857,7 @@
 		interrupt-open-drain;
 	};
 
-	typec_ptn5110: typec@50 {
+	typec_ptn5110: typec@51 {
 		compatible = "nxp,ptn5110";
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_typec>;
@@ -1192,9 +1192,9 @@
 	clock-frequency = <100000>;
 	status = "okay";
 
-	max9286_mipi@6A	 {
+	max9286_mipi@6a	 {
 		compatible = "maxim,max9286_mipi";
-		reg = <0x6A>;
+		reg = <0x6a>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_mipi_csi0_en_rst>;
 		clocks = <&clk IMX8QM_CLK_DUMMY>;
@@ -1218,9 +1218,9 @@
 	clock-frequency = <100000>;
 	status = "okay";
 
-	max9286_mipi@6A	 {
+	max9286_mipi@6a	 {
 		compatible = "maxim,max9286_mipi";
-		reg = <0x6A>;
+		reg = <0x6a>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pinctrl_mipi_csi1_en_rst>;
 		clocks = <&clk IMX8QM_CLK_DUMMY>;

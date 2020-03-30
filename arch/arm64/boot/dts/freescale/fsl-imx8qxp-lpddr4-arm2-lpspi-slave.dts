@@ -14,7 +14,7 @@
 
 #include "fsl-imx8qxp-lpddr4-arm2-lpspi.dts"
 
-/delete-node/&spidev0;
+/delete-node/ &spidev0;
 
 &pinctrl_lpspi2 {
 	fsl,pins = <
@@ -26,6 +26,7 @@
 };
 
 &lpspi2 {
+	#address-cells = <0>;
 	pinctrl-0 = <&pinctrl_lpspi2>;
 	/delete-property/ cs-gpios;
 	spi-slave;

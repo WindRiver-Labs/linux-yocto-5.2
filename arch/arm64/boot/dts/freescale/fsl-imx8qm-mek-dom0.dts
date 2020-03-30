@@ -774,7 +774,7 @@
 		xen,passthrough;
 	};
 
-	typec_ptn5110: typec@50 {
+	typec_ptn5110: typec@51 {
 		xen,passthrough;
 	};
 };

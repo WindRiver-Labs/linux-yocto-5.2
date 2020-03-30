@@ -1152,9 +1152,9 @@
 	clock-frequency = <100000>;
 	status = "okay";
 
-	max9286_mipi@6A	 {
+	max9286_mipi@6a	 {
 		compatible = "maxim,max9286_mipi";
-		reg = <0x6A>;
+		reg = <0x6a>;
 		clocks = <&clk IMX8QXP_CLK_DUMMY>;
 		clock-names = "capture_mclk";
 		mclk = <27000000>;
