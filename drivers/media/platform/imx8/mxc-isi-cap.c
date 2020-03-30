@@ -1439,7 +1439,7 @@ static int mxc_isi_subdev_get_fmt(struct v4l2_subdev *sd,
 {
 	struct mxc_isi_dev *mxc_isi = v4l2_get_subdevdata(sd);
 	struct mxc_isi_frame *f;
-	struct v4l2_mbus_framefmt *mf;
+	struct v4l2_mbus_framefmt *mf = &fmt->format;
 
 	mutex_lock(&mxc_isi->lock);
 
