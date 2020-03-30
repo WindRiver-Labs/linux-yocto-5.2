@@ -218,7 +218,7 @@ static int viv_ioctl_gem_create(struct drm_device *drm, void *data,
     viv_obj->cacheable = flags & gcvALLOC_FLAG_CACHEABLE;
 
     /* drop reference from allocate - handle holds it now */
-    drm_gem_object_unreference_unlocked(gem_obj);
+    drm_gem_object_put_unlocked(gem_obj);
 
 OnError:
     return gcmIS_ERROR(status) ? -ENOTTY : 0;
@@ -260,7 +260,7 @@ static int viv_ioctl_gem_lock(struct drm_device *drm, void *data,
 OnError:
     if (gem_obj)
     {
-        drm_gem_object_unreference_unlocked(gem_obj);
+        drm_gem_object_put_unlocked(gem_obj);
     }
     return gcmIS_ERROR(status) ? -ENOTTY : 0;
 }
@@ -306,7 +306,7 @@ static int viv_ioctl_gem_unlock(struct drm_device *drm, void *data,
 OnError:
     if (gem_obj)
     {
-        drm_gem_object_unreference_unlocked(gem_obj);
+        drm_gem_object_put_unlocked(gem_obj);
     }
     return gcmIS_ERROR(status) ? -ENOTTY : 0;
 }
@@ -366,7 +366,7 @@ static int viv_ioctl_gem_cache(struct drm_device *drm, void *data,
 OnError:
     if (gem_obj)
     {
-        drm_gem_object_unreference_unlocked(gem_obj);
+        drm_gem_object_put_unlocked(gem_obj);
     }
     return gcmIS_ERROR(status) ? -ENOTTY : 0;
 }
@@ -409,7 +409,7 @@ static int viv_ioctl_gem_query(struct drm_device *drm, void *data,
 OnError:
     if (gem_obj)
     {
-        drm_gem_object_unreference_unlocked(gem_obj);
+        drm_gem_object_put_unlocked(gem_obj);
     }
     return gcmIS_ERROR(status) ? -ENOTTY : 0;
 }
@@ -443,7 +443,7 @@ static int viv_ioctl_gem_timestamp(struct drm_device *drm, void *data,
 OnError:
     if (gem_obj)
     {
-        drm_gem_object_unreference_unlocked(gem_obj);
+        drm_gem_object_put_unlocked(gem_obj);
     }
     return gcmIS_ERROR(status) ? -ENOTTY : 0;
 }
@@ -478,7 +478,7 @@ static int viv_ioctl_gem_set_tiling(struct drm_device *drm, void *data,
 OnError:
     if (gem_obj)
     {
-        drm_gem_object_unreference_unlocked(gem_obj);
+        drm_gem_object_put_unlocked(gem_obj);
     }
     return gcmIS_ERROR(status) ? -ENOTTY : 0;
 }
@@ -513,7 +513,7 @@ static int viv_ioctl_gem_get_tiling(struct drm_device *drm, void *data,
 OnError:
     if (gem_obj)
     {
-        drm_gem_object_unreference_unlocked(gem_obj);
+        drm_gem_object_put_unlocked(gem_obj);
     }
     return gcmIS_ERROR(status) ? -ENOTTY : 0;
 }
@@ -611,11 +611,11 @@ static int viv_ioctl_gem_attach_aux(struct drm_device *drm, void *data,
 OnError:
     if (gem_obj)
     {
-        drm_gem_object_unreference_unlocked(gem_obj);
+        drm_gem_object_put_unlocked(gem_obj);
 
         if (gem_ts_obj)
         {
-            drm_gem_object_unreference_unlocked(gem_ts_obj);
+            drm_gem_object_put_unlocked(gem_ts_obj);
         }
     }
     return gcmIS_ERROR(status) ? -ENOTTY : 0;
@@ -707,7 +707,7 @@ OnError:
 
     if (gem_obj)
     {
-        drm_gem_object_unreference_unlocked(gem_obj);
+        drm_gem_object_put_unlocked(gem_obj);
     }
 
     return ret;
@@ -833,7 +833,7 @@ OnError:
     {
         if (drm)
         {
-            drm_dev_unref(drm);
+            drm_dev_put(drm);
         }
         printk(KERN_ERR "galcore: Failed to setup drm device.\n");
     }
@@ -849,7 +849,7 @@ int viv_drm_remove(struct device *dev)
         struct drm_device *drm = (struct drm_device*)gal_dev->drm;
 
         drm_dev_unregister(drm);
-        drm_dev_unref(drm);
+        drm_dev_put(drm);
     }
 
     return 0;
