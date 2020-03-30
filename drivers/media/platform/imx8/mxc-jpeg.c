@@ -437,21 +437,21 @@ static bool mxc_jpeg_alloc_slot_data(struct mxc_jpeg_dev *jpeg,
 	if (jpeg->slot_data[slot].desc)
 		goto skip_alloc; /* already allocated, reuse it */
 	/* allocate descriptor for decoding/encoding phase */
-	jpeg->slot_data[slot].desc = dma_zalloc_coherent(jpeg->dev,
+	jpeg->slot_data[slot].desc = dma_alloc_coherent(jpeg->dev,
 		sizeof(struct mxc_jpeg_desc),
 		&jpeg->slot_data[slot].desc_handle, GFP_ATOMIC);
 	if (!jpeg->slot_data[slot].desc)
 		goto err;
 
 	/* allocate descriptor for configuration phase (encoder only) */
-	jpeg->slot_data[slot].cfg_desc = dma_zalloc_coherent(jpeg->dev,
+	jpeg->slot_data[slot].cfg_desc = dma_alloc_coherent(jpeg->dev,
 		sizeof(struct mxc_jpeg_desc),
 		&jpeg->slot_data[slot].cfg_desc_handle, GFP_ATOMIC);
 	if (!jpeg->slot_data[slot].cfg_desc)
 		goto err;
 
 	/* allocate configuration stream */
-	jpeg->slot_data[slot].cfg_stream_vaddr = dma_zalloc_coherent(
+	jpeg->slot_data[slot].cfg_stream_vaddr = dma_alloc_coherent(
 		jpeg->dev,
 		MXC_JPEG_MAX_CFG_STREAM,
 		&jpeg->slot_data[slot].cfg_stream_handle, GFP_ATOMIC);
