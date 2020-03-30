@@ -2453,7 +2453,7 @@ static int inc_frame(struct queue_data *queue)
 	list_add_tail(&frame->list, &queue->frame_idle);
 	atomic64_inc(&queue->frame_count);
 
-	vpu_dbg(LVL_DEBUG, "++ frame : %ld\n",
+	vpu_dbg(LVL_DEBUG, "++ frame : %lld\n",
 			atomic64_read(&queue->frame_count));
 
 	return 0;
@@ -2467,7 +2467,7 @@ static void dec_frame(struct vpu_frame_info *frame)
 	if (frame->queue) {
 		atomic64_dec(&frame->queue->frame_count);
 
-		vpu_dbg(LVL_DEBUG, "-- frame : %ld\n",
+		vpu_dbg(LVL_DEBUG, "-- frame : %lld\n",
 				atomic64_read(&frame->queue->frame_count));
 	}
 	VPU_SAFE_RELEASE(frame, vfree);
@@ -4024,7 +4024,7 @@ static int show_instance_others(struct vpu_attr *attr, char *buf, u32 size)
 	}
 
 	num += scnprintf(buf + num, size - num,
-			"\ttotal dma size            :%ld\n",
+			"\ttotal dma size            :%lld\n",
 			atomic64_read(&attr->total_dma_size));
 	num += scnprintf(buf + num, size - num,
 			"\ttotal event msg obj count :%ld\n",
@@ -4037,7 +4037,7 @@ static int show_instance_others(struct vpu_attr *attr, char *buf, u32 size)
 	ctx = get_vpu_attr_ctx(attr);
 	if (ctx) {
 		num += scnprintf(buf + num, size - num,
-			"\ttotal frame obj count     :%ld\n",
+			"\ttotal frame obj count     :%lld\n",
 			atomic64_read(&ctx->q_data[V4L2_DST].frame_count));
 
 		if (test_bit(VPU_ENC_STATUS_HANG, &ctx->status))
