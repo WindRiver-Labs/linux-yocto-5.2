@@ -626,6 +626,20 @@ static int ov5640_regulator_enable(struct device *dev)
 	return ret;
 }
 
+static int ov5640_regulator_disable(void)
+{
+	if (analog_regulator)
+		regulator_disable(analog_regulator);
+
+	if (core_regulator)
+		regulator_disable(core_regulator);
+
+	if (io_regulator)
+		regulator_disable(io_regulator);
+
+	return 0;
+}
+
 static s32 ov5640_write_reg(struct ov5640 *sensor, u16 reg, u8 val)
 {
 	struct device *dev = &sensor->i2c_client->dev;
@@ -1750,6 +1764,7 @@ static int ov5640_probe(struct i2c_client *client,
 	}
 	mutex_unlock(&ov5640_mutex);
 	if (retval < 0) {
+		ov5640_regulator_disable();
 		clk_disable_unprepare(sensor->sensor_clk);
 		return -ENODEV;
 	}
@@ -1758,12 +1773,14 @@ static int ov5640_probe(struct i2c_client *client,
 				 &chip_id_high);
 	if (retval < 0 || chip_id_high != 0x56) {
 		dev_warn(dev, "Camera is not found\n");
+		ov5640_regulator_disable();
 		clk_disable_unprepare(sensor->sensor_clk);
 		return -ENODEV;
 	}
 	retval = ov5640_read_reg(sensor, OV5640_CHIP_ID_LOW_BYTE, &chip_id_low);
 	if (retval < 0 || chip_id_low != 0x40) {
 		dev_warn(dev, "Camera is not found\n");
+		ov5640_regulator_disable();
 		clk_disable_unprepare(sensor->sensor_clk);
 		return -ENODEV;
 	}
@@ -1771,6 +1788,7 @@ static int ov5640_probe(struct i2c_client *client,
 
 	retval = init_device(sensor);
 	if (retval < 0) {
+		ov5640_regulator_disable();
 		clk_disable_unprepare(sensor->sensor_clk);
 		dev_warn(dev, "Camera init failed\n");
 		ov5640_power_down(sensor, 1);
