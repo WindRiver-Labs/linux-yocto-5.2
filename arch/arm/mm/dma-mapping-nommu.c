@@ -46,7 +46,7 @@ static void *arm_nommu_dma_alloc(struct device *dev, size_t size,
 		return dma_direct_alloc_pages(dev, size, dma_handle, gfp,
 				attrs);
 
-	ret = dma_alloc_from_global_coherent(size, dma_handle);
+	ret = dma_alloc_from_global_coherent(dev, size, dma_handle);
 
 	/*
 	 * dma_alloc_from_global_coherent() may fail because:
