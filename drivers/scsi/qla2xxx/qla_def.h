@@ -2335,6 +2335,7 @@ typedef struct fc_port {
 	unsigned int query:1;
 	unsigned int id_changed:1;
 	unsigned int scan_needed:1;
+	unsigned int explicit_logout:1;
 
 	struct work_struct nvme_del_work;
 	struct completion nvme_del_done;
