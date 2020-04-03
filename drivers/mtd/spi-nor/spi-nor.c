@@ -2544,7 +2544,6 @@ static int spi_nor_read(struct mtd_info *mtd, loff_t from, size_t len,
 	loff_t addr = 0;
 
 #define OFFSET_16_MB 0x1000000
-
 	dev_dbg(nor->dev, "from 0x%08x, len %zd\n", (u32)from, len);
 
 	if ((nor->isparallel) && (offset & 1)) {
@@ -2962,7 +2961,7 @@ static int spi_nor_hwcaps_pp2cmd(u32 hwcaps)
  */
 static int spi_nor_read_raw(struct spi_nor *nor, u32 addr, size_t len, u8 *buf)
 {
-	int ret;
+	ssize_t ret;
 
 	while (len) {
 		ret = nor->read(nor, addr, len, buf);

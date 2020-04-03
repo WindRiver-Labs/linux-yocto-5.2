@@ -290,6 +290,22 @@ static inline unsigned int crypto_sync_skcipher_ivsize(
 	return crypto_skcipher_ivsize(&tfm->base);
 }
 
+/**
+ * crypto_skcipher_blocksize() - obtain block size of cipher
+ * @tfm: cipher handle
+ *
+ * The block size for the skcipher referenced with the cipher handle is
+ * returned. The caller may use that information to allocate appropriate
+ * memory for the data returned by the encryption or decryption operation
+ *
+ * Return: block size of cipher
+ */
+static inline unsigned int crypto_skcipher_blocksize(
+	struct crypto_skcipher *tfm)
+{
+	return crypto_tfm_alg_blocksize(crypto_skcipher_tfm(tfm));
+}
+
 static inline unsigned int crypto_skcipher_alg_chunksize(
 	struct skcipher_alg *alg)
 {
@@ -301,19 +317,6 @@ static inline unsigned int crypto_skcipher_alg_chunksize(
 		return alg->base.cra_blocksize;
 
 	return alg->chunksize;
-}
-
-static inline unsigned int crypto_skcipher_alg_walksize(
-	struct skcipher_alg *alg)
-{
-	if ((alg->base.cra_flags & CRYPTO_ALG_TYPE_MASK) ==
-	    CRYPTO_ALG_TYPE_BLKCIPHER)
-		return alg->base.cra_blocksize;
-
-	if (alg->base.cra_ablkcipher.encrypt)
-		return alg->base.cra_blocksize;
-
-	return alg->walksize;
 }
 
 /**
@@ -331,39 +334,6 @@ static inline unsigned int crypto_skcipher_chunksize(
 	struct crypto_skcipher *tfm)
 {
 	return crypto_skcipher_alg_chunksize(crypto_skcipher_alg(tfm));
-}
-
-/**
- * crypto_skcipher_walksize() - obtain walk size
- * @tfm: cipher handle
- *
- * In some cases, algorithms can only perform optimally when operating on
- * multiple blocks in parallel. This is reflected by the walksize, which
- * must be a multiple of the chunksize (or equal if the concern does not
- * apply)
- *
- * Return: walk size in bytes
- */
-static inline unsigned int crypto_skcipher_walksize(
-	struct crypto_skcipher *tfm)
-{
-	return crypto_skcipher_alg_walksize(crypto_skcipher_alg(tfm));
-}
-
-/**
- * crypto_skcipher_blocksize() - obtain block size of cipher
- * @tfm: cipher handle
- *
- * The block size for the skcipher referenced with the cipher handle is
- * returned. The caller may use that information to allocate appropriate
- * memory for the data returned by the encryption or decryption operation
- *
- * Return: block size of cipher
- */
-static inline unsigned int crypto_skcipher_blocksize(
-	struct crypto_skcipher *tfm)
-{
-	return crypto_tfm_alg_blocksize(crypto_skcipher_tfm(tfm));
 }
 
 static inline unsigned int crypto_sync_skcipher_blocksize(
