@@ -87,11 +87,12 @@ static irqreturn_t mrvl_loki_handler(int irq, void *dev)
 
 static inline void msix_enable_ctrl(struct pci_dev *dev)
 {
+	u32 ret;
 	u16 control;
 
-	pci_read_config_word(dev, dev->msi_cap + PCI_MSIX_FLAGS, &control);
+	ret = pci_read_config_word(dev, dev->msix_cap + PCI_MSIX_FLAGS, &control);
 	control |= PCI_MSIX_FLAGS_ENABLE;
-	pci_write_config_word(dev, dev->msi_cap + PCI_MSIX_FLAGS, control);
+	ret = pci_write_config_word(dev, dev->msix_cap + PCI_MSIX_FLAGS, control);
 }
 
 static int mrvl_loki_probe(struct platform_device *pdev)
