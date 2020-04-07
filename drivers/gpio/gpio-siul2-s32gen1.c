@@ -33,6 +33,10 @@
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
 
+/* SIUL2 MCU ID Register 1 */
+#define SIUL2_MIDR1			0x4
+/* SIUL2 MCU ID Register 2 */
+#define SIUL2_MIDR2			0x8
 /* DMA/Interrupt Status Flag Register */
 #define SIUL2_DISR0			0x10
 /* DMA/Interrupt Request Enable Register */
@@ -43,6 +47,8 @@
 #define SIUL2_IREER0			0x28
 /* Interrupt Falling-Edge Event Enable Register */
 #define SIUL2_IFEER0			0x30
+/* Interrupt Filter Enable Register 0 */
+#define SIUL2_IFER0			0x38
 
 /* Device tree ranges */
 #define SIUL2_GPIO_OUTPUT_RANGE		0
@@ -331,6 +337,28 @@ static struct irq_chip siul2_gpio_irq_chip = {
 	.irq_set_type		= siul2_gpio_irq_set_type,
 };
 
+static bool siul2_readable_register(struct device *dev, unsigned int reg)
+{
+	switch (reg) {
+	case SIUL2_MIDR1:
+	case SIUL2_MIDR2:
+	case SIUL2_DISR0:
+	case SIUL2_DIRER0:
+	case SIUL2_DIRSR0:
+	case SIUL2_IREER0:
+	case SIUL2_IFEER0:
+	case SIUL2_IFER0:
+		return true;
+	default:
+		return false;
+	}
+}
+
+static struct regmap_config siul2_regmap_config = {
+	.readable_reg = siul2_readable_register,
+	.max_register = SIUL2_IFER0,
+};
+
 static int siul2_irq_setup(struct platform_device *pdev,
 			  struct siul2_gpio_dev *gpio_dev)
 {
@@ -340,6 +368,8 @@ static int siul2_irq_setup(struct platform_device *pdev,
 	struct of_phandle_args pinspec;
 	int irq;
 	unsigned long flags;
+	struct device_node *irq_np;
+
 	/*
 	 * Allow multiple instances of the gpio driver to only
 	 * initialize the irq control registers only once.
@@ -357,6 +387,18 @@ static int siul2_irq_setup(struct platform_device *pdev,
 						pdev->dev.of_node, "regmap2");
 	if (IS_ERR(gpio_dev->irqmap))
 		return PTR_ERR(gpio_dev->irqmap);
+
+	irq_np = of_parse_phandle(pdev->dev.of_node, "regmap2", 0);
+	if (!irq_np)
+		return 0;
+	siul2_regmap_config.name = of_node_full_name(irq_np);
+
+	err = regmap_reinit_cache(gpio_dev->irqmap, &siul2_regmap_config);
+	if (err) {
+		dev_err(&pdev->dev, "failed to regmap reinit cache.\n");
+		ret = err;
+		goto irq_setup_err;
+	}
 
 	/* EIRQ pins */
 	err = siul2_get_gpio_pinspec(pdev, &pinspec, 1);
