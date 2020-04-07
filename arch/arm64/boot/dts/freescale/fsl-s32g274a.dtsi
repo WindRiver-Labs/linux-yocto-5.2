@@ -356,12 +356,12 @@
 	};
 	opad1_regs: siul2_reg@0x4401170C {
 		compatible = "fsl,opad0_reqs-s32gen1","syscon","simple-mfd";
-		reg = <0x0 0x4401170C 0x0 0x14>;
+		reg = <0x0 0x4401170C 0x0 0xc>;
 		big-endian;
 	};
 	ipad1_regs: siul2_reg@0x4401174C {
 		compatible = "fsl,ipad0_reqs-s32gen1","syscon","simple-mfd";
-		reg = <0x0 0x4401174C 0x0 0x14>;
+		reg = <0x0 0x4401174C 0x0 0xc>;
 		big-endian;
 	};
 
