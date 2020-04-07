@@ -65,7 +65,7 @@
 #define SPI_TCR_GET_TCNT(x)	(((x) & 0xffff0000) >> 16)
 
 /* Clock and Transfer Attribute Register (SPI_CTARn) - Master Mode */
-#define SPI_CTAR(x)		(0x0c + (((x) & 0x3) * 4))
+#define SPI_CTAR(x)		(0x0c + (((x) & 0x7) * 4))
 #define SPI_CTAR_FMSZ(x)	(((x) & 0x0000000f) << 27)
 #define SPI_CTAR_CPOL(x)	((x) << 26)
 #define SPI_CTAR_CPHA(x)	((x) << 25)
@@ -128,7 +128,7 @@
 #define SPI_RXFR(x)		(0x7c + (((x) & 0xf) << 2))
 
 /* Clock and Transfer Attribute Register Extended (SPI_CTAREn) */
-#define SPI_CTARE(x)		(0x11c + (((x) & 0x3) * 4))
+#define SPI_CTARE(x)		(0x11c + (((x) & 0x7) * 4))
 #define SPI_CTARE_FMSZE(x)	(((x) & 0x00000010) << 12)
 #define SPI_CTARE_FMSZE_MASK	SPI_CTARE_FMSZE(0x10)
 #define SPI_CTARE_DTCP(x)	((x) & 0x000007ff)
@@ -1092,10 +1092,26 @@ static int dspi_resume(struct device *dev)
 
 static SIMPLE_DEV_PM_OPS(dspi_pm, dspi_suspend, dspi_resume);
 
+static const struct regmap_range yes_ranges[] = {
+       regmap_reg_range(SPI_MCR, SPI_MCR),
+       regmap_reg_range(SPI_TCR, SPI_TCR),
+       regmap_reg_range(SPI_CTAR(0), SPI_CTAR(5)),
+       regmap_reg_range(SPI_SR, SPI_TXFR(4)),
+       regmap_reg_range(SPI_CTARE(0), SPI_CTARE(5)),
+       regmap_reg_range(SPI_SREX, SPI_SREX),
+};
+
+static const struct regmap_access_table access_table = {
+       .yes_ranges     = yes_ranges,
+       .n_yes_ranges   = ARRAY_SIZE(yes_ranges),
+};
+
 static struct regmap_config dspi_regmap_config = {
 	.reg_bits = 32,
 	.val_bits = 32,
 	.reg_stride = 4,
+	.wr_table = &access_table,
+	.rd_table = &access_table,
 };
 
 static void dspi_init(struct fsl_dspi *dspi)
