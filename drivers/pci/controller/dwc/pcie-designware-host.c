@@ -364,8 +364,10 @@ int dw_pcie_host_init(struct pcie_port *pp)
 		return ret;
 
 	ret = devm_request_pci_bus_resources(dev, &bridge->windows);
-	if (ret)
+	if (ret) {
+		bridge->dev.release(&bridge->dev);
 		return ret;
+	}
 
 	/* Get the I/O and memory ranges from DT */
 	resource_list_for_each_entry_safe(win, tmp, &bridge->windows) {
@@ -408,6 +410,7 @@ int dw_pcie_host_init(struct pcie_port *pp)
 						pp->cfg->start,
 						resource_size(pp->cfg));
 		if (!pci->dbi_base) {
+			bridge->dev.release(&bridge->dev);
 			dev_err(dev, "Error with ioremap\n");
 			return -ENOMEM;
 		}
@@ -419,6 +422,7 @@ int dw_pcie_host_init(struct pcie_port *pp)
 		pp->va_cfg0_base = devm_pci_remap_cfgspace(dev,
 					pp->cfg0_base, pp->cfg0_size);
 		if (!pp->va_cfg0_base) {
+			bridge->dev.release(&bridge->dev);
 			dev_err(dev, "Error with ioremap in function\n");
 			return -ENOMEM;
 		}
@@ -429,6 +433,7 @@ int dw_pcie_host_init(struct pcie_port *pp)
 						pp->cfg1_base,
 						pp->cfg1_size);
 		if (!pp->va_cfg1_base) {
+			bridge->dev.release(&bridge->dev);
 			dev_err(dev, "Error with ioremap\n");
 			return -ENOMEM;
 		}
@@ -451,6 +456,7 @@ int dw_pcie_host_init(struct pcie_port *pp)
 
 			if (pp->num_vectors > MAX_MSI_IRQS ||
 			    pp->num_vectors == 0) {
+			    bridge->dev.release(&bridge->dev);
 				dev_err(dev,
 					"Invalid number of vectors\n");
 				return -EINVAL;
@@ -461,8 +467,10 @@ int dw_pcie_host_init(struct pcie_port *pp)
 			pp->msi_irq_chip = &dw_pci_msi_bottom_irq_chip;
 
 			ret = dw_pcie_allocate_domains(pp);
-			if (ret)
+			if (ret) {
+				bridge->dev.release(&bridge->dev);
 				return ret;
+			}
 
 			if (pp->msi_irq)
 				irq_set_chained_handler_and_data(pp->msi_irq,
@@ -470,15 +478,19 @@ int dw_pcie_host_init(struct pcie_port *pp)
 							    pp);
 		} else {
 			ret = pp->ops->msi_host_init(pp);
-			if (ret < 0)
+			if (ret < 0) {
+				bridge->dev.release(&bridge->dev);
 				return ret;
+			}
 		}
 	}
 
 	if (pp->ops->host_init) {
 		ret = pp->ops->host_init(pp);
-		if (ret)
+		if (ret) {
+			bridge->dev.release(&bridge->dev);
 			goto err_free_msi;
+		}
 	}
 
 	pp->root_bus_nr = pp->busn->start;
@@ -491,8 +503,10 @@ int dw_pcie_host_init(struct pcie_port *pp)
 	bridge->swizzle_irq = pci_common_swizzle;
 
 	ret = pci_scan_root_bus_bridge(bridge);
-	if (ret)
+	if (ret) {
+		bridge->dev.release(&bridge->dev);
 		goto err_free_msi;
+	}
 
 	pp->root_bus = bridge->bus;
 
