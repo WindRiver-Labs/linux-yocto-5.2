@@ -131,7 +131,7 @@ static int can_rx_offload_compare(struct sk_buff *a, struct sk_buff *b)
 static struct sk_buff *
 can_rx_offload_offload_one(struct can_rx_offload *offload, unsigned int n)
 {
-	struct sk_buff *skb = NULL, *skb_error = NULL;
+	struct sk_buff *skb = NULL;
 	u32 timestamp;
 	bool drop;
 
