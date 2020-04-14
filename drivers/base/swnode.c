@@ -477,8 +477,10 @@ software_node_get_parent(const struct fwnode_handle *fwnode)
 {
 	struct software_node *swnode = to_software_node(fwnode);
 
-	return swnode ? (swnode->parent ? &swnode->parent->fwnode : NULL) :
-			NULL;
+	if (!swnode || !swnode->parent)
+		return NULL;
+
+	return fwnode_handle_get(&swnode->parent->fwnode);
 }
 
 static struct fwnode_handle *
