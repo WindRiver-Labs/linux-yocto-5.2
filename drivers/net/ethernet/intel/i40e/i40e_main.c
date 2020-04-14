@@ -6272,6 +6272,7 @@ static int i40e_configure_queue_channels(struct i40e_vsi *vsi)
 				dev_err(&vsi->back->pdev->dev,
 					"Failed creating queue channel with TC%d: queues %d\n",
 					i, ch->num_queue_pairs);
+				kfree(ch);
 				goto err_free;
 			}
 			vsi->tc_seid_map[i] = ch->seid;
