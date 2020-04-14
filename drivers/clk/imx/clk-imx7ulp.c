@@ -46,7 +46,6 @@ static const char *scg0_clkout_sels[]   = { "dummy", "cm4_sosc", "cm4_sirc", "cm
 static struct clk *clks_cm4[IMX7ULP_CM4_CLK_END];
 static struct clk_onecell_data clk_data_cm4;
 
-
 static int const clks_init_on[] __initconst = {
 	IMX7ULP_CLK_BUS_DIV,
 	IMX7ULP_CLK_ARM,
