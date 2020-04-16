@@ -3,7 +3,6 @@
 config CRYPTO_DEV_NXP_HSE
 	tristate "NXP HSE crypto driver"
 	depends on SOC_S32GEN1
-	default m
 	select CRYPTO_HASH
 	select CRYPTO_BLKCIPHER
 	select CRYPTO_AEAD
