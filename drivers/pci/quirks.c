@@ -4243,10 +4243,21 @@ static int pci_quirk_amd_sb_acs(struct pci_dev *dev, u16 acs_flags)
 
 static bool pci_quirk_cavium_acs_match(struct pci_dev *dev)
 {
-	if (!pci_is_pcie(dev) || pci_pcie_type(dev) != PCI_EXP_TYPE_ROOT_PORT)
+	if (!pci_is_pcie(dev))
 		return false;
 
-	return (pci_is_pcie(dev) && ((dev->device & 0xf800) == 0xa000));
+	switch (dev->device) {
+	/*
+	 * Effectively selects all downstream ports for whole ThunderX1
+	 * (which represents 8 SoCs).
+	 */
+	case 0xa000 ... 0xa7ff: /* ThunderX1 */
+	case 0xaf84:  /* ThunderX2 */
+	case 0xb884:  /* ThunderX3 */
+		return true;
+	default:
+		return false;
+	}
 }
 
 static int pci_quirk_cavium_acs(struct pci_dev *dev, u16 acs_flags)
