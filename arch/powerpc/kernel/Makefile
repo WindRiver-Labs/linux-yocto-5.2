@@ -7,9 +7,6 @@ CFLAGS_ptrace.o		+= -DUTS_MACHINE='"$(UTS_MACHINE)"' $(call cc-disable-warning, 
 CFLAGS_ptrace.o		+= $(call cc-disable-warning, array-bounds)
 CFLAGS_syscalls.o	+= $(call cc-disable-warning, attribute-alias)
 
-# Avoid clang warnings around longjmp/setjmp declarations
-CFLAGS_crash.o += -ffreestanding
-
 ifdef CONFIG_PPC64
 CFLAGS_prom_init.o	+= $(NO_MINIMAL_TOC)
 endif
