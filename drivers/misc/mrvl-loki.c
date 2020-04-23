@@ -58,6 +58,12 @@ int mrvl_loki_register_irq_cb(int (*func)(uint32_t instance, uint32_t pss_int))
 }
 EXPORT_SYMBOL(mrvl_loki_register_irq_cb);
 
+void mrvl_loki_unregister_irq_cb(void)
+{
+	g_ml->irq_cb = NULL;
+}
+EXPORT_SYMBOL(mrvl_loki_unregister_irq_cb);
+
 static irqreturn_t mrvl_loki_handler(int irq, void *dev)
 {
 	struct mrvl_loki *ml =
