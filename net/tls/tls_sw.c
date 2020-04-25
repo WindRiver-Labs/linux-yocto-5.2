@@ -798,6 +798,8 @@ static int bpf_exec_tx_verdict(struct sk_msg *msg, struct sock *sk,
 			tls_free_open_rec(sk);
 			err = -sk->sk_err;
 		}
+		if (psock)
+			sk_psock_put(sk, psock);
 		return err;
 	}
 more_data:
