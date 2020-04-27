@@ -124,6 +124,9 @@ nvkm_ram_get(struct nvkm_device *device, u8 heap, u8 type, u8 rpage, u64 size,
 	nvkm_memory_ctor(&nvkm_vram, &vram->memory);
 	vram->ram = ram;
 	vram->page = page;
+
+	if (*pmemory)
+		nvkm_memory_unref(pmemory);
 	*pmemory = &vram->memory;
 
 	mutex_lock(&ram->fb->subdev.mutex);
