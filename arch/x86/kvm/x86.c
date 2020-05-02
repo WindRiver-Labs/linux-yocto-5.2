@@ -6981,6 +6981,8 @@ static struct perf_guest_info_callbacks kvm_guest_cbs = {
 	.handle_intel_pt_intr	= kvm_handle_intel_pt_intr,
 };
 
+extern u8 __read_mostly shadow_phys_bits;
+
 static void kvm_set_mmio_spte_mask(void)
 {
 	u64 mask;

@@ -288,7 +288,7 @@ static u64 __read_mostly shadow_nonpresent_or_rsvd_lower_gfn_mask;
  * The number of non-reserved physical address bits irrespective of features
  * that repurpose legal bits, e.g. MKTME.
  */
-static u8 __read_mostly shadow_phys_bits;
+u8 __read_mostly shadow_phys_bits;
 
 static void mmu_spte_set(u64 *sptep, u64 spte);
 static union kvm_mmu_page_role
