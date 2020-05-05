@@ -1206,7 +1206,7 @@ static void __tmc_etr_enable_hw(struct tmc_drvdata *drvdata)
 	tmc_wait_for_tmcready(drvdata);
 
 	writel_relaxed(etr_buf->size / 4, drvdata->base + TMC_RSZ);
-	if (drvdata && CSETR_QUIRK_BUFFSIZE_8BX)
+	if (drvdata->etr_options & CSETR_QUIRK_BUFFSIZE_8BX)
 		writel_relaxed(etr_buf->size / 8, drvdata->base + TMC_RSZ);
 	else
 		writel_relaxed(etr_buf->size / 4, drvdata->base + TMC_RSZ);
