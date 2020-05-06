@@ -1352,7 +1352,7 @@ static int test_hash_vs_generic_impl(const char *driver,
 	unsigned int i;
 	struct hash_testvec vec = { 0 };
 	char vec_name[64];
-	struct testvec_config cfg;
+	struct testvec_config *cfg;
 	char cfgname[TESTVEC_CONFIG_NAMELEN];
 	int err;
 
@@ -1380,6 +1380,12 @@ static int test_hash_vs_generic_impl(const char *driver,
 		pr_err("alg: hash: error allocating %s (generic impl of %s): %d\n",
 		       generic_driver, algname, err);
 		return err;
+	}
+
+	cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+	if (!cfg) {
+		err = -ENOMEM;
+		goto out;
 	}
 
 	/* Check the algorithm properties for consistency. */
@@ -1416,9 +1422,9 @@ static int test_hash_vs_generic_impl(const char *driver,
 		generate_random_hash_testvec(generic_tfm, &vec,
 					     maxkeysize, maxdatasize,
 					     vec_name, sizeof(vec_name));
-		generate_random_testvec_config(&cfg, cfgname, sizeof(cfgname));
+		generate_random_testvec_config(cfg, cfgname, sizeof(cfgname));
 
-		err = test_hash_vec_cfg(driver, &vec, vec_name, &cfg,
+		err = test_hash_vec_cfg(driver, &vec, vec_name, cfg,
 					req, tsgl, hashstate);
 		if (err)
 			goto out;
@@ -1426,6 +1432,7 @@ static int test_hash_vs_generic_impl(const char *driver,
 	}
 	err = 0;
 out:
+	kfree(cfg);
 	kfree(vec.key);
 	kfree(vec.plaintext);
 	kfree(vec.digest);
@@ -1820,6 +1827,7 @@ static void generate_random_aead_testvec(struct aead_request *req,
 	 * If the key or authentication tag size couldn't be set, no need to
 	 * continue to encrypt.
 	 */
+	vec->crypt_error = 0;
 	if (vec->setkey_error || vec->setauthsize_error)
 		goto done;
 
@@ -1867,7 +1875,7 @@ static int test_aead_vs_generic_impl(const char *driver,
 	unsigned int i;
 	struct aead_testvec vec = { 0 };
 	char vec_name[64];
-	struct testvec_config cfg;
+	struct testvec_config *cfg;
 	char cfgname[TESTVEC_CONFIG_NAMELEN];
 	int err;
 
@@ -1895,6 +1903,12 @@ static int test_aead_vs_generic_impl(const char *driver,
 		pr_err("alg: aead: error allocating %s (generic impl of %s): %d\n",
 		       generic_driver, algname, err);
 		return err;
+	}
+
+	cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+	if (!cfg) {
+		err = -ENOMEM;
+		goto out;
 	}
 
 	generic_req = aead_request_alloc(generic_tfm, GFP_KERNEL);
@@ -1951,20 +1965,23 @@ static int test_aead_vs_generic_impl(const char *driver,
 		generate_random_aead_testvec(generic_req, &vec,
 					     maxkeysize, maxdatasize,
 					     vec_name, sizeof(vec_name));
-		generate_random_testvec_config(&cfg, cfgname, sizeof(cfgname));
+		generate_random_testvec_config(cfg, cfgname, sizeof(cfgname));
 
-		err = test_aead_vec_cfg(driver, ENCRYPT, &vec, vec_name, &cfg,
+		err = test_aead_vec_cfg(driver, ENCRYPT, &vec, vec_name, cfg,
 					req, tsgls);
 		if (err)
 			goto out;
-		err = test_aead_vec_cfg(driver, DECRYPT, &vec, vec_name, &cfg,
-					req, tsgls);
-		if (err)
-			goto out;
+		if (vec.crypt_error == 0) {
+			err = test_aead_vec_cfg(driver, DECRYPT, &vec, vec_name,
+						cfg, req, tsgls);
+			if (err)
+				goto out;
+		}
 		cond_resched();
 	}
 	err = 0;
 out:
+	kfree(cfg);
 	kfree(vec.key);
 	kfree(vec.iv);
 	kfree(vec.assoc);
@@ -2389,6 +2406,15 @@ static void generate_random_cipher_testvec(struct skcipher_request *req,
 	skcipher_request_set_callback(req, 0, crypto_req_done, &wait);
 	skcipher_request_set_crypt(req, &src, &dst, vec->len, iv);
 	vec->crypt_error = crypto_wait_req(crypto_skcipher_encrypt(req), &wait);
+	if (vec->crypt_error != 0) {
+		/*
+		 * The only acceptable error here is for an invalid length, so
+		 * skcipher decryption should fail with the same error too.
+		 * We'll test for this.  But to keep the API usage well-defined,
+		 * explicitly initialize the ciphertext buffer too.
+		 */
+		memset((u8 *)vec->ctext, 0, vec->len);
+	}
 done:
 	snprintf(name, max_namelen, "\"random: len=%u klen=%u\"",
 		 vec->len, vec->klen);
@@ -2414,7 +2440,7 @@ static int test_skcipher_vs_generic_impl(const char *driver,
 	unsigned int i;
 	struct cipher_testvec vec = { 0 };
 	char vec_name[64];
-	struct testvec_config cfg;
+	struct testvec_config *cfg;
 	char cfgname[TESTVEC_CONFIG_NAMELEN];
 	int err;
 
@@ -2446,6 +2472,12 @@ static int test_skcipher_vs_generic_impl(const char *driver,
 		pr_err("alg: skcipher: error allocating %s (generic impl of %s): %d\n",
 		       generic_driver, algname, err);
 		return err;
+	}
+
+	cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+	if (!cfg) {
+		err = -ENOMEM;
+		goto out;
 	}
 
 	generic_req = skcipher_request_alloc(generic_tfm, GFP_KERNEL);
@@ -2495,20 +2527,21 @@ static int test_skcipher_vs_generic_impl(const char *driver,
 	for (i = 0; i < fuzz_iterations * 8; i++) {
 		generate_random_cipher_testvec(generic_req, &vec, maxdatasize,
 					       vec_name, sizeof(vec_name));
-		generate_random_testvec_config(&cfg, cfgname, sizeof(cfgname));
+		generate_random_testvec_config(cfg, cfgname, sizeof(cfgname));
 
 		err = test_skcipher_vec_cfg(driver, ENCRYPT, &vec, vec_name,
-					    &cfg, req, tsgls);
+					    cfg, req, tsgls);
 		if (err)
 			goto out;
 		err = test_skcipher_vec_cfg(driver, DECRYPT, &vec, vec_name,
-					    &cfg, req, tsgls);
+					    cfg, req, tsgls);
 		if (err)
 			goto out;
 		cond_resched();
 	}
 	err = 0;
 out:
+	kfree(cfg);
 	kfree(vec.key);
 	kfree(vec.iv);
 	kfree(vec.ptext);
