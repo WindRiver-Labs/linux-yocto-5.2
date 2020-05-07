@@ -760,7 +760,7 @@
 
 		tcsr_mutex_regs: syscon@1f40000 {
 			compatible = "syscon";
-			reg = <0x1f40000 0x20000>;
+			reg = <0x1f40000 0x40000>;
 		};
 
 		apcs_glb: mailbox@9820000 {
