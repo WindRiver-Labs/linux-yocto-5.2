@@ -1223,6 +1223,8 @@ static void i40iw_add_ipv4_addr(struct i40iw_device *iwdev)
 		      (rdma_vlan_dev_real_dev(dev) == iwdev->netdev)) ||
 		    (dev == iwdev->netdev)) && (dev->flags & IFF_UP)) {
 			idev = in_dev_get(dev);
+			if (!idev)
+				continue;
 			for_ifa(idev) {
 				i40iw_debug(&iwdev->sc_dev, I40IW_DEBUG_CM,
 					    "IP=%pI4, vlan_id=%d, MAC=%pM\n", &ifa->ifa_address,
