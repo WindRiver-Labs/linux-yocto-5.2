@@ -149,6 +149,15 @@ static void xgpio_set_multiple(struct gpio_chip *gc, unsigned long *mask,
 	for (i = 0; i < gc->ngpio; i++) {
 		if (*mask == 0)
 			break;
+		/* Once finished with an index write it out to the register */
+		if (index !=  xgpio_index(chip, i)) {
+			xgpio_writereg(mm_gc->regs + XGPIO_DATA_OFFSET +
+				       index * XGPIO_CHANNEL_OFFSET,
+				       chip->gpio_state[index]);
+			spin_unlock_irqrestore(&chip->gpio_lock[index], flags);
+			index =  xgpio_index(chip, i);
+			spin_lock_irqsave(&chip->gpio_lock[index], flags);
+		}
 		if (__test_and_clear_bit(i, mask)) {
 			if (test_bit(i, bits))
 				chip->gpio_state |= BIT(i);
