@@ -5111,6 +5111,16 @@ static void ice_tx_timeout(struct net_device *netdev)
 
 	pf->tx_timeout_count++;
 
+	/* Check if PFC is enabled for the TC to which the queue belongs
+	 * to. If yes then Tx timeout is not caused by a hung queue, no
+	 * need to reset and rebuild
+	 */
+	if (ice_is_pfc_causing_hung_q(pf, 0)) {
+		dev_info(ice_pf_to_dev(pf), "Fake Tx hang detected on queue %u, timeout caused by PFC storm\n",
+			 0);
+		return;
+	}
+
 	/* find the stopped queue the same way dev_watchdog() does */
 	for (i = 0; i < netdev->num_tx_queues; i++) {
 		unsigned long trans_start;
