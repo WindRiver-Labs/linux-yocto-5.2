@@ -107,7 +107,7 @@ CDN_API_STATUS CDN_API_RX_AudioAutoConfig(
 	if (max_ch_num < 2 || max_ch_num > 32)
 		return CDN_ERR;
 	/* Maximum number of channels has to be power of 2 */
-	else if (!(max_ch_num * (max_ch_num - 1)))
+	else if ((max_ch_num & (max_ch_num - 1)))
 		return CDN_ERR;
 	/* Each active port shall carry the same number of sub-channels */
 	else if (max_ch_num % i2s_ports_num)
