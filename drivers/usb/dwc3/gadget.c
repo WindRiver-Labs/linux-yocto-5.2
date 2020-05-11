@@ -1495,6 +1495,8 @@ static int __dwc3_gadget_ep_queue(struct dwc3_ep *dep, struct dwc3_request *req)
 		dwc->force_hiber_wake = true;
 		gadget_wakeup_interrupt(dwc);
 		dwc->force_hiber_wake = false;
+	}
+
 	/* Start the transfer only after the END_TRANSFER is completed */
 	if (dep->flags & DWC3_EP_END_TRANSFER_PENDING) {
 		dep->flags |= DWC3_EP_DELAY_START;
