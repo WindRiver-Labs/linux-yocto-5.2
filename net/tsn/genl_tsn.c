@@ -12,7 +12,7 @@
 #include <net/tsn.h>
 
 #define NLA_PARSE_NESTED(a, b, c, d) \
-	nla_parse_nested(a, b, c, d, NULL)
+	nla_parse_nested_deprecated(a, b, c, d, NULL)
 #define NLA_PUT_U64(a, b, c) nla_put_u64_64bit(a, b, c, NLA_U64)
 
 static struct genl_family tsn_family;
@@ -535,7 +535,7 @@ static int tsn_cap_get(struct sk_buff *skb, struct genl_info *info)
 		goto err;
 	}
 
-	tsn_cap_attr = nla_nest_start(rep_skb, TSN_ATTR_CAP);
+	tsn_cap_attr = nla_nest_start_noflag(rep_skb, TSN_ATTR_CAP);
 	if (!tsn_cap_attr) {
 		ret = -EMSGSIZE;
 		goto err;
@@ -782,7 +782,7 @@ static int cmd_cb_streamid_get(struct genl_info *info)
 		return ret;
 
 	/* input netlink the parameters */
-	sidattr = nla_nest_start(rep_skb, TSN_ATTR_STREAM_IDENTIFY);
+	sidattr = nla_nest_start_noflag(rep_skb, TSN_ATTR_STREAM_IDENTIFY);
 	if (!sidattr) {
 		ret = -EINVAL;
 		goto err;
@@ -955,7 +955,7 @@ static int tsn_qci_cap_get(struct sk_buff *skb, struct genl_info *info)
 		goto err;
 	}
 
-	qci_cap = nla_nest_start(rep_skb, TSN_ATTR_QCI_SP);
+	qci_cap = nla_nest_start_noflag(rep_skb, TSN_ATTR_QCI_SP);
 	if (!qci_cap) {
 		ret = -EMSGSIZE;
 		goto err;
@@ -1174,7 +1174,7 @@ static int cmd_qci_sfi_get(struct genl_info *info)
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
 		goto err;
 
-	sfiattr = nla_nest_start(rep_skb, TSN_ATTR_QCI_SFI);
+	sfiattr = nla_nest_start_noflag(rep_skb, TSN_ATTR_QCI_SFI);
 	if (!sfiattr) {
 		tsn_simple_reply(info, TSN_CMD_REPLY,
 				 netdev->name, -EINVAL);
@@ -1301,7 +1301,7 @@ static int cmd_qci_sfi_counters_get(struct genl_info *info)
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
 		goto err;
 
-	sfiattr = nla_nest_start(rep_skb, TSN_ATTR_QCI_SFI);
+	sfiattr = nla_nest_start_noflag(rep_skb, TSN_ATTR_QCI_SFI);
 	if (!sfiattr) {
 		ret = -EINVAL;
 		goto err;
@@ -1605,7 +1605,7 @@ static int cmd_qci_sgi_get(struct genl_info *info)
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
 		return -EMSGSIZE;
 
-	sgiattr = nla_nest_start(rep_skb, TSN_ATTR_QCI_SGI);
+	sgiattr = nla_nest_start_noflag(rep_skb, TSN_ATTR_QCI_SGI);
 	if (!sgiattr)
 		return -EMSGSIZE;
 
@@ -1642,7 +1642,7 @@ static int cmd_qci_sgi_get(struct genl_info *info)
 			return -EMSGSIZE;
 
 	/* Administration */
-	adminattr = nla_nest_start(rep_skb, TSN_QCI_SGI_ATTR_ADMINENTRY);
+	adminattr = nla_nest_start_noflag(rep_skb, TSN_QCI_SGI_ATTR_ADMINENTRY);
 	if (!adminattr)
 		return -EMSGSIZE;
 
@@ -1685,7 +1685,7 @@ static int cmd_qci_sgi_get(struct genl_info *info)
 		}
 
 		/* Adminastration entry */
-		sglattr = nla_nest_start(rep_skb,
+		sglattr = nla_nest_start_noflag(rep_skb,
 						TSN_SGI_ATTR_CTRL_GCLENTRY);
 		if (!sglattr)
 			return -EMSGSIZE;
@@ -1806,7 +1806,7 @@ static int cmd_qci_sgi_status_get(struct genl_info *info)
 		return -EMSGSIZE;
 
 	/* Down one netlink attribute level */
-	sgiattr = nla_nest_start(rep_skb, TSN_ATTR_QCI_SGI);
+	sgiattr = nla_nest_start_noflag(rep_skb, TSN_ATTR_QCI_SGI);
 	if (!sgiattr)
 		return -EMSGSIZE;
 
@@ -1837,7 +1837,7 @@ static int cmd_qci_sgi_status_get(struct genl_info *info)
 			return -EMSGSIZE;
 
 	/* operation data */
-	operattr = nla_nest_start(rep_skb, TSN_QCI_SGI_ATTR_OPERENTRY);
+	operattr = nla_nest_start_noflag(rep_skb, TSN_QCI_SGI_ATTR_OPERENTRY);
 	if (!operattr)
 		return -EMSGSIZE;
 
@@ -1881,7 +1881,7 @@ static int cmd_qci_sgi_status_get(struct genl_info *info)
 		}
 
 		/* Operation entry */
-		sglattr = nla_nest_start(rep_skb,
+		sglattr = nla_nest_start_noflag(rep_skb,
 						TSN_SGI_ATTR_CTRL_GCLENTRY);
 		if (!sglattr)
 			return -EMSGSIZE;
@@ -2089,7 +2089,7 @@ static int cmd_qci_fmi_get(struct genl_info *info)
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
 		return -EMSGSIZE;
 
-	fmiattr = nla_nest_start(rep_skb, TSN_ATTR_QCI_FMI);
+	fmiattr = nla_nest_start_noflag(rep_skb, TSN_ATTR_QCI_FMI);
 	if (!fmiattr)
 		return -EMSGSIZE;
 
@@ -2322,11 +2322,11 @@ static int cmd_qbv_get(struct genl_info *info)
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
 		return -EMSGSIZE;
 
-	qbv = nla_nest_start(rep_skb, TSN_ATTR_QBV);
+	qbv = nla_nest_start_noflag(rep_skb, TSN_ATTR_QBV);
 	if (!qbv)
 		return -EMSGSIZE;
 
-	qbvadminattr = nla_nest_start(rep_skb, TSN_QBV_ATTR_ADMINENTRY);
+	qbvadminattr = nla_nest_start_noflag(rep_skb, TSN_QBV_ATTR_ADMINENTRY);
 	if (!qbvadminattr)
 		return -EMSGSIZE;
 
@@ -2345,7 +2345,7 @@ static int cmd_qbv_get(struct genl_info *info)
 			tp = (qbvconf.admin.control_list + i)->time_interval;
 
 			qbv_table =
-				nla_nest_start(rep_skb, glisttype);
+				nla_nest_start_noflag(rep_skb, glisttype);
 			if (!qbv_table)
 				return -EMSGSIZE;
 
@@ -2450,11 +2450,11 @@ static int cmd_qbv_status_get(struct genl_info *info)
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
 		return -EMSGSIZE;
 
-	qbv = nla_nest_start(rep_skb, TSN_ATTR_QBV);
+	qbv = nla_nest_start_noflag(rep_skb, TSN_ATTR_QBV);
 	if (!qbv)
 		return -EMSGSIZE;
 
-	qbvoperattr = nla_nest_start(rep_skb, TSN_QBV_ATTR_OPERENTRY);
+	qbvoperattr = nla_nest_start_noflag(rep_skb, TSN_QBV_ATTR_OPERENTRY);
 	if (!qbvoperattr)
 		return -EMSGSIZE;
 
@@ -2474,7 +2474,7 @@ static int cmd_qbv_status_get(struct genl_info *info)
 			gs = (qbvstatus.oper.control_list + i)->gate_state;
 			tp = (qbvstatus.oper.control_list + i)->time_interval;
 
-			qbv_table = nla_nest_start(rep_skb, glisttype);
+			qbv_table = nla_nest_start_noflag(rep_skb, glisttype);
 			if (!qbv_table)
 				return -EMSGSIZE;
 
@@ -2700,7 +2700,7 @@ static int tsn_cbs_get(struct sk_buff *skb, struct genl_info *info)
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
 		return -EMSGSIZE;
 
-	cbsattr = nla_nest_start(rep_skb, TSN_ATTR_CBS);
+	cbsattr = nla_nest_start_noflag(rep_skb, TSN_ATTR_CBS);
 	if (!cbsattr)
 		return -EMSGSIZE;
 
@@ -2833,7 +2833,7 @@ static int cmd_qbu_get_status(struct genl_info *info)
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
 		return -EMSGSIZE;
 
-	qbuattr = nla_nest_start(rep_skb, TSN_ATTR_QBU);
+	qbuattr = nla_nest_start_noflag(rep_skb, TSN_ATTR_QBU);
 	if (!qbuattr)
 		return -EMSGSIZE;
 
@@ -3000,7 +3000,7 @@ static int tsn_tsd_get(struct sk_buff *skb, struct genl_info *info)
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
 		return -EMSGSIZE;
 
-	tsdattr = nla_nest_start(rep_skb, TSN_ATTR_TSD);
+	tsdattr = nla_nest_start_noflag(rep_skb, TSN_ATTR_TSD);
 	if (!tsdattr)
 		return -EMSGSIZE;
 
@@ -3254,7 +3254,7 @@ static int tsn_cbstatus_get(struct sk_buff *skb, struct genl_info *info)
 	if (nla_put_string(rep_skb, TSN_ATTR_IFNAME, netdev->name))
 		return -EMSGSIZE;
 
-	cbattr = nla_nest_start(rep_skb, TSN_ATTR_CBSTAT);
+	cbattr = nla_nest_start_noflag(rep_skb, TSN_ATTR_CBSTAT);
 	if (!cbattr)
 		return -EMSGSIZE;
 
