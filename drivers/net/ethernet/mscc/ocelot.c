@@ -56,7 +56,7 @@ static inline int ocelot_mact_wait_for_completion(struct ocelot *ocelot)
 {
 	u32 val;
 
-	return readx_poll_timeout(ocelot_mact_read_macaccess,
+	return readx_poll_timeout_atomic(ocelot_mact_read_macaccess,
 		ocelot, val,
 		(val & ANA_TABLES_MACACCESS_MAC_TABLE_CMD_M) ==
 		MACACCESS_CMD_IDLE,
