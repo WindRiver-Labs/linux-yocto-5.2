@@ -43,6 +43,11 @@
 #define PT32_ROOT_LEVEL 2
 #define PT32E_ROOT_LEVEL 3
 
+#define ACC_EXEC_MASK	1
+#define ACC_WRITE_MASK	PT_WRITABLE_MASK
+#define ACC_USER_MASK	PT_USER_MASK
+#define ACC_ALL		(ACC_EXEC_MASK | ACC_WRITE_MASK | ACC_USER_MASK)
+
 static inline u64 rsvd_bits(int s, int e)
 {
 	if (e < s)
