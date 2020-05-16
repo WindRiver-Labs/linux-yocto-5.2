@@ -122,9 +122,7 @@ void rvu_nix_update_link_credits(struct rvu *rvu, int blkaddr,
 	if (!tx_stall)
 		return;
 
-	rvu_nix_txsch_lock(nix_hw);
 	tx_stall->nlink_credits[link] = ncredits;
-	rvu_nix_txsch_unlock(nix_hw);
 }
 
 void rvu_nix_update_sq_smq_mapping(struct rvu *rvu, int blkaddr, int nixlf,

@@ -3404,6 +3404,7 @@ nix_config_link_credits(struct rvu *rvu, int blkaddr, int link,
 						    lmac_id, true);
 	}
 
+	rvu_nix_txsch_lock(nix_hw);
 	mutex_lock(&rvu->rsrc_lock);
 	/* Disable new traffic to link */
 	if (hw->cap.nix_shaping) {
@@ -3444,6 +3445,7 @@ exit:
 		cgx_lmac_tx_enable(rvu_cgx_pdata(cgx_id, rvu), lmac_id, false);
 
 	mutex_unlock(&rvu->rsrc_lock);
+	rvu_nix_txsch_unlock(nix_hw);
 	return rc;
 }
 
