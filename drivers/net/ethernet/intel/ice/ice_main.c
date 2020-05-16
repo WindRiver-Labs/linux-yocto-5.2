@@ -5229,7 +5229,7 @@ int ice_set_rss(struct ice_vsi *vsi, u8 *seed, u8 *lut, u16 lut_size)
 		if (status) {
 			dev_err(dev, "Cannot set RSS key, err %s aq_err %s\n",
 				ice_stat_str(status),
-				ice_aq_str(hw->adminq.rq_last_status));
+				ice_aq_str(hw->adminq.sq_last_status));
 			return -EIO;
 		}
 	}
@@ -5240,7 +5240,7 @@ int ice_set_rss(struct ice_vsi *vsi, u8 *seed, u8 *lut, u16 lut_size)
 		if (status) {
 			dev_err(dev, "Cannot set RSS lut, err %s aq_err %s\n",
 				ice_stat_str(status),
-				ice_aq_str(hw->adminq.rq_last_status));
+				ice_aq_str(hw->adminq.sq_last_status));
 			return -EIO;
 		}
 	}
@@ -5273,7 +5273,7 @@ int ice_get_rss(struct ice_vsi *vsi, u8 *seed, u8 *lut, u16 lut_size)
 		if (status) {
 			dev_err(dev, "Cannot get RSS key, err %s aq_err %s\n",
 				ice_stat_str(status),
-				ice_aq_str(hw->adminq.rq_last_status));
+				ice_aq_str(hw->adminq.sq_last_status));
 			return -EIO;
 		}
 	}
@@ -5284,7 +5284,7 @@ int ice_get_rss(struct ice_vsi *vsi, u8 *seed, u8 *lut, u16 lut_size)
 		if (status) {
 			dev_err(dev, "Cannot get RSS lut, err %s aq_err %s\n",
 				ice_stat_str(status),
-				ice_aq_str(hw->adminq.rq_last_status));
+				ice_aq_str(hw->adminq.sq_last_status));
 			return -EIO;
 		}
 	}
