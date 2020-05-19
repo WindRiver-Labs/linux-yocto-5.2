@@ -260,6 +260,18 @@ int dcss_dtg_init(struct dcss_soc *dcss, unsigned long dtg_base)
 	dtg->control_status |= OVL_DATA_MODE | BLENDER_VIDEO_ALPHA_SEL |
 		((dtg->alpha << DEFAULT_FG_ALPHA_POS) & DEFAULT_FG_ALPHA_MASK);
 
+	/* Disable interrupt */
+	dcss_update(0, LINE0_IRQ, dtg->base_reg + DCSS_DTG_INT_MASK);
+	dcss_update(0, LINE1_IRQ, dtg->base_reg + DCSS_DTG_INT_MASK);
+	dcss_update(0, LINE2_IRQ, dtg->base_reg + DCSS_DTG_INT_MASK);
+	dcss_update(0, LINE3_IRQ, dtg->base_reg + DCSS_DTG_INT_MASK);
+
+	/* Clear interrupt */
+	dcss_update(LINE0_IRQ, LINE0_IRQ, dtg->base_reg + DCSS_DTG_INT_CONTROL);
+	dcss_update(LINE1_IRQ, LINE1_IRQ, dtg->base_reg + DCSS_DTG_INT_CONTROL);
+	dcss_update(LINE2_IRQ, LINE2_IRQ, dtg->base_reg + DCSS_DTG_INT_CONTROL);
+	dcss_update(LINE3_IRQ, LINE3_IRQ, dtg->base_reg + DCSS_DTG_INT_CONTROL);
+
 	return dcss_dtg_irq_config(dtg);
 }
 
