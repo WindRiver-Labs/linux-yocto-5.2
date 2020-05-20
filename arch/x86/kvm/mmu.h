@@ -43,6 +43,11 @@
 #define PT32_ROOT_LEVEL 2
 #define PT32E_ROOT_LEVEL 3
 
+#define ACC_EXEC_MASK	1
+#define ACC_WRITE_MASK	PT_WRITABLE_MASK
+#define ACC_USER_MASK	PT_USER_MASK
+#define ACC_ALL		(ACC_EXEC_MASK | ACC_WRITE_MASK | ACC_USER_MASK)
+
 static inline u64 rsvd_bits(int s, int e)
 {
 	if (e < s)
@@ -51,7 +56,7 @@ static inline u64 rsvd_bits(int s, int e)
 	return ((1ULL << (e - s + 1)) - 1) << s;
 }
 
-void kvm_mmu_set_mmio_spte_mask(u64 mmio_mask, u64 mmio_value);
+void kvm_mmu_set_mmio_spte_mask(u64 mmio_mask, u64 mmio_value, u64 access_mask);
 
 void
 reset_shadow_zero_bits_mask(struct kvm_vcpu *vcpu, struct kvm_mmu *context);
