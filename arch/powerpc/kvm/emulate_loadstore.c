@@ -73,7 +73,6 @@ int kvmppc_emulate_loadstore(struct kvm_vcpu *vcpu)
 {
 	struct kvm_run *run = vcpu->run;
 	u32 inst;
-	int ra, rs, rt;
 	enum emulation_result emulated = EMULATE_FAIL;
 	int advance = 1;
 	struct instruction_op op;
@@ -84,10 +83,6 @@ int kvmppc_emulate_loadstore(struct kvm_vcpu *vcpu)
 	emulated = kvmppc_get_last_inst(vcpu, INST_GENERIC, &inst);
 	if (emulated != EMULATE_DONE)
 		return emulated;
-
-	ra = get_ra(inst);
-	rs = get_rs(inst);
-	rt = get_rt(inst);
 
 	/*
 	 * if mmio_vsx_tx_sx_enabled == 0, copy data between
