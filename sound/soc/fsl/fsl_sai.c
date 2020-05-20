@@ -1604,15 +1604,27 @@ static int fsl_sai_probe(struct platform_device *pdev)
 	ret = devm_snd_soc_register_component(&pdev->dev, &fsl_component,
 			&fsl_sai_dai, 1);
 	if (ret)
-		return ret;
+		goto err_pm_disable;
 
 	if (of_property_read_u32(np, "fsl,dma-buffer-size", &buffer_size))
 		buffer_size = IMX_SAI_DMABUF_SIZE;
 
-	if (sai->soc->imx)
-		return imx_pcm_component_register(&pdev->dev);
-	else
-		return devm_snd_dmaengine_pcm_register(&pdev->dev, NULL, 0);
+	if (sai->soc->imx) {
+		ret = imx_pcm_component_register(&pdev->dev);
+		if (ret)
+			goto err_pm_disable;
+	} else {
+		ret = devm_snd_dmaengine_pcm_register(&pdev->dev, NULL, 0);
+		if (ret)
+			goto err_pm_disable;
+	}
+
+	return ret;
+
+err_pm_disable:
+	pm_runtime_disable(&pdev->dev);
+
+	return ret;
 }
 
 static int fsl_sai_remove(struct platform_device *pdev)
