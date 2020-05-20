@@ -121,6 +121,7 @@ struct ip_set_ext {
 	u32 timeout;
 	u8 packets_op;
 	u8 bytes_op;
+	bool target;
 };
 
 struct ip_set;
@@ -187,6 +188,14 @@ struct ip_set_type_variant {
 	/* Return true if "b" set is the same as "a"
 	 * according to the create set parameters */
 	bool (*same_set)(const struct ip_set *a, const struct ip_set *b);
+	/* Region-locking is used */
+	bool region_lock;
+};
+
+struct ip_set_region {
+	spinlock_t lock;	/* Region lock */
+	size_t ext_size;	/* Size of the dynamic extensions */
+	u32 elements;		/* Number of elements vs timeout */
 };
 
 /* The core set type structure */
@@ -451,7 +460,7 @@ ip6addrptr(const struct sk_buff *skb, bool src, struct in6_addr *addr)
 #include <linux/netfilter/ipset/ip_set_skbinfo.h>
 
 #define IP_SET_INIT_KEXT(skb, opt, set)			\
-	{ .bytes = (skb)->len, .packets = 1,		\
+	{ .bytes = (skb)->len, .packets = 1, .target = true,\
 	  .timeout = ip_set_adt_opt_timeout(opt, set) }
 
 #define IP_SET_INIT_UEXT(set)				\
