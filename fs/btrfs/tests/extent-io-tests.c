@@ -536,6 +536,7 @@ static int test_find_first_clear_extent_bit(void)
 
 	ret = 0;
 out:
+	clear_extent_bits(&tree, 0, (u64)-1, CHUNK_TRIMMED | CHUNK_ALLOCATED);
 	return ret;
 }
 
