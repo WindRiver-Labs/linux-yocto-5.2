@@ -1576,8 +1576,11 @@ static struct clk_regmap meson8b_hdmi_sys = {
 
 /*
  * The MALI IP is clocked by two identical clocks (mali_0 and mali_1)
- * muxed by a glitch-free switch on Meson8b and Meson8m2. Meson8 only
- * has mali_0 and no glitch-free mux.
+ * muxed by a glitch-free switch on Meson8b and Meson8m2. The CCF can
+ * actually manage this glitch-free mux because it does top-to-bottom
+ * updates the each clock tree and switches to the "inactive" one when
+ * CLK_SET_RATE_GATE is set.
+ * Meson8 only has mali_0 and no glitch-free mux.
  */
 static const char * const meson8b_mali_0_1_parent_names[] = {
 	"xtal", "mpll2", "mpll1", "fclk_div7", "fclk_div4", "fclk_div3",
@@ -1633,7 +1636,7 @@ static struct clk_regmap meson8b_mali_0 = {
 		.ops = &clk_regmap_gate_ops,
 		.parent_names = (const char *[]){ "mali_0_div" },
 		.num_parents = 1,
-		.flags = CLK_SET_RATE_PARENT,
+		.flags = CLK_SET_RATE_GATE | CLK_SET_RATE_PARENT,
 	},
 };
 
@@ -1684,7 +1687,7 @@ static struct clk_regmap meson8b_mali_1 = {
 		.ops = &clk_regmap_gate_ops,
 		.parent_names = (const char *[]){ "mali_1_div" },
 		.num_parents = 1,
-		.flags = CLK_SET_RATE_PARENT,
+		.flags = CLK_SET_RATE_GATE | CLK_SET_RATE_PARENT,
 	},
 };
 
