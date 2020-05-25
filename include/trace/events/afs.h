@@ -202,7 +202,7 @@ enum afs_flock_operation {
 	EM(afs_call_trace_get,			"GET  ") \
 	EM(afs_call_trace_put,			"PUT  ") \
 	EM(afs_call_trace_wake,			"WAKE ") \
-	E_(afs_call_trace_work,			"WORK ")
+	E_(afs_call_trace_work,			"QUEUE")
 
 #define afs_fs_operations \
 	EM(afs_FS_FetchData,			"FS.FetchData") \
