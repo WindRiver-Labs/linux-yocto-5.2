@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 VERSION = 5
 PATCHLEVEL = 2
-SUBLEVEL = 40
+SUBLEVEL = 41
 EXTRAVERSION =
 NAME = Bobtail Squid
 
@@ -1249,7 +1249,7 @@ ifneq ($(dtstree),)
 %.dtbo: | prepare3 scripts_dtc
 	$(Q)$(MAKE) $(build)=$(dtstree) MACHINE=$(MACHINE) $(dtstree)/$@
 
-PHONY += dtbs dtbs_install dt_binding_check
+PHONY += dtbs dtbs_install dtbs_check
 dtbs dtbs_check: prepare3 scripts_dtc
 	$(Q)$(MAKE) $(build)=$(dtstree)
 
@@ -1269,6 +1269,7 @@ PHONY += scripts_dtc
 scripts_dtc: scripts_basic
 	$(Q)$(MAKE) $(build)=scripts/dtc
 
+PHONY += dt_binding_check
 dt_binding_check: scripts_dtc
 	$(Q)$(MAKE) $(build)=Documentation/devicetree/bindings
 
