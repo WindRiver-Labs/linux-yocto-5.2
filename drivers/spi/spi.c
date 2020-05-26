@@ -2362,14 +2362,13 @@ int spi_register_controller(struct spi_controller *ctlr)
 	 * be at least one chipselect.
 	 */
 	if (!ctlr->num_chipselect) {
-		status =  -EINVAL;
+		status = -EINVAL;
 		goto free_bus_id;
 	}
 
 	status = device_add(&ctlr->dev);
-	if (status < 0) {
+	if (status < 0)
 		goto free_bus_id;
-	}
 	dev_dbg(dev, "registered %s %s\n",
 			spi_controller_is_slave(ctlr) ? "slave" : "master",
 			dev_name(&ctlr->dev));
@@ -2401,6 +2400,7 @@ int spi_register_controller(struct spi_controller *ctlr)
 	of_register_spi_devices(ctlr);
 	acpi_register_spi_devices(ctlr);
 	return status;
+
 free_bus_id:
 	mutex_lock(&board_lock);
 	idr_remove(&spi_master_idr, ctlr->bus_num);
