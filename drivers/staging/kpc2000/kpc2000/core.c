@@ -60,7 +60,7 @@ static ssize_t  show_cpld_config_reg(struct device *dev, struct device_attribute
 static ssize_t cpld_reconfigure(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
 {
     struct pci_dev *pdev = to_pci_dev(dev);
-    long wr_val;
+    unsigned long wr_val;
     struct kp2000_device *pcard;
     int rv;
 
@@ -68,7 +68,7 @@ static ssize_t cpld_reconfigure(struct device *dev, struct device_attribute *att
     pcard = pci_get_drvdata(pdev);
     if (!pcard)  return -ENXIO;
     
-    rv = kstrtol(buf, 0, &wr_val);
+    rv = kstrtoul(buf, 0, &wr_val);
     if (rv < 0)  return rv;
     if (wr_val > 7)  return -EINVAL;
     
