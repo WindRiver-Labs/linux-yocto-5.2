@@ -168,7 +168,7 @@ void afs_put_call(struct afs_call *call)
 	int n = atomic_dec_return(&call->usage);
 	int o = atomic_read(&net->nr_outstanding_calls);
 
-	trace_afs_call(call, afs_call_trace_put, n + 1, o,
+	trace_afs_call(call, afs_call_trace_put, n, o,
 		       __builtin_return_address(0));
 
 	ASSERTCMP(n, >=, 0);
@@ -603,11 +603,7 @@ call_complete:
 long afs_wait_for_call_to_complete(struct afs_call *call,
 				   struct afs_addr_cursor *ac)
 {
-	signed long rtt2, timeout;
 	long ret;
-	bool stalled = false;
-	u64 rtt;
-	u32 life, last_life;
 	bool rxrpc_complete = false;
 
 	DECLARE_WAITQUEUE(myself, current);
@@ -617,14 +613,6 @@ long afs_wait_for_call_to_complete(struct afs_call *call,
 	ret = call->error;
 	if (ret < 0)
 		goto out;
-
-	rtt = rxrpc_kernel_get_rtt(call->net->socket, call->rxcall);
-	rtt2 = nsecs_to_jiffies64(rtt) * 2;
-	if (rtt2 < 2)
-		rtt2 = 2;
-
-	timeout = rtt2;
-	rxrpc_kernel_check_life(call->net->socket, call->rxcall, &last_life);
 
 	add_wait_queue(&call->waitq, &myself);
 	for (;;) {
@@ -642,30 +630,13 @@ long afs_wait_for_call_to_complete(struct afs_call *call,
 		if (afs_check_call_state(call, AFS_CALL_COMPLETE))
 			break;
 
-		if (!rxrpc_kernel_check_life(call->net->socket, call->rxcall, &life)) {
+		if (!rxrpc_kernel_check_life(call->net->socket, call->rxcall)) {
 			/* rxrpc terminated the call. */
 			rxrpc_complete = true;
 			break;
 		}
 
-		if (call->intr && timeout == 0 &&
-		    life == last_life && signal_pending(current)) {
-			if (stalled)
-				break;
-			__set_current_state(TASK_RUNNING);
-			rxrpc_kernel_probe_life(call->net->socket, call->rxcall);
-			timeout = rtt2;
-			stalled = true;
-			continue;
-		}
-
-		if (life != last_life) {
-			timeout = rtt2;
-			last_life = life;
-			stalled = false;
-		}
-
-		timeout = schedule_timeout(timeout);
+		schedule();
 	}
 
 	remove_wait_queue(&call->waitq, &myself);
@@ -733,7 +704,7 @@ static void afs_wake_up_async_call(struct sock *sk, struct rxrpc_call *rxcall,
 
 	u = atomic_fetch_add_unless(&call->usage, 1, 0);
 	if (u != 0) {
-		trace_afs_call(call, afs_call_trace_wake, u,
+		trace_afs_call(call, afs_call_trace_wake, u + 1,
 			       atomic_read(&call->net->nr_outstanding_calls),
 			       __builtin_return_address(0));
 
