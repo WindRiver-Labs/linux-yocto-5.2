@@ -1137,7 +1137,7 @@ out_unlock:
 	 */
 	if (extent_reserved) {
 		extent_clear_unlock_delalloc(inode, start,
-					     start + cur_alloc_size,
+					     start + cur_alloc_size - 1,
 					     start + cur_alloc_size,
 					     locked_page,
 					     clear_bits,
