@@ -480,14 +480,14 @@ static struct of_dev_auxdata omap_auxdata_lookup[] = {
 #ifdef CONFIG_SOC_AM33XX
 	OF_DEV_AUXDATA("ti,am3352-wkup-m3", 0x44d00000, "44d00000.wkup_m3",
 		       &wkup_m3_data),
+	OF_DEV_AUXDATA("ti,am3356-pruss-soc-bus", 0x4a326004,
+		       "4a326004.pruss-soc-bus", &pruss_pdata),
 	OF_DEV_AUXDATA("ti,am3352-sgx530", 0x56000000, "56000000.sgx",
 		       &sgx_pdata),
 #endif
 #ifdef CONFIG_SOC_AM43XX
 	OF_DEV_AUXDATA("ti,am4372-wkup-m3", 0x44d00000, "44d00000.wkup_m3",
 		       &wkup_m3_data),
-	OF_DEV_AUXDATA("ti,am3356-pruss-soc-bus", 0x4a326004,
-		       "4a326004.pruss-soc-bus", &pruss_pdata),
 	OF_DEV_AUXDATA("ti,am4376-sgx530", 0x56000000, "56000000.sgx",
 		       &sgx_pdata),
 #endif
