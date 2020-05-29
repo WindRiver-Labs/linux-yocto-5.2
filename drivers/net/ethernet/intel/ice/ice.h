@@ -57,7 +57,6 @@
 #include "ice_arfs.h"
 #include "ice_lag.h"
 
-extern const char ice_drv_ver[];
 #define ICE_BAR0		0
 #define ICE_REQ_DESC_MULTIPLE	32
 #define ICE_MIN_NUM_DESC	64
