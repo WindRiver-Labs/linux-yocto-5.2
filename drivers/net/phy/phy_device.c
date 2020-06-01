@@ -276,8 +276,7 @@ static bool mdio_bus_phy_may_suspend(struct phy_device *phydev)
 	if (device_may_wakeup(&netdev->dev))
 		return false;
 
-out:
-	return !phydev->suspended;
+	return true;
 }
 
 static int mdio_bus_phy_suspend(struct device *dev)
