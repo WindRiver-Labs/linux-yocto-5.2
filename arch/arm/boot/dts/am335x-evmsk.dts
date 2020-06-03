@@ -493,6 +493,10 @@
 	pinctrl-0 = <&uart1_pins_default>;
 	pinctrl-1 = <&uart1_pins_sleep>;
 	status = "okay";
+	bluetooth {
+		compatible = "ti,wl1271-st";
+		enable-gpios = <&gpio3 21 GPIO_ACTIVE_HIGH>;
+	};
 };
 
 &gpmc {

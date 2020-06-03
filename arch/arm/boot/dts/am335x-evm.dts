@@ -419,6 +419,10 @@
 	pinctrl-0 = <&uart1_pins>;
 
 	status = "okay";
+	bluetooth {
+		compatible = "ti,wl1835-st";
+		enable-gpios = <&gpio3 21 GPIO_ACTIVE_HIGH>;
+	};
 };
 
 &i2c0 {
