@@ -101,7 +101,7 @@ void __init setup_bootmem(void)
 		phys_addr_t vmlinux_end = __pa(_end);
 		phys_addr_t end = reg->base + reg->size;
 
-		if (reg->base <= vmlinux_start && vmlinux_end <= end) {
+		if (reg->base <= vmlinux_end && vmlinux_end <= end) {
 			/*
 			 * Reserve from the start of the region to the end of
 			 * the kernel

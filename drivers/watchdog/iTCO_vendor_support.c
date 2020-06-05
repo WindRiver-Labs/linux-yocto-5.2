@@ -43,8 +43,10 @@
 /* Broken BIOS */
 #define BROKEN_BIOS		911
 
-static int vendorsupport;
-module_param(vendorsupport, int, 0);
+int iTCO_vendorsupport;
+EXPORT_SYMBOL(iTCO_vendorsupport);
+
+module_param_named(vendorsupport, iTCO_vendorsupport, int, 0);
 MODULE_PARM_DESC(vendorsupport, "iTCO vendor specific support mode, default="
 			"0 (none), 1=SuperMicro Pent3, 911=Broken SMI BIOS");
 
@@ -156,7 +158,7 @@ static void broken_bios_stop(struct resource *smires)
 void iTCO_vendor_pre_start(struct resource *smires,
 			   unsigned int heartbeat)
 {
-	switch (vendorsupport) {
+	switch (iTCO_vendorsupport) {
 	case SUPERMICRO_OLD_BOARD:
 		supermicro_old_pre_start(smires);
 		break;
@@ -169,7 +171,7 @@ EXPORT_SYMBOL(iTCO_vendor_pre_start);
 
 void iTCO_vendor_pre_stop(struct resource *smires)
 {
-	switch (vendorsupport) {
+	switch (iTCO_vendorsupport) {
 	case SUPERMICRO_OLD_BOARD:
 		supermicro_old_pre_stop(smires);
 		break;
@@ -182,7 +184,7 @@ EXPORT_SYMBOL(iTCO_vendor_pre_stop);
 
 int iTCO_vendor_check_noreboot_on(void)
 {
-	switch (vendorsupport) {
+	switch (iTCO_vendorsupport) {
 	case SUPERMICRO_OLD_BOARD:
 		return 0;
 	default:
@@ -193,13 +195,13 @@ EXPORT_SYMBOL(iTCO_vendor_check_noreboot_on);
 
 static int __init iTCO_vendor_init_module(void)
 {
-	if (vendorsupport == SUPERMICRO_NEW_BOARD) {
+	if (iTCO_vendorsupport == SUPERMICRO_NEW_BOARD) {
 		pr_warn("Option vendorsupport=%d is no longer supported, "
 			"please use the w83627hf_wdt driver instead\n",
 			SUPERMICRO_NEW_BOARD);
 		return -EINVAL;
 	}
-	pr_info("vendor-support=%d\n", vendorsupport);
+	pr_info("vendor-support=%d\n", iTCO_vendorsupport);
 	return 0;
 }
 
