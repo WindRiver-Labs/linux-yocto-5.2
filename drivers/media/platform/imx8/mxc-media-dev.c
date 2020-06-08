@@ -336,10 +336,10 @@ static int subdev_notifier_bound(struct v4l2_async_notifier *notifier,
 
 	sensor->sd = sd;
 
-	mxc_md->num_sensors++;
+	mxc_md->valid_num_sensors++;
 
 	v4l2_info(&mxc_md->v4l2_dev, "Registered sensor subdevice: %s (%d)\n",
-		  sd->name, mxc_md->num_sensors);
+		  sd->name, mxc_md->valid_num_sensors);
 
 	return 0;
 }
@@ -873,7 +873,7 @@ static int mxc_md_probe(struct platform_device *pdev)
 		}
 
 		mxc_md->subdev_notifier.ops = &subdev_notifer_ops;
-		mxc_md->num_sensors = 0;
+		mxc_md->valid_num_sensors = 0;
 		mxc_md->link_status = 0;
 
 		ret = v4l2_async_notifier_register(&mxc_md->v4l2_dev,
@@ -884,7 +884,7 @@ static int mxc_md_probe(struct platform_device *pdev)
 		}
 
 		if (!mxc_md->link_status) {
-			if (mxc_md->num_sensors > 0) {
+			if (mxc_md->valid_num_sensors > 0) {
 				ret = subdev_notifier_complete(&mxc_md->subdev_notifier);
 				if (ret < 0)
 					goto err_m_ent;

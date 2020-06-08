@@ -109,6 +109,7 @@ struct mxc_md {
 
 	int  link_status;
 	int  num_sensors;
+	int  valid_num_sensors;
 	u32  nr_isi;
 	bool parallel_csi;
 
