@@ -424,6 +424,7 @@ static int register_sensor_entities(struct mxc_md *mxc_md)
 		if (!ep)
 			return -EINVAL;
 
+		memset(&endpoint, 0, sizeof(endpoint));
 		v4l2_fwnode_endpoint_parse(of_fwnode_handle(ep), &endpoint);
 		if (WARN_ON(endpoint.base.port >= MXC_MAX_SENSORS)) {
 			v4l2_err(&mxc_md->v4l2_dev, "Failed to get sensor endpoint\n");

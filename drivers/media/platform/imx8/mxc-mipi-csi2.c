@@ -675,6 +675,7 @@ static int mipi_csi2_parse_dt(struct mxc_mipi_csi2_dev *csi2dev)
 	}
 
 	/* Get port node */
+	memset(&endpoint, 0x0, sizeof(endpoint));
 	v4l2_fwnode_endpoint_parse(of_fwnode_handle(ep), &endpoint);
 
 	csi2dev->num_lanes = endpoint.bus.mipi_csi2.num_data_lanes;
