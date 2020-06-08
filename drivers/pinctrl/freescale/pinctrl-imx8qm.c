@@ -25,6 +25,8 @@
 
 #include "pinctrl-imx.h"
 
+extern sc_ipc_t pinctrl_ipcHandle;
+
 static const struct pinctrl_pin_desc imx8qm_pinctrl_pads[] = {
 	IMX_PINCTRL_PIN(SC_P_SIM0_CLK),
 	IMX_PINCTRL_PIN(SC_P_SIM0_RST),
@@ -311,12 +313,21 @@ static struct of_device_id imx8qm_pinctrl_of_match[] = {
 
 static int imx8qm_pinctrl_probe(struct platform_device *pdev)
 {
-	int ret;
+	uint32_t mu_id;
+	sc_err_t sciErr = SC_ERR_NONE;
 
-	ret = imx_pinctrl_sc_ipc_init(pdev);
-	if (ret)
-			return ret;
+	sciErr = sc_ipc_getMuID(&mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		pr_info("pinctrl: Cannot obtain MU ID\n");
+		return sciErr;
+	}
 
+	sciErr = sc_ipc_open(&pinctrl_ipcHandle, mu_id);
+
+	if (sciErr != SC_ERR_NONE) {
+		pr_info("pinctrl: Cannot open MU channel to SCU\n");
+		return sciErr;
+	};
 
 	return imx_pinctrl_probe(pdev, &imx8qm_pinctrl_info);
 }

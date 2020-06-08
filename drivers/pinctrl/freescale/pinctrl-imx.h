@@ -129,6 +129,9 @@ struct imx_pinctrl {
 #define IMX8_ENABLE_MUX_CONFIG	(1 << 29)
 #define IMX8_ENABLE_PAD_CONFIG	(1 << 30)
 
+#define BM_IMX8_GP_ENABLE	(1 << 30)
+#define BM_IMX8_IFMUX_ENABLE	(1 << 31)
+
 #define NO_MUX		0x0
 #define NO_PAD		0x0
 
@@ -142,29 +145,28 @@ int imx_pinctrl_probe(struct platform_device *pdev,
 			const struct imx_pinctrl_soc_info *info);
 
 #ifdef CONFIG_PINCTRL_IMX_SCU
-#define BM_PAD_CTL_GP_ENABLE		BIT(30)
-#define BM_PAD_CTL_IFMUX_ENABLE		BIT(31)
-#define BP_PAD_CTL_IFMUX		27
-
-int imx_pinctrl_sc_ipc_init(struct platform_device *pdev);
-int imx_pinconf_get_scu(struct pinctrl_dev *pctldev, unsigned pin_id,
-			unsigned long *config);
-int imx_pinconf_set_scu(struct pinctrl_dev *pctldev, unsigned pin_id,
-			unsigned long *configs, unsigned num_configs);
+int imx_pmx_set_one_pin_scu(struct imx_pinctrl *ipctl, struct imx_pin *pin);
+int imx_pinconf_backend_get_scu(struct pinctrl_dev *pctldev, unsigned pin_id,
+		unsigned long *config);
+int imx_pinconf_backend_set_scu(struct pinctrl_dev *pctldev, unsigned pin_id,
+		unsigned long *configs, unsigned num_configs);
 void imx_pinctrl_parse_pin_scu(struct imx_pinctrl *ipctl,
 			       unsigned int *pin_id, struct imx_pin *pin,
 			       const __be32 **list_p);
 #else
-static inline int imx_pinconf_get_scu(struct pinctrl_dev *pctldev,
-				      unsigned pin_id, unsigned long *config)
+static inline int imx_pmx_set_one_pin_scu(struct imx_pinctrl *ipctl, struct imx_pin *pin)
 {
-	return -EINVAL;
+	return 0;
 }
-static inline int imx_pinconf_set_scu(struct pinctrl_dev *pctldev,
-				      unsigned pin_id, unsigned long *configs,
-				      unsigned num_configs)
+static inline int imx_pinconf_backend_get_scu(struct pinctrl_dev *pctldev, unsigned pin_id,
+		unsigned long *config)
 {
-	return -EINVAL;
+	return 0;
+}
+static inline int imx_pinconf_backend_set_scu(struct pinctrl_dev *pctldev, unsigned pin_id,
+		unsigned long *configs, unsigned num_configs)
+{
+	return 0;
 }
 static inline void imx_pinctrl_parse_pin_scu(struct imx_pinctrl *ipctl,
 					    unsigned int *pin_id,

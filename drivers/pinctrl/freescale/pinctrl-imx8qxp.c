@@ -218,11 +218,21 @@ static struct of_device_id imx8qxp_pinctrl_of_match[] = {
 
 static int imx8qxp_pinctrl_probe(struct platform_device *pdev)
 {
-	int ret;
+	uint32_t mu_id;
+	sc_err_t sciErr = SC_ERR_NONE;
 
-	ret = imx_pinctrl_sc_ipc_init(pdev);
-	if (ret)
-		return ret;
+	sciErr = sc_ipc_getMuID(&mu_id);
+	if (sciErr != SC_ERR_NONE) {
+		pr_info("pinctrl: Cannot obtain MU ID\n");
+		return sciErr;
+	}
+
+	sciErr = sc_ipc_open(&pinctrl_ipcHandle, mu_id);
+
+	if (sciErr != SC_ERR_NONE) {
+		pr_info("pinctrl: Cannot open MU channel to SCU\n");
+		return sciErr;
+	};
 
 	return imx_pinctrl_probe(pdev, &imx8qxp_pinctrl_info);
 }
