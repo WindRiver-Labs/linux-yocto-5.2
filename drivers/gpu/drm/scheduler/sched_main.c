@@ -618,7 +618,9 @@ static void drm_sched_process_job(struct dma_fence *f, struct dma_fence_cb *cb)
 	list_del_init(&s_job->node);
 	spin_unlock_irqrestore(&sched->job_list_lock, flags);
 
+	dma_fence_get(&s_fence->finished);
 	drm_sched_fence_finished(s_fence);
+	dma_fence_put(&s_fence->finished);
 
 	trace_drm_sched_process_job(s_fence);
 	wake_up_interruptible(&sched->wake_up_worker);
