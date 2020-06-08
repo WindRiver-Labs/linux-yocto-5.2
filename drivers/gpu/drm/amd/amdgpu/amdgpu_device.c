@@ -2849,8 +2849,6 @@ int amdgpu_device_suspend(struct drm_device *dev, bool suspend, bool fbcon)
 		}
 	}
 
-	amdgpu_amdkfd_suspend(adev);
-
 	r = amdgpu_device_ip_suspend_phase1(adev);
 
 	/* evict vram memory */
@@ -2859,6 +2857,8 @@ int amdgpu_device_suspend(struct drm_device *dev, bool suspend, bool fbcon)
 	amdgpu_fence_driver_suspend(adev);
 
 	r = amdgpu_device_ip_suspend_phase2(adev);
+
+	amdgpu_amdkfd_suspend(adev);
 
 	/* evict remaining vram memory
 	 * This second call to evict vram is to evict the gart page table
