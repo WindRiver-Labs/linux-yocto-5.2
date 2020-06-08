@@ -131,6 +131,7 @@
 		mipi_csi0_ep: endpoint {
 			remote-endpoint = <&ov5640_mipi_ep>;
 			data-lanes = <1 2>;
+			bus-type = <4>;
 		};
 	};
 };
@@ -144,6 +145,7 @@
 		mipi_csi1_ep: endpoint {
 			remote-endpoint = <&ov5640_mipi_ep_1>;
 			data-lanes = <1 2>;
+			bus-type = <4>;
 		};
 	};
 };
