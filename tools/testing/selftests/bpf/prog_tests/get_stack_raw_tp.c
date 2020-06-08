@@ -77,11 +77,16 @@ static int get_stack_print_output(void *data, int size)
 void test_get_stack_raw_tp(void)
 {
 	const char *file = "./test_get_stack_rawtp.o";
+	const char *file_err = "./test_get_stack_rawtp_err.o";
 	int i, efd, err, prog_fd, pmu_fd, perfmap_fd;
 	struct perf_event_attr attr = {};
 	struct timespec tv = {0, 10};
 	__u32 key = 0, duration = 0;
 	struct bpf_object *obj;
+
+	err = bpf_prog_load(file_err, BPF_PROG_TYPE_RAW_TRACEPOINT, &obj, &prog_fd);
+	if (CHECK(err >= 0, "prog_load raw tp", "err %d errno %d\n", err, errno))
+		return;
 
 	err = bpf_prog_load(file, BPF_PROG_TYPE_RAW_TRACEPOINT, &obj, &prog_fd);
 	if (CHECK(err, "prog_load raw tp", "err %d errno %d\n", err, errno))
