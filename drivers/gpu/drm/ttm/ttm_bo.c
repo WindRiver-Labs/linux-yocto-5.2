@@ -508,8 +508,10 @@ static void ttm_bo_cleanup_refs_or_queue(struct ttm_buffer_object *bo)
 
 		reservation_object_unlock(bo->resv);
 	}
-	if (bo->resv != &bo->ttm_resv)
+	if (bo->resv != &bo->ttm_resv) {
+		ttm_bo_flush_all_fences(bo);
 		reservation_object_unlock(&bo->ttm_resv);
+	}
 
 error:
 	kref_get(&bo->list_kref);
