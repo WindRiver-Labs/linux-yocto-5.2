@@ -2158,10 +2158,11 @@ static void cdns3_gadget_disable(struct cdns3 *cdns)
 
 	priv_dev = cdns->gadget_dev;
 
-	if (priv_dev->gadget_driver)
+	if (priv_dev->gadget_driver) {
 		priv_dev->gadget_driver->disconnect(&priv_dev->gadget);
+		usb_gadget_disconnect(&priv_dev->gadget);
+	}
 
-	usb_gadget_disconnect(&priv_dev->gadget);
 	priv_dev->gadget.speed = USB_SPEED_UNKNOWN;
 }
 
