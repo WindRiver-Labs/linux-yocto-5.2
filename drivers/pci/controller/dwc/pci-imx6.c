@@ -2825,6 +2825,10 @@ static int imx_pcie_probe(struct platform_device *pdev)
 			} else {
 				dev_err(dev, "unable to add pcie port.\n");
 			}
+
+			if (imx_pcie->epdev_on && regulator_is_enabled(imx_pcie->epdev_on) > 0)
+				ret = regulator_disable(imx_pcie->epdev_on);
+
 			return ret;
 		}
 		/*
