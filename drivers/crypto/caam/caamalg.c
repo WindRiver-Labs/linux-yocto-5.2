@@ -3602,8 +3602,13 @@ static int __init caam_algapi_init(void)
 		ccha_inst = 0;
 		ptha_inst = 0;
 
-		aes_rn = rd_reg32(&priv->ctrl->perfmon.cha_rev_ls) &
-			 CHA_ID_LS_AES_MASK;
+		if (priv->has_seco) {
+			aes_rn = rd_reg32(&priv->jr[0]->perfmon.cha_rev_ls) &
+				 CHA_ID_LS_AES_MASK;
+		} else {
+			aes_rn = rd_reg32(&priv->ctrl->perfmon.cha_rev_ls) &
+				 CHA_ID_LS_AES_MASK;
+		}
 		gcm_support = !(aes_vid == CHA_VER_VID_AES_LP && aes_rn < 8);
 	} else {
 		u32 aesa, mdha;
