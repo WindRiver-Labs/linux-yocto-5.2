@@ -2666,6 +2666,7 @@ static int bc_send_request(struct rpc_rqst *req)
 
 static void bc_close(struct rpc_xprt *xprt)
 {
+	xprt_disconnect_done(xprt);
 }
 
 /*

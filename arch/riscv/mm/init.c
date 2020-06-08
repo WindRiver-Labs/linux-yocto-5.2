@@ -101,7 +101,7 @@ void __init setup_bootmem(void)
 		phys_addr_t vmlinux_end = __pa(_end);
 		phys_addr_t end = reg->base + reg->size;
 
-		if (reg->base <= vmlinux_start && vmlinux_end <= end) {
+		if (reg->base <= vmlinux_end && vmlinux_end <= end) {
 			/*
 			 * Reserve from the start of the region to the end of
 			 * the kernel
@@ -121,7 +121,8 @@ void __init setup_bootmem(void)
 	BUG_ON(mem_size == 0);
 
 	set_max_mapnr(PFN_DOWN(mem_size));
-	max_low_pfn = PFN_DOWN(memblock_end_of_DRAM());
+	max_pfn = PFN_DOWN(memblock_end_of_DRAM());
+	max_low_pfn = max_pfn;
 
 #ifdef CONFIG_BLK_DEV_INITRD
 	setup_initrd();
