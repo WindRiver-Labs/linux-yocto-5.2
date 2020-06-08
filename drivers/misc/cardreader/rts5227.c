@@ -395,6 +395,7 @@ void rts522a_init_params(struct rtsx_pcr *pcr)
 {
 	rts5227_init_params(pcr);
 
+	pcr->ops = &rts522a_pcr_ops;
 	pcr->reg_pm_ctrl3 = RTS522A_PM_CTRL3;
 
 	pcr->option.ocp_en = 1;
