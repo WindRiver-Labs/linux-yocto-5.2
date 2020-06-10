@@ -1133,6 +1133,9 @@ static struct platform_driver dpa_driver = {
 		.pm		= DPAA_PM_OPS,
 	},
 	.probe		= dpaa_eth_priv_probe,
+#if defined(CONFIG_KEXEC)
+	.shutdown       = dpa_shutdown,
+#endif
 	.remove		= dpa_remove
 };
 

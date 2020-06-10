@@ -32,6 +32,9 @@
 #include <asm/cacheflush.h>
 #include "bman_private.h"
 #include <linux/of_reserved_mem.h>
+#ifdef CONFIG_KEXEC
+#include <linux/kexec.h>
+#endif
 
 /* Last updated for v00.79 of the BG */
 
@@ -236,6 +239,46 @@ static void bm_set_pool(struct bman *bm, u8 pool, u32 swdet, u32 swdxt,
 	bm_out(POOL_HWDXT(pool), __generate_thresh(hwdxt, 1));
 }
 
+#if defined(CONFIG_KEXEC) || defined(CONFIG_CRASH_DUMP)
+static int bm_is_initalized(struct bman *bm)
+{
+	return bm_in(FBPR_BAR);
+}
+static void bm_reserve_memory(struct bman *bm)
+{
+	u64 upper_ba = 0;
+	u32 lower_ba = 0;
+	u64 addr = 0;
+	u64 end = 0;
+	u32 exp = 0;
+	u32 size = 0;
+	int ret;
+
+	upper_ba = bm_in(FBPR_BARE);
+	lower_ba = bm_in(FBPR_BAR);
+	exp = (bm_in(FBPR_AR) & 0x3f);
+	size = 2 << exp;
+	addr = (u64)((upper_ba << 32) | lower_ba);
+
+	if ((addr > memblock_end_of_DRAM()) ||
+	     ((addr + size) < memblock_start_of_DRAM()))
+		return;
+
+	addr = max(addr, memblock_start_of_DRAM());
+	end = min(addr + size, memblock_end_of_DRAM());
+	ret = memblock_reserve(addr, end - addr);
+	WARN_ON(ret);
+}
+#else
+static int bm_is_initalized(struct bman *bm)
+{
+	return 0;
+}
+static void bm_reserve_memory(struct bman *bm)
+{
+}
+#endif
+
 static void bm_set_memory(struct bman *bm, u64 ba, int prio, u32 size)
 {
 	u32 exp = ilog2(size);
@@ -244,9 +287,11 @@ static void bm_set_memory(struct bman *bm, u64 ba, int prio, u32 size)
 			is_power_of_2(size));
 	/* choke if '[e]ba' has lower-alignment than 'size' */
 	DPA_ASSERT(!(ba & (size - 1)));
-	bm_out(FBPR_BARE, upper_32_bits(ba));
-	bm_out(FBPR_BAR, lower_32_bits(ba));
-	bm_out(FBPR_AR, (prio ? 0x40000000 : 0) | (exp - 1));
+	if (!bm_is_initalized(bm)) {
+		bm_out(FBPR_BARE, upper_32_bits(ba));
+		bm_out(FBPR_BAR, lower_32_bits(ba));
+		bm_out(FBPR_AR, (prio ? 0x40000000 : 0) | (exp - 1));
+	}
 }
 
 /*****************/
@@ -298,6 +343,10 @@ static int __init fsl_bman_init(struct device_node *node)
 	regs = ioremap(res.start, res.end - res.start + 1);
 	bm = bm_create(regs);
 	BUG_ON(!bm);
+	if (bm_is_initalized(bm))
+		standby = 1;
+	bm_reserve_memory(bm);
+	/* Global configuration */
 	bm_node = node;
 	bm_get_version(bm, &id, &major, &minor);
 	pr_info("Bman ver:%04x,%02x,%02x\n", id, major, minor);
@@ -337,6 +386,72 @@ int bm_pool_set(u32 bpid, const u32 *thresholds)
 }
 EXPORT_SYMBOL(bm_pool_set);
 
+#ifdef CONFIG_KEXEC
+static void bman_drain_one_pool(u32 bpid)
+{
+	struct bman_pool_params params;
+	struct bman_pool *pool;
+	struct bm_buffer bufs[8];
+	struct bm_pool_state state;
+	int ret;
+
+	ret = bman_query_pools(&state);
+	if (ret) {
+		pr_err("Query pool state failed\n");
+		return;
+	}
+
+	/* Check if there are free buffers in this pool */
+	if (bman_depletion_get(&state.as.state, bpid))
+		return;
+
+	memset(&params, 0, sizeof(params));
+	params.bpid = bpid;
+	pool = bman_new_pool(&params);
+	if (!pool) {
+		pr_err("Create bman pool for %d failed\n", bpid);
+		return;
+	}
+
+	ret = 0;
+	do {
+		/* Acquire is all-or-nothing, so we drain in 8s, then in
+		 * 1s for the remainder. */
+		if (ret != 1)
+			ret = bman_acquire(pool, bufs, 8, 0);
+		if (ret < 8)
+			ret = bman_acquire(pool, bufs, 1, 0);
+	} while (ret > 0);
+	return;
+}
+
+void bman_crash_shutdown(void)
+{
+	struct device_node *dn;
+	int ret;
+	u32 *range, base, count, i;
+
+	for_each_compatible_node(dn, NULL, "fsl,bpid-range") {
+		range = (u32 *)of_get_property(dn, "fsl,bpid-range", &ret);
+		if (!range) {
+			pr_err("No 'fsl,bpid-range' property in node %s\n",
+				dn->full_name);
+			continue;
+		}
+		if (ret != 8) {
+			pr_err("'fsl,bpid-range' is not a 2-cell range in node %s\n",
+				dn->full_name);
+			continue;
+		}
+		base = be32_to_cpu(range[0]);
+		count = be32_to_cpu(range[1]);
+
+		for (i = 0; i < count; i++)
+			bman_drain_one_pool(base + i);
+	}
+}
+#endif
+
 __init int bman_init_early(void)
 {
 	struct device_node *dn;
@@ -354,6 +469,9 @@ __init int bman_init_early(void)
 			BUG_ON(ret);
 		}
 	}
+#if defined CONFIG_KEXEC && defined CONFIG_PPC
+	crash_shutdown_register(&bman_crash_shutdown);
+#endif
 	return 0;
 }
 postcore_initcall_sync(bman_init_early);

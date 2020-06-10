@@ -165,6 +165,12 @@ static cpumask_t affine_mask;
 static DEFINE_SPINLOCK(affine_mask_lock);
 static u16 affine_channels[NR_CPUS];
 static DEFINE_PER_CPU(struct qman_portal, qman_affine_portal);
+
+struct qman_portal *per_cpu_affine_portal(int cpu)
+{
+	return &per_cpu(qman_affine_portal, cpu);
+}
+EXPORT_SYMBOL(per_cpu_affine_portal);
 void *affine_portals[NR_CPUS];
 
 /* "raw" gets the cpu-local struct whether it's a redirect or not. */
@@ -1573,6 +1579,19 @@ u32 qman_p_static_dequeue_get(struct qman_portal *p)
 	return p->sdqcr;
 }
 EXPORT_SYMBOL(qman_p_static_dequeue_get);
+
+void qman_static_dequeue_del_ex(struct qman_portal *p, u32 pools)
+{
+	__maybe_unused unsigned long irqflags;
+	if (p->config != NULL) {
+		PORTAL_IRQ_LOCK(p, irqflags);
+		pools &= p->config->public_cfg.pools;
+		p->sdqcr &= ~pools;
+		qm_dqrr_sdqcr_set(&p->p, p->sdqcr);
+		PORTAL_IRQ_UNLOCK(p, irqflags);
+	}
+}
+EXPORT_SYMBOL(qman_static_dequeue_del_ex);
 
 u32 qman_static_dequeue_get(void)
 {

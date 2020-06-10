@@ -116,21 +116,18 @@
 			compatible = "shared-dma-pool";
 			size = <0 0x1000000>;
 			alignment = <0 0x1000000>;
-			no-map;
 		};
 
 		qman_fqd: qman-fqd {
 			compatible = "shared-dma-pool";
 			size = <0 0x400000>;
 			alignment = <0 0x400000>;
-			no-map;
 		};
 
 		qman_pfdr: qman-pfdr {
 			compatible = "shared-dma-pool";
 			size = <0 0x2000000>;
 			alignment = <0 0x2000000>;
-			no-map;
 		};
 	};
 
