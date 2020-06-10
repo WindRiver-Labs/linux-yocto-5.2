@@ -380,6 +380,58 @@ static void qm_get_version(struct qman *qm, u16 *id, u8 *major, u8 *minor,
 	*cfg = v2 & 0xff;
 }
 
+#if defined(CONFIG_KEXEC) || defined(CONFIG_CRASH_DUMP)
+static int qm_is_initalized(struct qman *qm, enum qm_memory memory)
+{
+	u32 offset = (memory == qm_memory_fqd) ? REG_FQD_BARE : REG_PFDR_BARE;
+#ifndef CONFIG_FMAN_ARM
+	u32 svr = mfspr(SPRN_SVR);
+	if (SVR_SOC_VER(svr) == SVR_T4240)
+		return 0;
+#endif
+	return __qm_in(qm, offset + REG_offset_BAR);
+}
+static void qm_reserve_memory(struct qman *qm, enum qm_memory memory, int zero)
+{
+	u64 upper_ba = 0;
+	u32 lower_ba = 0;
+	u64 addr = 0;
+	u64 end = 0;
+	u32 exp = 0;
+	u32 size = 0;
+	u32 offset = (memory == qm_memory_fqd) ? REG_FQD_BARE : REG_PFDR_BARE;
+	int ret;
+	unsigned long vaddr;
+
+	upper_ba = __qm_in(qm, offset);
+	lower_ba = __qm_in(qm, offset + REG_offset_BAR);
+	exp = (__qm_in(qm, offset + REG_offset_AR) & 0x3f);
+	size = 2 << exp;
+	addr = (u64)((upper_ba << 32) | lower_ba);
+
+	if ((addr > memblock_end_of_DRAM()) ||
+	     ((addr + size) < memblock_start_of_DRAM()))
+		return;
+
+	addr = max(addr, memblock_start_of_DRAM());
+	end = min(addr + size, memblock_end_of_DRAM());
+	ret = memblock_reserve(addr, end - addr);
+	vaddr = (unsigned long)phys_to_virt(addr);
+	if (zero)
+		memset((void *)vaddr, 0, end - addr);
+	flush_dcache_range(vaddr, vaddr + (end - addr));
+	WARN_ON(ret);
+}
+#else
+static int qm_is_initalized(struct qman *qm, enum qm_memory memory)
+{
+	return 0;
+}
+static void qm_reserve_memory(struct qman *qm, enum qm_memory memory, int zero)
+{
+}
+#endif
+
 static void qm_set_memory(struct qman *qm, enum qm_memory memory, u64 ba,
 			int enable, int prio, int stash, u32 size)
 {
@@ -390,13 +442,15 @@ static void qm_set_memory(struct qman *qm, enum qm_memory memory, u64 ba,
 			is_power_of_2(size));
 	/* choke if 'ba' has lower-alignment than 'size' */
 	DPA_ASSERT(!(ba & (size - 1)));
-	__qm_out(qm, offset, upper_32_bits(ba));
-	__qm_out(qm, offset + REG_offset_BAR, lower_32_bits(ba));
-	__qm_out(qm, offset + REG_offset_AR,
-		(enable ? 0x80000000 : 0) |
-		(prio ? 0x40000000 : 0) |
-		(stash ? 0x20000000 : 0) |
-		(exp - 1));
+	if (!qm_is_initalized(qm, memory)) {
+		__qm_out(qm, offset, upper_32_bits(ba));
+		__qm_out(qm, offset + REG_offset_BAR, lower_32_bits(ba));
+		__qm_out(qm, offset + REG_offset_AR,
+			(enable ? 0x80000000 : 0) |
+			(prio ? 0x40000000 : 0) |
+			(stash ? 0x20000000 : 0) |
+			(exp - 1));
+	}
 }
 
 static void qm_set_pfdr_threshold(struct qman *qm, u32 th, u8 k)
@@ -524,7 +578,7 @@ static __init int parse_mem_property(struct device_node *node, const char *name,
  * - the calls to qm_set_memory() hard-code the priority and CPC-stashing for
  *   both memory resources to zero.
  */
-static int __init fsl_qman_init(struct device_node *node)
+int __init fsl_qman_init(struct device_node *node)
 {
 	struct resource res;
 	resource_size_t len;
@@ -541,22 +595,35 @@ static int __init fsl_qman_init(struct device_node *node)
 	s = of_get_property(node, "fsl,hv-claimable", &ret);
 	if (s && !strcmp(s, "standby"))
 		standby = 1;
-	if (!standby) {
-		ret = parse_mem_property(node, "fsl,qman-fqd",
-					&fqd_a, &fqd_sz, 1);
-		pr_info("qman-fqd addr %pad size 0x%zx\n", &fqd_a, fqd_sz);
-		BUG_ON(ret);
-		ret = parse_mem_property(node, "fsl,qman-pfdr",
-					&pfdr_a, &pfdr_sz, 0);
-		pr_info("qman-pfdr addr %pad size 0x%zx\n", &pfdr_a, pfdr_sz);
-		BUG_ON(ret);
-	}
 	/* Global configuration */
 	len = resource_size(&res);
 	if (len != (unsigned long)len)
 		return -EINVAL;
 	regs = ioremap(res.start, (unsigned long)len);
 	qm = qm_create(regs);
+	if (!standby) {
+		if (!qm_is_initalized(qm, qm_memory_fqd)) {
+			ret = parse_mem_property(node, "fsl,qman-fqd",
+						&fqd_a, &fqd_sz, 1);
+			pr_info("qman-fqd addr %pad size 0x%zx\n", &fqd_a, fqd_sz);
+			BUG_ON(ret);
+		} else /* FQD memory */
+		/* Unfortunately we have to reserve those memory used for Qman
+		 * since currently we can't clean these usage from boot kernel.
+		 */
+			qm_reserve_memory(qm, qm_memory_fqd, 1);
+		if (!qm_is_initalized(qm, qm_memory_pfdr)) {
+			ret = parse_mem_property(node, "fsl,qman-pfdr",
+						&pfdr_a, &pfdr_sz, 0);
+			pr_info("qman-pfdr addr %pad size 0x%zx\n", &pfdr_a, pfdr_sz);
+			BUG_ON(ret);
+		} else /* PFDR memory */
+		/* Unfortunately we have to reserve those memory used for Qman
+		 * since currently we can't clean these usage from boot kernel.
+		 */
+			qm_reserve_memory(qm, qm_memory_pfdr, 0);
+	}
+	/* Global configuration */
 	qm_node = node;
 	qm_get_version(qm, &id, &major, &minor, &cfg);
 	pr_info("Qman ver:%04x,%02x,%02x,%02x\n", id, major, minor, cfg);
@@ -596,6 +663,17 @@ int qman_have_ccsr(void)
 	return qm ? 1 : 0;
 }
 
+#ifdef CONFIG_KEXEC
+#include <linux/kexec.h>
+
+void qman_release_fqid_all(void);
+
+void qman_crash_shutdown(void)
+{
+	qman_release_fqid_all();
+}
+#endif
+
 __init int qman_init_early(void)
 {
 	struct device_node *dn;
@@ -613,6 +691,10 @@ __init int qman_init_early(void)
 			BUG_ON(ret);
 		}
 	}
+
+#if defined CONFIG_KEXEC && defined CONFIG_PPC
+	crash_shutdown_register(&qman_crash_shutdown);
+#endif
 	return 0;
 }
 postcore_initcall_sync(qman_init_early);
@@ -1115,6 +1197,20 @@ static const struct attribute_group qman_dev_ecr_grp = {
 	.attrs = qman_dev_ecr_attributes
 };
 
+
+#if defined(CONFIG_KEXEC)
+void of_fsl_qman_shutdown(struct platform_device *ofdev)
+{
+	int cpu;
+	struct qman_portal *p;
+	for_each_online_cpu(cpu) {
+		p = per_cpu_affine_portal(cpu);
+		qman_static_dequeue_del_ex(p, ~0);
+	}
+	return;
+};
+#endif
+
 static int of_fsl_qman_remove(struct platform_device *ofdev)
 {
 	sysfs_remove_group(&ofdev->dev.kobj, &qman_dev_attr_grp);
@@ -1205,6 +1301,9 @@ static struct platform_driver of_fsl_qman_driver = {
 		.pm = &qman_pm_ops,
 	},
 	.probe = of_fsl_qman_probe,
+#if defined(CONFIG_KEXEC)
+	.shutdown = of_fsl_qman_shutdown,
+#endif
 	.remove      = of_fsl_qman_remove,
 };
 

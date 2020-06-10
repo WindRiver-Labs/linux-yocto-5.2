@@ -2153,6 +2153,23 @@ void qman_static_dequeue_add(u32 pools);
 void qman_static_dequeue_del(u32 pools);
 
 /**
+ * qman_static_dequeue_del_ex - Remove pool channels from specific portal SDQCR
+ * @p: qman_portal pointer that we will operate on
+ * @pools: bit-mask of pool channels, using QM_SDQCR_CHANNELS_POOL(n)
+ *
+ * Removes a set of pool channels from specific portal's static dequeue command
+ * register (SDQCR). The requested pools are limited to those the portal has
+ * dequeue access to.
+ */
+void qman_static_dequeue_del_ex(struct qman_portal *p, u32 pools);
+
+/**
+ * per_cpu_affine_portal - Get affine portal of specific cpu
+ * @cpu: the specific cpu from which we get affine portal
+ */
+struct qman_portal *per_cpu_affine_portal(int cpu);
+
+/**
  * qman_static_dequeue_get - return the portal's current SDQCR
  *
  * Returns the portal's current static dequeue command register (SDQCR). The

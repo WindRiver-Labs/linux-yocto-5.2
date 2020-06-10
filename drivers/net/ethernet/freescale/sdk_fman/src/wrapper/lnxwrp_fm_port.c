@@ -182,6 +182,7 @@ static struct qman_fq *FqAlloc(t_LnxWrpFmDev * p_LnxWrpFmDev,
 		initfq.fqd.dest.wq = wq;
 
 		_errno = qman_init_fq(fq, QMAN_INITFQ_FLAG_SCHED, &initfq);
+#ifndef CONFIG_CRASH_DUMP
 		if (unlikely(_errno < 0)) {
 			REPORT_ERROR(MAJOR, E_NO_MEMORY,
 				     ("FQ obj - qman_init_fq!!!"));
@@ -189,6 +190,7 @@ static struct qman_fq *FqAlloc(t_LnxWrpFmDev * p_LnxWrpFmDev,
 			XX_Free(p_FmtFq);
 			return NULL;
 		}
+#endif
 	}
 
 	DBG(TRACE,
