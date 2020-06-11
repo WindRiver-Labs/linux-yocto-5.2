@@ -2341,6 +2341,7 @@ static void update_domain(struct protection_domain *domain)
 	domain_flush_tlb_pde(domain);
 
 	domain->updated = false;
+	domain_flush_complete(domain);
 }
 
 static int dir2prot(enum dma_data_direction direction)
