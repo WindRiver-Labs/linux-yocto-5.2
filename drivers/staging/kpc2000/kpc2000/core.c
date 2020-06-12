@@ -203,7 +203,6 @@ int  kp2000_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     int err = 0;
     struct kp2000_device *pcard;
     static int card_count = 1;
-    int rv;
     unsigned long reg_bar_phys_addr;
     unsigned long reg_bar_phys_len;
     unsigned long dma_bar_phys_addr;
@@ -336,9 +335,9 @@ int  kp2000_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     if (err < 0)
         goto out8a;
     
-    rv = request_irq(pcard->pdev->irq, kp2000_irq_handler, IRQF_SHARED, pcard->name, pcard);
-    if (rv){
-        dev_err(&pcard->pdev->dev, "kp2000_pcie_probe: failed to request_irq: %d\n", rv);
+    err = request_irq(pcard->pdev->irq, kp2000_irq_handler, IRQF_SHARED, pcard->name, pcard);
+    if (err){
+        dev_err(&pcard->pdev->dev, "kp2000_pcie_probe: failed to request_irq: %d\n", err);
         goto out8b;
     }
     //}
