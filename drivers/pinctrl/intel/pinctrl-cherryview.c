@@ -1474,11 +1474,15 @@ static void chv_gpio_irq_handler(struct irq_desc *desc)
 	struct chv_pinctrl *pctrl = gpiochip_get_data(gc);
 	struct irq_chip *chip = irq_desc_get_chip(desc);
 	unsigned long pending;
+	unsigned long flags;
 	u32 intr_line;
 
 	chained_irq_enter(chip, desc);
 
+	raw_spin_lock_irqsave(&chv_lock, flags);
 	pending = readl(pctrl->regs + CHV_INTSTAT);
+	raw_spin_unlock_irqrestore(&chv_lock, flags);
+
 	for_each_set_bit(intr_line, &pending, pctrl->community->nirqs) {
 		unsigned irq, offset;
 
@@ -1663,7 +1667,6 @@ static int chv_pinctrl_probe(struct platform_device *pdev)
 {
 	struct chv_pinctrl *pctrl;
 	struct acpi_device *adev;
-	struct resource *res;
 	acpi_status status;
 	int ret, irq, i;
 
@@ -1693,8 +1696,7 @@ static int chv_pinctrl_probe(struct platform_device *pdev)
 		return -ENOMEM;
 #endif
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	pctrl->regs = devm_ioremap_resource(&pdev->dev, res);
+	pctrl->regs = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(pctrl->regs))
 		return PTR_ERR(pctrl->regs);
 
