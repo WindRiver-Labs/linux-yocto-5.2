@@ -426,7 +426,7 @@ static int dsa_tree_setup_switches(struct dsa_switch_tree *dst)
 
 			err = dsa_port_setup(dp);
 			if (err)
-				return err;
+				continue;
 		}
 	}
 
