@@ -242,6 +242,34 @@ static void aqr107_get_stats(struct phy_device *phydev,
 		data[i] = priv->sgmii_stats[i];
 	}
 }
+static int aquantia_write_reg(struct phy_device *phydev, int devad,
+			      u32 regnum, u16 val)
+{
+	u32 addr = MII_ADDR_C45 | (devad << 16) | (regnum & 0xffff);
+
+	return mdiobus_write(phydev->mdio.bus, phydev->mdio.addr, addr, val);
+}
+
+static int aquantia_read_reg(struct phy_device *phydev, int devad, u32 regnum)
+{
+	u32 addr = MII_ADDR_C45 | (devad << 16) | (regnum & 0xffff);
+
+	return mdiobus_read(phydev->mdio.bus, phydev->mdio.addr, addr);
+}
+static int aquantia_aneg(struct phy_device *phydev, bool control)
+{       
+	int reg = aquantia_read_reg(phydev, MDIO_MMD_AN, MDIO_CTRL1);
+ 
+        if (reg < 0)
+                return reg;
+ 
+        if (control)
+                reg |= MDIO_AN_CTRL1_ENABLE | MDIO_AN_CTRL1_RESTART;
+        else
+                reg &= ~(MDIO_AN_CTRL1_ENABLE | MDIO_AN_CTRL1_RESTART);
+ 
+        return aquantia_write_reg(phydev, MDIO_MMD_AN, MDIO_CTRL1, reg);
+}
 
 static int aqr_config_aneg(struct phy_device *phydev)
 {
@@ -249,8 +277,10 @@ static int aqr_config_aneg(struct phy_device *phydev)
 	u16 reg;
 	int ret;
 
-	if (phydev->autoneg == AUTONEG_DISABLE)
-		return genphy_c45_pma_setup_forced(phydev);
+	if (phydev->autoneg == AUTONEG_DISABLE) {
+		genphy_c45_pma_setup_forced(phydev);
+		return aquantia_aneg(phydev, false);
+	}
 
 	ret = genphy_c45_an_config_aneg(phydev);
 	if (ret < 0)
@@ -278,7 +308,9 @@ static int aqr_config_aneg(struct phy_device *phydev)
 	if (ret > 0)
 		changed = true;
 
-	return genphy_c45_check_and_restart_aneg(phydev, changed);
+	genphy_c45_check_and_restart_aneg(phydev, changed);
+
+	return aquantia_aneg(phydev, true);
 }
 
 static struct {
