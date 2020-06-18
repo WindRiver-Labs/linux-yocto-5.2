@@ -154,6 +154,16 @@
 #define AQUANTIA_VND1_GSYSCFG_5G		3
 #define AQUANTIA_VND1_GSYSCFG_10G		4
 
+#define MDIO_PMA_CTRL1_AQ_SPEED10	0
+#define MDIO_PMA_CTRL1_AQ_SPEED2500	0x2058
+#define MDIO_PMA_CTRL1_AQ_SPEED5000	0x205c
+#define MDIO_PMA_CTRL2_AQ_2500BT       0x30
+#define MDIO_PMA_CTRL2_AQ_5000BT       0x31
+#define MDIO_PMA_CTRL2_AQ_TYPE_MASK    0x3F
+
+#define MDIO_AN_VENDOR_PROV_CTRL       0xc400
+#define MDIO_AN_RECV_LP_STATUS         0xe820
+
 struct aqr107_hw_stat {
 	const char *name;
 	int reg;
@@ -200,6 +210,21 @@ static void aqr107_get_strings(struct phy_device *phydev, u8 *data)
 			ETH_GSTRING_LEN);
 }
 
+static int aquantia_write_reg(struct phy_device *phydev, int devad,
+			      u32 regnum, u16 val)
+{
+	u32 addr = MII_ADDR_C45 | (devad << 16) | (regnum & 0xffff);
+
+	return mdiobus_write(phydev->mdio.bus, phydev->mdio.addr, addr, val);
+}
+
+static int aquantia_read_reg(struct phy_device *phydev, int devad, u32 regnum)
+{
+	u32 addr = MII_ADDR_C45 | (devad << 16) | (regnum & 0xffff);
+
+	return mdiobus_read(phydev->mdio.bus, phydev->mdio.addr, addr);
+}
+
 static u64 aqr107_get_stat(struct phy_device *phydev, int index)
 {
 	const struct aqr107_hw_stat *stat = aqr107_hw_stats + index;
@@ -208,13 +233,13 @@ static u64 aqr107_get_stat(struct phy_device *phydev, int index)
 	u64 ret;
 	int val;
 
-	val = phy_read_mmd(phydev, stat->devad, stat->reg);
+	val = aquantia_read_reg(phydev, stat->devad, stat->reg);
 	if (val < 0)
 		return U64_MAX;
 
 	ret = val & GENMASK(len_l - 1, 0);
 	if (len_h) {
-		val = phy_read_mmd(phydev, stat->devad, stat->reg + 1);
+		val = aquantia_read_reg(phydev, stat->devad, stat->reg + 1);
 		if (val < 0)
 			return U64_MAX;
 
@@ -243,42 +268,191 @@ static void aqr107_get_stats(struct phy_device *phydev,
 	}
 }
 
+static int aquantia_pma_setup_forced(struct phy_device *phydev)
+{
+	int ctrl1, ctrl2, ret;
+
+	/* Half duplex is not supported */
+	if (phydev->duplex != DUPLEX_FULL)
+		return -EINVAL;
+
+	ctrl1 = aquantia_read_reg(phydev, MDIO_MMD_PMAPMD, MDIO_CTRL1);
+	if (ctrl1 < 0)
+		return ctrl1;
+
+	ctrl2 = aquantia_read_reg(phydev, MDIO_MMD_PMAPMD, MDIO_CTRL2);
+	if (ctrl2 < 0)
+		return ctrl2;
+
+	ctrl1 &= ~MDIO_CTRL1_SPEEDSEL;
+	ctrl2 &= ~(MDIO_PMA_CTRL2_AQ_TYPE_MASK);
+
+	switch (phydev->speed) {
+	case SPEED_10:
+		ctrl2 |= MDIO_PMA_CTRL2_10BT;
+		break;
+	case SPEED_100:
+		ctrl1 |= MDIO_PMA_CTRL1_SPEED100;
+		ctrl2 |= MDIO_PMA_CTRL2_100BTX;
+		break;
+	case SPEED_1000:
+		ctrl1 |= MDIO_PMA_CTRL1_SPEED1000;
+		/* Assume 1000base-T */
+		ctrl2 |= MDIO_PMA_CTRL2_1000BT;
+		break;
+	case SPEED_10000:
+		ctrl1 |= MDIO_CTRL1_SPEED10G;
+		/* Assume 10Gbase-T */
+		ctrl2 |= MDIO_PMA_CTRL2_10GBT;
+		break;
+	case SPEED_2500:
+		ctrl1 |= MDIO_PMA_CTRL1_AQ_SPEED2500;
+		ctrl2 |= MDIO_PMA_CTRL2_AQ_2500BT;
+		break;
+	case SPEED_5000:
+		ctrl1 |= MDIO_PMA_CTRL1_AQ_SPEED5000;
+		ctrl2 |= MDIO_PMA_CTRL2_AQ_5000BT;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	ret = aquantia_write_reg(phydev, MDIO_MMD_PMAPMD, MDIO_CTRL1, ctrl1);
+	if (ret < 0)
+		return ret;
+
+	return aquantia_write_reg(phydev, MDIO_MMD_PMAPMD, MDIO_CTRL2, ctrl2);
+}
+
+static int aquantia_read_lp_advert(struct phy_device *phydev)
+{
+	int adv, adv1;
+
+	/* Read standard link partner advertisement */
+	adv = aquantia_read_reg(phydev, MDIO_MMD_AN,
+				MDIO_STAT1);
+
+	if (adv & 0x1) {
+		linkmode_set_bit(ADVERTISED_Autoneg, phydev->lp_advertising);
+		linkmode_set_bit(ADVERTISED_100baseT_Full, phydev->lp_advertising);
+	}
+	else {
+
+		linkmode_clear_bit(ADVERTISED_Autoneg, phydev->lp_advertising);
+		linkmode_clear_bit(ADVERTISED_100baseT_Full, phydev->lp_advertising);
+	}
+
+	/* Read standard link partner advertisement */
+	adv = aquantia_read_reg(phydev, MDIO_MMD_AN,
+				MDIO_AN_10GBT_STAT);
+
+	/* Aquantia link partner advertisments */
+	adv1 = aquantia_read_reg(phydev, MDIO_MMD_AN,
+				 MDIO_AN_RECV_LP_STATUS);
+
+	if (adv & 0x800)
+		linkmode_mod_bit(ADVERTISED_10000baseT_Full, phydev->lp_advertising , ADVERTISED_10000baseT_Full);
+	else
+		linkmode_clear_bit(ADVERTISED_10000baseT_Full, phydev->lp_advertising);
+	if (adv1 & 0x8000)
+		linkmode_mod_bit(ADVERTISED_1000baseT_Full, phydev->lp_advertising, ADVERTISED_1000baseT_Full);
+	else
+		linkmode_clear_bit(ADVERTISED_1000baseT_Full, phydev->lp_advertising);
+	if (adv1 & 0x400)
+		linkmode_mod_bit(ADVERTISED_2500baseX_Full, phydev->lp_advertising, ADVERTISED_2500baseX_Full);
+	else
+		linkmode_clear_bit(ADVERTISED_2500baseX_Full, phydev->lp_advertising);
+
+	return 0;
+}
+
+static int aquantia_aneg(struct phy_device *phydev, bool control)
+{       
+	int reg = aquantia_read_reg(phydev, MDIO_MMD_AN, MDIO_CTRL1);
+ 
+        if (reg < 0)
+                return reg;
+ 
+        if (control)
+                reg |= MDIO_AN_CTRL1_ENABLE | MDIO_AN_CTRL1_RESTART;
+        else
+                reg &= ~(MDIO_AN_CTRL1_ENABLE | MDIO_AN_CTRL1_RESTART);
+ 
+        return aquantia_write_reg(phydev, MDIO_MMD_AN, MDIO_CTRL1, reg);
+}
+
+static int aquantia_config_advert(struct phy_device *phydev)
+{
+	int oldadv, adv, oldadv1, adv1;
+	int err, changed = 0;
+
+
+	/* Setup standard advertisement */
+	oldadv = aquantia_read_reg(phydev, MDIO_MMD_AN,
+				   MDIO_AN_10GBT_CTRL);
+	if (oldadv < 0)
+		return oldadv;
+
+	/* Aquantia vendor specific advertisments */
+	oldadv1 = aquantia_read_reg(phydev, MDIO_MMD_AN,
+				    MDIO_AN_VENDOR_PROV_CTRL);
+	if (oldadv1 < 0)
+		return oldadv1;
+
+	adv  = 0;
+	adv1 = 0;
+
+	/*100BaseT_full is supported by default*/
+
+	if (linkmode_test_bit(ETHTOOL_LINK_MODE_1000baseT_Full_BIT, phydev->advertising))
+		adv1 |= 0x8000;
+	if (linkmode_test_bit(ADVERTISED_10000baseT_Full, phydev->advertising))
+		adv |= 0x1000;
+	if (linkmode_test_bit(ADVERTISED_2500baseX_Full, phydev->advertising))
+		adv1 |= 0x400;
+
+	if (adv != oldadv) {
+		err = aquantia_write_reg(phydev, MDIO_MMD_AN,
+					 MDIO_AN_10GBT_CTRL, adv);
+		if (err < 0)
+			return err;
+		changed = 1;
+	}
+	if (adv1 != oldadv1) {
+		err = aquantia_write_reg(phydev, MDIO_MMD_AN,
+					 MDIO_AN_VENDOR_PROV_CTRL, adv1);
+		if (err < 0)
+			return err;
+		changed = 1;
+	}
+
+	return changed;
+}
+
 static int aqr_config_aneg(struct phy_device *phydev)
 {
-	bool changed = false;
-	u16 reg;
-	int ret;
+	int ret = 0;
 
-	if (phydev->autoneg == AUTONEG_DISABLE)
-		return genphy_c45_pma_setup_forced(phydev);
+	linkmode_copy(phydev->supported, phy_10gbit_features);
 
-	ret = genphy_c45_an_config_aneg(phydev);
-	if (ret < 0)
-		return ret;
+	linkmode_set_bit(SUPPORTED_1000baseT_Full, phydev->supported);
+	linkmode_set_bit(SUPPORTED_2500baseX_Full, phydev->supported);
+	linkmode_set_bit(SUPPORTED_100baseT_Full, phydev->supported);
+	linkmode_set_bit(SUPPORTED_Autoneg, phydev->supported);
+	linkmode_set_bit(SUPPORTED_TP, phydev->supported);
+	linkmode_set_bit(SUPPORTED_MII, phydev->supported);
+
+	if (phydev->autoneg == AUTONEG_DISABLE) {
+		aquantia_pma_setup_forced(phydev);
+		return aquantia_aneg(phydev, false);
+	}
+
+	ret = aquantia_config_advert(phydev);
 	if (ret > 0)
-		changed = true;
+		/* restart autoneg */
+		return aquantia_aneg(phydev, true);
 
-	/* Clause 45 has no standardized support for 1000BaseT, therefore
-	 * use vendor registers for this mode.
-	 */
-	reg = 0;
-	if (linkmode_test_bit(ETHTOOL_LINK_MODE_1000baseT_Full_BIT,
-			      phydev->advertising))
-		reg |= MDIO_AN_VEND_PROV_1000BASET_FULL;
-
-	if (linkmode_test_bit(ETHTOOL_LINK_MODE_1000baseT_Half_BIT,
-			      phydev->advertising))
-		reg |= MDIO_AN_VEND_PROV_1000BASET_HALF;
-
-	ret = phy_modify_mmd_changed(phydev, MDIO_MMD_AN, MDIO_AN_VEND_PROV,
-				     MDIO_AN_VEND_PROV_1000BASET_HALF |
-				     MDIO_AN_VEND_PROV_1000BASET_FULL, reg);
-	if (ret < 0)
-		return ret;
-	if (ret > 0)
-		changed = true;
-
-	return genphy_c45_check_and_restart_aneg(phydev, changed);
+	return ret;
 }
 
 static struct {
@@ -338,58 +512,134 @@ static int aqr_config_aneg_set_prot(struct phy_device *phydev)
 
 static int aqr_config_intr(struct phy_device *phydev)
 {
-	bool en = phydev->interrupts == PHY_INTERRUPT_ENABLED;
 	int err;
 
-	err = phy_write_mmd(phydev, MDIO_MMD_AN, MDIO_AN_TX_VEND_INT_MASK2,
-			    en ? MDIO_AN_TX_VEND_INT_MASK2_LINK : 0);
-	if (err < 0)
-		return err;
+	if (phydev->interrupts == PHY_INTERRUPT_ENABLED) {
+		err = aquantia_write_reg(phydev, MDIO_MMD_AN, 0xd401, 1);
+		if (err < 0)
+			return err;
 
-	err = phy_write_mmd(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_INT_STD_MASK,
-			    en ? VEND1_GLOBAL_INT_STD_MASK_ALL : 0);
-	if (err < 0)
-		return err;
+		err = aquantia_write_reg(phydev, MDIO_MMD_VEND1, 0xff00, 1);
+		if (err < 0)
+			return err;
 
-	return phy_write_mmd(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_INT_VEND_MASK,
-			     en ? VEND1_GLOBAL_INT_VEND_MASK_GLOBAL3 |
-			     VEND1_GLOBAL_INT_VEND_MASK_AN : 0);
+		err = aquantia_write_reg(phydev, MDIO_MMD_VEND1,
+					 0xff01, 0x1001);
+	} else {
+		err = aquantia_write_reg(phydev, MDIO_MMD_AN, 0xd401, 0);
+		if (err < 0)
+			return err;
+
+		err = aquantia_write_reg(phydev, MDIO_MMD_VEND1, 0xff00, 0);
+		if (err < 0)
+			return err;
+
+		err = aquantia_write_reg(phydev, MDIO_MMD_VEND1, 0xff01, 0);
+	}
+
+	return err;
 }
 
 static int aqr_ack_interrupt(struct phy_device *phydev)
 {
 	int reg;
 
-	reg = phy_read_mmd(phydev, MDIO_MMD_AN,
-			   MDIO_AN_TX_VEND_INT_STATUS2);
+	reg = aquantia_read_reg(phydev, MDIO_MMD_AN, 0xcc01);
 	return (reg < 0) ? reg : 0;
+}
+
+static int aquantia_read_advert(struct phy_device *phydev)
+{
+	int adv, adv1;
+
+	/* Setup standard advertisement */
+	adv = aquantia_read_reg(phydev, MDIO_MMD_AN,
+				MDIO_AN_10GBT_CTRL);
+
+	/* Aquantia vendor specific advertisments */
+	adv1 = aquantia_read_reg(phydev, MDIO_MMD_AN,
+				 MDIO_AN_VENDOR_PROV_CTRL);
+
+	/*100BaseT_full is supported by default*/
+	linkmode_mod_bit(ADVERTISED_100baseT_Full, phydev->advertising, 
+			ADVERTISED_100baseT_Full);
+
+	if (adv & 0x1000)
+	        linkmode_mod_bit(ADVERTISED_10000baseT_Full, phydev->advertising, 
+				ADVERTISED_10000baseT_Full);
+	else
+		linkmode_clear_bit(ADVERTISED_10000baseT_Full, phydev->advertising);
+	if (adv1 & 0x8000)
+		linkmode_mod_bit(ADVERTISED_1000baseT_Full, phydev->advertising,
+				ADVERTISED_1000baseT_Full);
+	else
+		linkmode_clear_bit(ADVERTISED_1000baseT_Full, phydev->advertising);
+	if (adv1 & 0x400)
+		linkmode_mod_bit(ADVERTISED_2500baseX_Full, phydev->advertising,
+				ADVERTISED_2500baseX_Full);
+	else
+		linkmode_clear_bit(ADVERTISED_2500baseX_Full, phydev->advertising);
+	return 0;
 }
 
 static int aqr_read_status(struct phy_device *phydev)
 {
-	int val;
+	int reg;
 
-	if (phydev->autoneg == AUTONEG_ENABLE) {
-		val = phy_read_mmd(phydev, MDIO_MMD_AN, MDIO_AN_RX_LP_STAT1);
-		if (val < 0)
-			return val;
+	/* Read the link status twice; the bit is latching low */
+	reg = aquantia_read_reg(phydev, MDIO_MMD_AN, MDIO_STAT1);
+	reg = aquantia_read_reg(phydev, MDIO_MMD_AN, MDIO_STAT1);
 
-		linkmode_mod_bit(ETHTOOL_LINK_MODE_1000baseT_Full_BIT,
-				 phydev->lp_advertising,
-				 val & MDIO_AN_RX_LP_STAT1_1000BASET_FULL);
-		linkmode_mod_bit(ETHTOOL_LINK_MODE_1000baseT_Half_BIT,
-				 phydev->lp_advertising,
-				 val & MDIO_AN_RX_LP_STAT1_1000BASET_HALF);
+	if (reg & MDIO_STAT1_LSTATUS)
+		phydev->link = 1;
+	else
+		phydev->link = 0;
+
+	mdelay(10);
+	reg = aquantia_read_reg(phydev, MDIO_MMD_PMAPMD, MDIO_CTRL1);
+
+	if ((reg & MDIO_CTRL1_SPEEDSELEXT) == MDIO_CTRL1_SPEEDSELEXT)
+		reg &= MDIO_CTRL1_SPEEDSEL;
+	else
+		reg &= MDIO_CTRL1_SPEEDSELEXT;
+
+	switch (reg) {
+	case MDIO_PMA_CTRL1_AQ_SPEED5000:
+		phydev->speed = SPEED_5000;
+		break;
+	case MDIO_PMA_CTRL1_AQ_SPEED2500:
+		phydev->speed = SPEED_2500;
+		break;
+	case MDIO_PMA_CTRL1_AQ_SPEED10:
+		phydev->speed = SPEED_10;
+		break;
+	case MDIO_PMA_CTRL1_SPEED100:
+		phydev->speed = SPEED_100;
+		break;
+	case MDIO_PMA_CTRL1_SPEED1000:
+		phydev->speed = SPEED_1000;
+		break;
+	case MDIO_CTRL1_SPEED10G:
+		phydev->speed = SPEED_10000;
+		break;
+	default:
+		phydev->speed = SPEED_UNKNOWN;
+		break;
 	}
 
-	return genphy_c45_read_status(phydev);
+	phydev->duplex = DUPLEX_FULL;
+
+	aquantia_read_advert(phydev);
+	aquantia_read_lp_advert(phydev);
+
+	return 0;
 }
 
 static int aqr107_read_downshift_event(struct phy_device *phydev)
 {
 	int val;
 
-	val = phy_read_mmd(phydev, MDIO_MMD_AN, MDIO_AN_TX_VEND_INT_STATUS1);
+	val = aquantia_read_reg(phydev, MDIO_MMD_AN, MDIO_AN_TX_VEND_INT_STATUS1);
 	if (val < 0)
 		return val;
 
@@ -400,7 +650,7 @@ static int aqr107_read_rate(struct phy_device *phydev)
 {
 	int val;
 
-	val = phy_read_mmd(phydev, MDIO_MMD_AN, MDIO_AN_TX_VEND_STATUS1);
+	val = aquantia_read_reg(phydev, MDIO_MMD_AN, MDIO_AN_TX_VEND_STATUS1);
 	if (val < 0)
 		return val;
 
@@ -447,7 +697,7 @@ static int aqr107_read_status(struct phy_device *phydev)
 	if (!phydev->link || phydev->autoneg == AUTONEG_DISABLE)
 		return 0;
 
-	val = phy_read_mmd(phydev, MDIO_MMD_PHYXS, MDIO_PHYXS_VEND_IF_STATUS);
+	val = aquantia_read_reg(phydev, MDIO_MMD_PHYXS, MDIO_PHYXS_VEND_IF_STATUS);
 	if (val < 0)
 		return val;
 
@@ -481,7 +731,7 @@ static int aqr107_get_downshift(struct phy_device *phydev, u8 *data)
 {
 	int val, cnt, enable;
 
-	val = phy_read_mmd(phydev, MDIO_MMD_AN, MDIO_AN_VEND_PROV);
+	val = aquantia_read_reg(phydev, MDIO_MMD_AN, MDIO_AN_VEND_PROV);
 	if (val < 0)
 		return val;
 
@@ -544,7 +794,7 @@ static int aqr107_wait_reset_complete(struct phy_device *phydev)
 	int val, retries = 100;
 
 	do {
-		val = phy_read_mmd(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_FW_ID);
+		val = aquantia_read_reg(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_FW_ID);
 		if (val < 0)
 			return val;
 		msleep(20);
@@ -558,14 +808,14 @@ static void aqr107_chip_info(struct phy_device *phydev)
 	u8 fw_major, fw_minor, build_id, prov_id;
 	int val;
 
-	val = phy_read_mmd(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_FW_ID);
+	val = aquantia_read_reg(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_FW_ID);
 	if (val < 0)
 		return;
 
 	fw_major = FIELD_GET(VEND1_GLOBAL_FW_ID_MAJOR, val);
 	fw_minor = FIELD_GET(VEND1_GLOBAL_FW_ID_MINOR, val);
 
-	val = phy_read_mmd(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_RSVD_STAT1);
+	val = aquantia_read_reg(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_RSVD_STAT1);
 	if (val < 0)
 		return;
 
@@ -633,7 +883,7 @@ static void aqr107_link_change_notify(struct phy_device *phydev)
 	if (phydev->state != PHY_RUNNING || phydev->autoneg == AUTONEG_DISABLE)
 		return;
 
-	val = phy_read_mmd(phydev, MDIO_MMD_AN, MDIO_AN_RX_LP_STAT1);
+	val = aquantia_read_reg(phydev, MDIO_MMD_AN, MDIO_AN_RX_LP_STAT1);
 	/* call failed or link partner is no Aquantia PHY */
 	if (val < 0 || !(val & MDIO_AN_RX_LP_STAT1_AQ_PHY))
 		return;
@@ -641,14 +891,14 @@ static void aqr107_link_change_notify(struct phy_device *phydev)
 	short_reach = val & MDIO_AN_RX_LP_STAT1_SHORT_REACH;
 	downshift = val & MDIO_AN_RX_LP_STAT1_AQRATE_DOWNSHIFT;
 
-	val = phy_read_mmd(phydev, MDIO_MMD_AN, MDIO_AN_RX_LP_STAT4);
+	val = aquantia_read_reg(phydev, MDIO_MMD_AN, MDIO_AN_RX_LP_STAT4);
 	if (val < 0)
 		return;
 
 	fw_major = FIELD_GET(MDIO_AN_RX_LP_STAT4_FW_MAJOR, val);
 	fw_minor = FIELD_GET(MDIO_AN_RX_LP_STAT4_FW_MINOR, val);
 
-	val = phy_read_mmd(phydev, MDIO_MMD_AN, MDIO_AN_RX_VEND_STAT3);
+	val = aquantia_read_reg(phydev, MDIO_MMD_AN, MDIO_AN_RX_VEND_STAT3);
 	if (val < 0)
 		return;
 
@@ -660,7 +910,7 @@ static void aqr107_link_change_notify(struct phy_device *phydev)
 		   downshift ? ", fast-retrain downshift advertised" : "",
 		   afr ? ", fast reframe advertised" : "");
 
-	val = phy_read_mmd(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_RSVD_STAT9);
+	val = aquantia_read_reg(phydev, MDIO_MMD_VEND1, VEND1_GLOBAL_RSVD_STAT9);
 	if (val < 0)
 		return;
 
