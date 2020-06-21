@@ -262,6 +262,11 @@ void framegen_enable(struct dpu_framegen *fg)
 }
 EXPORT_SYMBOL_GPL(framegen_enable);
 
+bool framegen_is_enabled(struct dpu_framegen *fg)
+{
+	return dpu_fg_read(fg, FGENABLE);
+}
+
 void framegen_disable(struct dpu_framegen *fg)
 {
 	dpu_fg_write(fg, 0, FGENABLE);

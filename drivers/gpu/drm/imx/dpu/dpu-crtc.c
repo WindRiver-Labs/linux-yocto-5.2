@@ -1135,6 +1135,11 @@ static int dpu_crtc_init(struct dpu_crtc *dpu_crtc,
 		return ret;
 	}
 
+	if (framegen_is_enabled(dpu_crtc->fg)) {
+		framegen_disable(dpu_crtc->fg);
+		mdelay(500);
+	}
+
 	plane_grp->res.fg[stream_id] = dpu_crtc->fg;
 	dpu_crtc->plane[0] = dpu_plane_init(drm, 0, stream_id, plane_grp,
 					DRM_PLANE_TYPE_PRIMARY);

@@ -625,6 +625,7 @@ void dpu_fw_put(struct dpu_fetchunit *fu);
 
 /* Frame Generator Unit */
 struct dpu_framegen;
+bool framegen_is_enabled(struct dpu_framegen *fg);
 void framegen_enable(struct dpu_framegen *fg);
 void framegen_disable(struct dpu_framegen *fg);
 void framegen_enable_pixel_link(struct dpu_framegen *fg);
