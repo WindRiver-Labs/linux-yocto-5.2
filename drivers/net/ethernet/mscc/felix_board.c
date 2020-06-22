@@ -829,6 +829,8 @@ static int felix_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err_ports_init;
 
 	register_netdevice_notifier(&ocelot_netdevice_nb);
+	register_switchdev_notifier(&ocelot_switchdev_nb);
+	register_switchdev_blocking_notifier(&ocelot_switchdev_blocking_nb);
 
 	dev_info(&pdev->dev, "%s v%s\n", FELIX_DRV_STR, FELIX_DRV_VER_STR);
 	return 0;
