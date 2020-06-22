@@ -24,11 +24,20 @@ config IMX_MBOX
 
 config MVL_MHU
 	tristate "MVL MHU Mailbox"
+	select ARM_SCMI_PROTOCOL
+	select ARM_SCMI_CPUFREQ
+	select SENSORS_ARM_SCMI
+	select COMMON_CLK_SCMI
+	select ARM_SCMI_POWER_DOMAIN
+	default n
 	help
 	  Say Y here if you want to build the MVL MHU controller driver.
 	  The controller has 2 mailbox channels, the last of which can be
 	  used in secure mode only. Thi mail box uses internal CPC RAM for
 	  creating the mailbox memory.
+	  Setting the "Default CPUFreq governor (userspace)" is also required
+	  in order to change the CPU frequency via Linux userspace commands
+	  (see CPU Power Management/Frequency Scaling).
 
 config PLATFORM_MHU
 	tristate "Platform MHU Mailbox"
