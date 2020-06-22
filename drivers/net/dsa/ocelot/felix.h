@@ -10,7 +10,6 @@
 struct felix_info {
 	struct resource			*target_io_res;
 	struct resource			*port_io_res;
-	struct resource			*imdio_res;
 	const struct reg_field		*regfields;
 	const u32 *const		*map;
 	const struct ocelot_ops		*ops;
@@ -18,18 +17,7 @@ struct felix_info {
 	const struct ocelot_stat_layout	*stats_layout;
 	unsigned int			num_stats;
 	int				num_ports;
-	int				switch_pci_bar;
-	int				imdio_pci_bar;
-	int	(*mdio_bus_alloc)(struct ocelot *ocelot);
-	void	(*mdio_bus_free)(struct ocelot *ocelot);
-	void	(*pcs_init)(struct ocelot *ocelot, int port,
-			    unsigned int link_an_mode,
-			    const struct phylink_link_state *state);
-	void	(*pcs_an_restart)(struct ocelot *ocelot, int port);
-	void	(*pcs_link_state)(struct ocelot *ocelot, int port,
-				  struct phylink_link_state *state);
-	int	(*prevalidate_phy_mode)(struct ocelot *ocelot, int port,
-					phy_interface_t phy_mode);
+	int				pci_bar;
 };
 
 extern struct felix_info		felix_info_vsc9959;
@@ -44,8 +32,6 @@ struct felix {
 	struct pci_dev			*pdev;
 	struct felix_info		*info;
 	struct ocelot			ocelot;
-	struct mii_bus			*imdio;
-	struct phy_device		**pcs;
 };
 
 #endif
