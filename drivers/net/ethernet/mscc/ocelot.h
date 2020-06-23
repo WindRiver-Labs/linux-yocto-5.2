@@ -521,6 +521,7 @@ struct ocelot_port {
         bool tx_tstamp;
         bool rx_tstamp;
         u8 tstamp_id;
+        struct sk_buff_head tx_skbs;
 
 };
 
