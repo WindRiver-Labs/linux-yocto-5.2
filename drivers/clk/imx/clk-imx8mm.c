@@ -401,6 +401,7 @@ static int const clks_init_on[] __initconst = {
 	IMX8MM_CLK_DRAM_APB, IMX8MM_CLK_A53_DIV,
 	IMX8MM_ARM_PLL_OUT, IMX8MM_CLK_DISP_AXI,
 	IMX8MM_CLK_DISP_APB,
+	IMX8MM_CLK_OCOTP_ROOT,
 };
 
 static struct clk ** const uart_clks[] __initconst = {
