@@ -85,7 +85,9 @@ config MDIO_DEBUGFS
 
 config OCTEONTX2_SDEI_GHES
 	bool "OcteonTX2 Generic Hardware Error Source (GHES) support"
-	depends on ARM_SDE_INTERFACE
+	select ARM_SDE_INTERFACE
+	select ACPI_APEI
+	select ACPI_APEI_GHES
 	help
 	  Select this option to enable support for RAS Generic Hardware Error
 	  Source (GHES) reporting.
