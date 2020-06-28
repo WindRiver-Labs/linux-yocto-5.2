@@ -3668,7 +3668,6 @@ int caam_algapi_init(struct device *ctrldev)
 	if (registered)
 		pr_info("caam algorithms registered in /proc/crypto\n");
 
-out_put_dev:
 	put_device(ctrldev);
 	return err;
 }
