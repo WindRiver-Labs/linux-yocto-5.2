@@ -160,6 +160,20 @@ ld-version = $(shell $(LD) --version | $(srctree)/scripts/ld-version.sh)
 # Usage:  $(call ld-ifversion, -ge, 22252, y)
 ld-ifversion = $(shell [ $(ld-version) $(1) $(2) ] && echo $(3) || echo $(4))
 
+# hostcc-header
+# Usage: $(call hostcc-header,header.h,-I/usr/include/libname)
+# third argument is optional
+hostcc-header = $(call try-run,					\
+	{ echo "\#include <$(1)>" ; echo "int main(){}"; } |	\
+	$(HOSTCC) $(2) -x c - -o /dev/null,y,n)
+
+# hostcc-symbol
+# Usage: $(call hostcc-symbol,symbol_name,-llibname)
+# third argument is optional
+hostcc-symbol = $(call try-run,				\
+	echo "void $(1)();int main(){$(1)();}" |	\
+	$(HOSTCC) -x c - -o /dev/null $(2),y,n)
+
 ######
 
 ###
