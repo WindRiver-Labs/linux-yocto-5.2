@@ -92,6 +92,11 @@
 
 #define __ERR_MODULE__      MODULE_UNKNOWN
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+#define local_irq_save_nort
+#define local_irq_restore_nort
+#endif
+
 #ifdef BIGPHYSAREA_ENABLE
 #define MAX_ALLOCATION_SIZE     128 * 1024 /* Maximum size allocated with kmalloc is 128K */
 
