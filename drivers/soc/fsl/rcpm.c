@@ -87,18 +87,19 @@ static int rcpm_pm_prepare(struct device *dev)
 					}
 					/* Read value from register SCFG_SPARECR8 */
 					regmap_read(scfg_addr_regmap,
-						    (u32)(((u64)(reg_offset[1] << (sizeof(u32) * 8) |
+						    (u32)(((u64)((u64)reg_offset[1] << (sizeof(u32) * 8) |
 						    reg_offset[2])) & 0xffffffff),
 						    &reg_value);
 					/* Write value to register SCFG_SPARECR8 */
 					regmap_write(scfg_addr_regmap,
-						     (u32)(((u64)(reg_offset[1] << (sizeof(u32) * 8) |
+						     (u32)(((u64)((u64)reg_offset[1] << (sizeof(u32) * 8) |
 						     reg_offset[2])) & 0xffffffff),
 						     tmp | reg_value);
 				}
 			}
 		}
-	} while (ws = wakeup_source_get_next(ws));
+		ws = wakeup_source_get_next(ws);
+	} while (ws != NULL);
 
 	wakeup_source_get_stop(idx);
 

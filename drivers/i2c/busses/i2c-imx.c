@@ -1123,6 +1123,7 @@ out:
 	return (result < 0) ? result : num;
 }
 
+#ifndef CONFIG_ARCH_LAYERSCAPE
 static void i2c_imx_prepare_recovery(struct i2c_adapter *adap)
 {
 	struct imx_i2c_struct *i2c_imx;
@@ -1187,6 +1188,7 @@ static int i2c_imx_init_recovery_info(struct imx_i2c_struct *i2c_imx,
 
 	return 0;
 }
+#endif
 
 /*
  * switch SCL and SDA to their GPIO function and do some bitbanging
