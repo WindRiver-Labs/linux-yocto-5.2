@@ -44,6 +44,7 @@
 #include <linux/highmem.h>
 #include <linux/fsl_bman.h>
 #include <net/sock.h>
+#include <linux/kmemleak.h>
 
 #include "dpaa_eth.h"
 #include "dpaa_eth_common.h"
@@ -142,6 +143,9 @@ static int _dpa_bp_add_8_bufs(const struct dpa_bp *dpa_bp)
 		 * reserved headroom.
 		 */
 		fman_buf = new_buf + SMP_CACHE_BYTES;
+
+		kmemleak_not_leak(skb);
+
 		DPA_WRITE_SKB_PTR(skb, skbh, fman_buf, -1);
 
 		addr = dma_map_single(dev, fman_buf,
