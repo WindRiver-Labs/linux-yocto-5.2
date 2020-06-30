@@ -421,13 +421,6 @@ static int verbose(struct lock_class *class)
 	return 0;
 }
 
-/*
- * Stack-trace: tightly packed array of stack backtrace
- * addresses. Protected by the graph_lock.
- */
-unsigned long nr_stack_trace_entries;
-static unsigned long stack_trace[MAX_STACK_TRACE_ENTRIES];
-
 static void print_lockdep_off(const char *bug_msg)
 {
 	printk(KERN_DEBUG "%s\n", bug_msg);
@@ -436,6 +429,15 @@ static void print_lockdep_off(const char *bug_msg)
 	printk(KERN_DEBUG "Please attach the output of /proc/lock_stat to the bug report\n");
 #endif
 }
+
+unsigned long nr_stack_trace_entries;
+
+#ifdef CONFIG_PROVE_LOCKING
+/*
+ * Stack-trace: tightly packed array of stack backtrace
+ * addresses. Protected by the graph_lock.
+ */
+static unsigned long stack_trace[MAX_STACK_TRACE_ENTRIES];
 
 static int save_trace(struct lock_trace *trace)
 {
@@ -459,6 +461,7 @@ static int save_trace(struct lock_trace *trace)
 
 	return 1;
 }
+#endif
 
 unsigned int nr_hardirq_chains;
 unsigned int nr_softirq_chains;
@@ -472,6 +475,7 @@ unsigned int max_lockdep_depth;
 DEFINE_PER_CPU(struct lockdep_stats, lockdep_stats);
 #endif
 
+#ifdef CONFIG_PROVE_LOCKING
 /*
  * Locking printouts:
  */
@@ -489,6 +493,7 @@ static const char *usage_str[] =
 #undef LOCKDEP_STATE
 	[LOCK_USED] = "INITIAL USE",
 };
+#endif
 
 const char * __get_key_name(struct lockdep_subclass_key *key, char *str)
 {
@@ -2823,10 +2828,6 @@ static inline int validate_chain(struct task_struct *curr,
 {
 	return 1;
 }
-
-static void print_lock_trace(struct lock_trace *trace, unsigned int spaces)
-{
-}
 #endif
 
 /*
@@ -2880,11 +2881,9 @@ static void check_chain_key(struct task_struct *curr)
 #endif
 }
 
+#ifdef CONFIG_PROVE_LOCKING
 static int mark_lock(struct task_struct *curr, struct held_lock *this,
 		     enum lock_usage_bit new_bit);
-
-#if defined(CONFIG_TRACE_IRQFLAGS) && defined(CONFIG_PROVE_LOCKING)
-
 
 static void
 print_usage_bug_scenario(struct held_lock *lock)
@@ -3373,8 +3372,12 @@ void trace_softirqs_off(unsigned long ip)
 		debug_atomic_inc(redundant_softirqs_off);
 }
 
-static int mark_irqflags(struct task_struct *curr, struct held_lock *hlock)
+static int
+mark_usage(struct task_struct *curr, struct held_lock *hlock, int check)
 {
+	if (!check)
+		goto lock_used;
+
 	/*
 	 * If non-trylock use in a hardirq or softirq context, then
 	 * mark the lock as used in these contexts:
@@ -3418,6 +3421,11 @@ static int mark_irqflags(struct task_struct *curr, struct held_lock *hlock)
 		}
 	}
 
+lock_used:
+	/* mark it as used: */
+	if (!mark_lock(curr, hlock, LOCK_USED))
+		return 0;
+
 	return 1;
 }
 
@@ -3448,35 +3456,6 @@ static int separate_irq_context(struct task_struct *curr,
 	}
 	return 0;
 }
-
-#else /* defined(CONFIG_TRACE_IRQFLAGS) && defined(CONFIG_PROVE_LOCKING) */
-
-static inline
-int mark_lock_irq(struct task_struct *curr, struct held_lock *this,
-		enum lock_usage_bit new_bit)
-{
-	WARN_ON(1); /* Impossible innit? when we don't have TRACE_IRQFLAG */
-	return 1;
-}
-
-static inline int mark_irqflags(struct task_struct *curr,
-		struct held_lock *hlock)
-{
-	return 1;
-}
-
-static inline unsigned int task_irq_context(struct task_struct *task)
-{
-	return 0;
-}
-
-static inline int separate_irq_context(struct task_struct *curr,
-		struct held_lock *hlock)
-{
-	return 0;
-}
-
-#endif /* defined(CONFIG_TRACE_IRQFLAGS) && defined(CONFIG_PROVE_LOCKING) */
 
 /*
  * Mark a lock with a usage bit, and validate the state transition:
@@ -3544,6 +3523,27 @@ static int mark_lock(struct task_struct *curr, struct held_lock *this,
 
 	return ret;
 }
+
+#else /* CONFIG_PROVE_LOCKING */
+
+static inline int
+mark_usage(struct task_struct *curr, struct held_lock *hlock, int check)
+{
+	return 1;
+}
+
+static inline unsigned int task_irq_context(struct task_struct *task)
+{
+	return 0;
+}
+
+static inline int separate_irq_context(struct task_struct *curr,
+		struct held_lock *hlock)
+{
+	return 0;
+}
+
+#endif /* CONFIG_PROVE_LOCKING */
 
 /*
  * Initialize a lock instance's lock-class mapping info:
@@ -3748,11 +3748,8 @@ static int __lock_acquire(struct lockdep_map *lock, unsigned int subclass,
 #endif
 	hlock->pin_count = pin_count;
 
-	if (check && !mark_irqflags(curr, hlock))
-		return 0;
-
-	/* mark it as used: */
-	if (!mark_lock(curr, hlock, LOCK_USED))
+	/* Initialize the lock usage bit */
+	if (!mark_usage(curr, hlock, check))
 		return 0;
 
 	/*
@@ -4234,8 +4231,7 @@ static void __lock_unpin_lock(struct lockdep_map *lock, struct pin_cookie cookie
  */
 static void check_flags(unsigned long flags)
 {
-#if defined(CONFIG_PROVE_LOCKING) && defined(CONFIG_DEBUG_LOCKDEP) && \
-    defined(CONFIG_TRACE_IRQFLAGS)
+#if defined(CONFIG_PROVE_LOCKING) && defined(CONFIG_DEBUG_LOCKDEP)
 	if (!debug_locks)
 		return;
 
