@@ -1299,9 +1299,6 @@ static int zynqmp_qspi_probe(struct platform_device *pdev)
 	if (of_property_read_bool(pdev->dev.of_node, "has-io-mode"))
 		xqspi->io_mode = true;
 
-	/* QSPI controller initializations */
-	zynqmp_qspi_init_hw(xqspi);
-
 	pm_runtime_mark_last_busy(&pdev->dev);
 	pm_runtime_put_autosuspend(&pdev->dev);
 	xqspi->irq = platform_get_irq(pdev, 0);
@@ -1364,6 +1361,9 @@ static int zynqmp_qspi_probe(struct platform_device *pdev)
 
 	if (master->dev.parent == NULL)
 		master->dev.parent = &master->dev;
+
+	/* QSPI controller initializations */
+	zynqmp_qspi_init_hw(xqspi);
 
 	ret = spi_register_master(master);
 	if (ret)
