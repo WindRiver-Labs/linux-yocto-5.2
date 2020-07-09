@@ -406,11 +406,12 @@ static int mvpp2_prs_tcam_first_free(struct mvpp2 *priv, unsigned char start,
 }
 
 /* Drop flow control pause frames */
-static void mvpp2_prs_drop_fc(struct mvpp2 *priv)
+static void mv_pp2x_prs_drop_fc(struct mvpp2 *priv)
 {
-	unsigned char da[ETH_ALEN] = { 0x01, 0x80, 0xC2, 0x00, 0x00, 0x01 };
 	struct mvpp2_prs_entry pe;
 	unsigned int len;
+	unsigned char da[ETH_ALEN] = {
+			0x01, 0x80, 0xC2, 0x00, 0x00, 0x01 };
 
 	memset(&pe, 0, sizeof(pe));
 
@@ -1194,7 +1195,7 @@ static void mvpp2_prs_mac_init(struct mvpp2 *priv)
 	mvpp2_prs_hw_write(priv, &pe);
 
 	/* Create dummy entries for drop all and promiscuous modes */
-	mvpp2_prs_drop_fc(priv);
+	mv_pp2x_prs_drop_fc(priv);
 	mvpp2_prs_mac_drop_all_set(priv, 0, false);
 	mvpp2_prs_mac_promisc_set(priv, 0, MVPP2_PRS_L2_UNI_CAST, false);
 	mvpp2_prs_mac_promisc_set(priv, 0, MVPP2_PRS_L2_MULTI_CAST, false);
