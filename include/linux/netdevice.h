@@ -62,6 +62,8 @@ struct wpan_dev;
 struct mpls_dev;
 /* UDP Tunnel offloads */
 struct udp_tunnel_info;
+struct udp_tunnel_nic_info;
+struct udp_tunnel_nic;
 struct bpf_prog;
 struct xdp_buff;
 
@@ -1771,6 +1773,10 @@ enum netdev_priv_flags {
  *
  *	@wol_enabled:	Wake-on-LAN is enabled
  *
+ *	@udp_tunnel_nic_info:	static structure describing the UDP tunnel
+ *				offload capabilities of the device
+ *	@udp_tunnel_nic:	UDP tunnel offload state
+ *
  *	FIXME: cleanup struct net_device such that network protocol info
  *	moves out.
  */
@@ -2059,6 +2065,8 @@ struct net_device {
 	struct lock_class_key	*qdisc_running_key;
 	bool			proto_down;
 	unsigned		wol_enabled:1;
+	const struct udp_tunnel_nic_info	*udp_tunnel_nic_info;
+	struct udp_tunnel_nic	*udp_tunnel_nic;
 };
 #define to_net_dev(d) container_of(d, struct net_device, dev)
 
