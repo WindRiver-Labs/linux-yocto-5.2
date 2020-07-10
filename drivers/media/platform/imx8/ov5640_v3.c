@@ -951,6 +951,20 @@ static int ov5640_regulator_enable(struct device *dev)
 	return ret;
 }
 
+static int ov5640_regulator_disable(void)
+{
+	if (analog_regulator)
+		regulator_disable(analog_regulator);
+
+	if (core_regulator)
+		regulator_disable(core_regulator);
+
+	if (io_regulator)
+		regulator_disable(io_regulator);
+
+	return 0;
+}
+
 static s32 ov5640_write_reg(u16 reg, u8 val)
 {
 	u8 au8Buf[3] = {0};
@@ -1660,12 +1674,14 @@ static int ov5640_probe(struct i2c_client *client,
 
 	retval = ov5640_read_reg(OV5640_CHIP_ID_HIGH_BYTE, &chip_id_high);
 	if (retval < 0 || chip_id_high != 0x56) {
+		ov5640_regulator_disable();
 		clk_disable_unprepare(ov5640_data.sensor_clk);
 		pr_warning("camera ov5640 is not found\n");
 		return -ENODEV;
 	}
 	retval = ov5640_read_reg(OV5640_CHIP_ID_LOW_BYTE, &chip_id_low);
 	if (retval < 0 || chip_id_low != 0x40) {
+		ov5640_regulator_disable();
 		clk_disable_unprepare(ov5640_data.sensor_clk);
 		pr_warning("camera ov5640 is not found\n");
 		return -ENODEV;
@@ -1673,6 +1689,7 @@ static int ov5640_probe(struct i2c_client *client,
 
 	retval = init_device();
 	if (retval < 0) {
+		ov5640_regulator_disable();
 		clk_disable_unprepare(ov5640_data.sensor_clk);
 		pr_warning("camera ov5640 init fail\n");
 		return -ENODEV;
@@ -1689,10 +1706,14 @@ static int ov5640_probe(struct i2c_client *client,
 							ov5640_data.pads);
 	sd->entity.ops = &ov5640_sd_media_ops;
 	if (retval < 0)
+	{
+		ov5640_regulator_disable();
 		return retval;
+	}
 
 	retval = v4l2_async_register_subdev(sd);
 	if (retval < 0) {
+		ov5640_regulator_disable();
 		dev_err(&client->dev,
 					"%s--Async register failed, ret=%d\n", __func__, retval);
 		media_entity_cleanup(&sd->entity);
