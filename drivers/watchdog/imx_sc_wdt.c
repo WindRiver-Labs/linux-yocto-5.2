@@ -120,7 +120,7 @@ static int imx_sc_wdt_probe(struct platform_device *pdev)
 
 	watchdog_init_timeout(imx_sc_wdd, 0, dev);
 
-	ret = imx_sc_wdt_set_timeout(imx_sc_wdd, wdog->timeout);
+	ret = imx_sc_wdt_set_timeout(imx_sc_wdd, imx_sc_wdd->timeout);
 	if (ret)
 		return ret;
 
