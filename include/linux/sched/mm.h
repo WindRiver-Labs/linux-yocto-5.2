@@ -48,6 +48,7 @@ static inline void mmdrop(struct mm_struct *mm)
 	if (unlikely(atomic_dec_and_test(&mm->mm_count)))
 		__mmdrop(mm);
 }
+void mmdrop(struct mm_struct *mm);
 
 #ifdef CONFIG_PREEMPT_RT_BASE
 extern void __mmdrop_delayed(struct rcu_head *rhp);
