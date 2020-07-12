@@ -213,8 +213,8 @@ struct etr_buf {
  *		device configuration register (DEVID)
  * @idr:	Holds etr_bufs allocated for this ETR.
  * @idr_mutex:	Access serialisation for idr.
- * @perf_data:	PERF buffer for ETR.
- * @sysfs_data:	SYSFS buffer for ETR.
+ * @sysfs_buf:	SYSFS buffer for ETR.
+ * @perf_buf:	PERF buffer for ETR.
  * @etr_options: Bitmask of options to manage Silicon issues
  * @cpu:	CPU id this component is associated with
  */
@@ -245,6 +245,7 @@ struct tmc_drvdata {
 	void			*perf_data;
 	u32			etr_options;
 	int			cpu;
+	struct etr_buf		*perf_buf;
 };
 
 struct etr_buf_operations {
