@@ -217,6 +217,8 @@ struct etr_buf {
  * @sysfs_data:	SYSFS buffer for ETR.
  * @etr_options: Bitmask of options to manage Silicon issues
  * @cpu:	CPU id this component is associated with
+ * @sysfs_buf:	SYSFS buffer for ETR.
+ * @perf_buf:	PERF buffer for ETR.
  */
 struct tmc_drvdata {
 	void __iomem		*base;
@@ -245,6 +247,7 @@ struct tmc_drvdata {
 	void			*perf_data;
 	u32			etr_options;
 	int			cpu;
+	struct etr_buf		*perf_buf;
 };
 
 struct etr_buf_operations {
