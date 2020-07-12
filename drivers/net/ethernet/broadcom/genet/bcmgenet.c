@@ -72,6 +72,8 @@
 static bool skip_umac_reset = true;
 module_param(skip_umac_reset, bool, 0444);
 MODULE_PARM_DESC(skip_umac_reset, "Skip UMAC reset step");
+/* Forward declarations */
+static void bcmgenet_set_rx_mode(struct net_device *dev);
 
 static inline void bcmgenet_writel(u32 value, void __iomem *offset)
 {
@@ -2865,6 +2867,7 @@ static void bcmgenet_netif_start(struct net_device *dev)
 	struct bcmgenet_priv *priv = netdev_priv(dev);
 
 	/* Start the network engine */
+	bcmgenet_set_rx_mode(dev);
 	bcmgenet_enable_rx_napi(priv);
 
 	umac_enable_set(priv, CMD_TX_EN | CMD_RX_EN, true);
