@@ -223,8 +223,8 @@ struct etr_tsync_data {
  *		device configuration register (DEVID)
  * @idr:	Holds etr_bufs allocated for this ETR.
  * @idr_mutex:	Access serialisation for idr.
- * @perf_data:	PERF buffer for ETR.
  * @sysfs_data:	SYSFS buffer for ETR.
+ * @perf_buf:	PERF buffer for ETR.
  * @etr_options: Bitmask of options to manage Silicon issues
  * @cpu:	CPU id this component is associated with
  * @rc_cpu:	The cpu on which remote function calls can be run
@@ -258,7 +258,7 @@ struct tmc_drvdata {
 	struct idr		idr;
 	struct mutex		idr_mutex;
 	struct etr_buf		*sysfs_buf;
-	void			*perf_data;
+	struct etr_buf		*perf_buf;
 	u32			etr_options;
 	int			cpu;
 	int			rc_cpu;
