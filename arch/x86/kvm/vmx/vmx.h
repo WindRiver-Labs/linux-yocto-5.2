@@ -256,8 +256,6 @@ struct vcpu_vmx {
 
 	u64 current_tsc_ratio;
 
-	u32 host_pkru;
-
 	unsigned long host_debugctlmsr;
 
 	u64 msr_ia32_power_ctl;
