@@ -98,8 +98,7 @@ static int rcpm_pm_prepare(struct device *dev)
 				}
 			}
 		}
-		ws = wakeup_source_get_next(ws);
-	} while (ws != NULL);
+	} while ((ws = wakeup_source_get_next(ws)));
 
 	wakeup_source_get_stop(idx);
 
