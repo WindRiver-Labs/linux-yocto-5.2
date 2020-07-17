@@ -33,6 +33,7 @@
 #include <sys/capability.h>
 #include <errno.h>
 #include <math.h>
+#include <sys/syscall.h>
 
 char *proc_stat = "/proc/stat";
 FILE *outf;
@@ -379,11 +380,11 @@ int get_msr_fd(int cpu)
 	return fd;
 }
 
-int get_msr(int cpu, off_t offset, unsigned long long *msr)
+int get_msr(int cpu, unsigned long long offset, unsigned long long *msr)
 {
 	ssize_t retval;
 
-	retval = pread(get_msr_fd(cpu), msr, sizeof(*msr), offset);
+	retval = syscall(SYS_pread64, get_msr_fd(cpu), msr, sizeof(*msr), offset);
 
 	if (retval != sizeof *msr)
 		err(-1, "cpu%d: msr offset 0x%llx read failed", cpu, (unsigned long long)offset);
