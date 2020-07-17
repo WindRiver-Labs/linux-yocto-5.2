@@ -181,7 +181,6 @@ struct page *its_prop_alloc_pages(struct rdists *gic_rdists,
 		gic_rdists->prop_table_va = vaddr;
 		prop_page = NULL;
 	} else {
-		pr_warn("Failed to allocate LPI tables in atf\n");
 		prop_page = alloc_pages(gfp_flags, get_order(prop_tbl_sz));
 		if (!prop_page)
 			return NULL;
