@@ -682,20 +682,6 @@ void imx8qm_ipg_clock_set_rate(struct hdp_clks *clks)
 	}
 }
 
-static u8 imx_hdp_link_rate(struct drm_display_mode *mode)
-{
-#ifndef CONFIG_ARCH_LAYERSCAPE
-	if (mode->clock < 297000)
-#else
-	if (mode->clock < 74250)
-#endif
-		return AFE_LINK_RATE_1_6;
-	else if (mode->clock > 297000)
-		return AFE_LINK_RATE_5_4;
-	else
-		return AFE_LINK_RATE_2_7;
-}
-
 static void imx_hdp_mode_setup(struct imx_hdp *hdp,
 			       const struct drm_display_mode *mode)
 {
