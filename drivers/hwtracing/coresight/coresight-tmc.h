@@ -96,6 +96,7 @@
 #define TMC_DEVID_AXIAW_MASK	0x7f
 
 #define TMC_AUTH_NSID_MASK	GENMASK(1, 0)
+#define TMC_AUTH_SID_MASK	GENMASK(5, 4)
 
 enum tmc_config_type {
 	TMC_CONFIG_TYPE_ETB,

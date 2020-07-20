@@ -426,6 +426,13 @@ static inline bool tmc_etr_has_non_secure_access(struct tmc_drvdata *drvdata)
 	return (auth & TMC_AUTH_NSID_MASK) == 0x3;
 }
 
+static inline bool tmc_etr_has_secure_access(struct tmc_drvdata *drvdata)
+{
+	u32 auth = readl_relaxed(drvdata->base + TMC_AUTHSTATUS);
+
+	return (auth & TMC_AUTH_SID_MASK) == 0x30;
+}
+
 /* Detect and initialise the capabilities of a TMC ETR */
 static int tmc_etr_setup_caps(struct device *parent, u32 devid, void *dev_caps)
 {
@@ -433,7 +440,8 @@ static int tmc_etr_setup_caps(struct device *parent, u32 devid, void *dev_caps)
 	u32 dma_mask = 0;
 	struct tmc_drvdata *drvdata = dev_get_drvdata(parent);
 
-	if (!tmc_etr_has_non_secure_access(drvdata))
+	if (!tmc_etr_has_non_secure_access(drvdata) &&
+	    !tmc_etr_has_secure_access(drvdata))
 		return -EACCES;
 
 	/* Set the unadvertised capabilities */
