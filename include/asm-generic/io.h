@@ -891,12 +891,16 @@ static inline void iowrite64_rep(volatile void __iomem *addr,
 struct pci_dev;
 extern void __iomem *pci_iomap(struct pci_dev *dev, int bar, unsigned long max);
 
+#ifdef CONFIG_GENERIC_PCI_IOMAP
+extern void pci_iounmap(struct pci_dev *dev, void __iomem *p);
+#else
 #ifndef pci_iounmap
 #define pci_iounmap pci_iounmap
 static inline void pci_iounmap(struct pci_dev *dev, void __iomem *p)
 {
 }
 #endif
+#endif /* CONFIG_GENERIC_PCI_IOMAP */
 #endif /* CONFIG_GENERIC_IOMAP */
 
 /*
