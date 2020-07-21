@@ -39,8 +39,10 @@ static int sof_nocodec_bes_setup(struct device *dev,
 		links[i].platform_name = dev_name(dev);
 		links[i].codec_dai_name = "snd-soc-dummy-dai";
 		links[i].codec_name = "snd-soc-dummy";
-		links[i].dpcm_playback = 1;
-		links[i].dpcm_capture = 1;
+		if (ops->drv[i].playback.channels_min)
+			links[i].dpcm_playback = 1;
+		if (ops->drv[i].capture.channels_min)
+			links[i].dpcm_capture = 1;
 	}
 
 	card->dai_link = links;
