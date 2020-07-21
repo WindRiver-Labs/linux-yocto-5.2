@@ -1308,29 +1308,16 @@ u64 kvm_get_arch_capabilities(void)
 		data |= ARCH_CAP_SKIP_VMENTRY_L1DFLUSH;
 
 	/*
-	 * On TAA affected systems, export MDS_NO=0 when:
-	 *	- TSX is enabled on the host, i.e. X86_FEATURE_RTM=1.
-	 *	- Updated microcode is present. This is detected by
-	 *	  the presence of ARCH_CAP_TSX_CTRL_MSR and ensures
-	 *	  that VERW clears CPU buffers.
-	 *
-	 * When MDS_NO=0 is exported, guests deploy clear CPU buffer
-	 * mitigation and don't complain:
-	 *
-	 *	"Vulnerable: Clear CPU buffers attempted, no microcode"
-	 *
-	 * If TSX is disabled on the system, guests are also mitigated against
-	 * TAA and clear CPU buffer mitigation is not required for guests.
+	 * On TAA affected systems:
+	 *      - nothing to do if TSX is disabled on the host.
+	 *      - we emulate TSX_CTRL if present on the host.
+	 *	  This lets the guest use VERW to clear CPU buffers.
 	 */
 	if (!boot_cpu_has(X86_FEATURE_RTM))
-		data &= ~ARCH_CAP_TAA_NO;
+		data &= ~(ARCH_CAP_TAA_NO | ARCH_CAP_TSX_CTRL_MSR);
 	else if (!boot_cpu_has_bug(X86_BUG_TAA))
 		data |= ARCH_CAP_TAA_NO;
-	else if (data & ARCH_CAP_TSX_CTRL_MSR)
-		data &= ~ARCH_CAP_MDS_NO;
 
-	/* KVM does not emulate MSR_IA32_TSX_CTRL.  */
-	data &= ~ARCH_CAP_TSX_CTRL_MSR;
 	return data;
 }
 
@@ -2639,7 +2626,7 @@ int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 		return kvm_mtrr_set_msr(vcpu, msr, data);
 	case MSR_IA32_APICBASE:
 		return kvm_set_apic_base(vcpu, msr_info);
-	case APIC_BASE_MSR ... APIC_BASE_MSR + 0x3ff:
+	case APIC_BASE_MSR ... APIC_BASE_MSR + 0xff:
 		return kvm_x2apic_msr_write(vcpu, msr, data);
 	case MSR_IA32_TSCDEADLINE:
 		kvm_set_lapic_tscdeadline_msr(vcpu, data);
@@ -2936,7 +2923,7 @@ int kvm_get_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
 	case MSR_IA32_APICBASE:
 		msr_info->data = kvm_get_apic_base(vcpu);
 		break;
-	case APIC_BASE_MSR ... APIC_BASE_MSR + 0x3ff:
+	case APIC_BASE_MSR ... APIC_BASE_MSR + 0xff:
 		return kvm_x2apic_msr_read(vcpu, msr_info->index, &msr_info->data);
 		break;
 	case MSR_IA32_TSCDEADLINE:
