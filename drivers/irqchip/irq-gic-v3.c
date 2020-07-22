@@ -18,6 +18,7 @@
 #include <linux/percpu.h>
 #include <linux/refcount.h>
 #include <linux/slab.h>
+#include <linux/isolation.h>
 
 #include <linux/irqchip.h>
 #include <linux/irqchip/arm-gic-common.h>
@@ -531,6 +532,8 @@ static inline void gic_handle_nmi(u32 irqnr, struct pt_regs *regs)
 static asmlinkage void __exception_irq_entry gic_handle_irq(struct pt_regs *regs)
 {
 	u32 irqnr;
+
+	task_isolation_kernel_enter();
 
 	irqnr = gic_read_iar();
 
