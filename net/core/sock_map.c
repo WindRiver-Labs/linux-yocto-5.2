@@ -902,6 +902,7 @@ static void sock_hash_free(struct bpf_map *map)
 			sock_map_unref(elem->sk, elem);
 			release_sock(elem->sk);
 			sock_put(elem->sk);
+			sock_hash_free_elem(htab, elem);
 			rcu_read_unlock();
 		}
 	}
