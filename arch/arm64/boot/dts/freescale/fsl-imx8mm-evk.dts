@@ -520,18 +520,19 @@
 };
 
 &flexspi {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_flexspi0>;
-	status = "okay";
+        pinctrl-names = "default";
+        pinctrl-0 = <&pinctrl_flexspi0>;
+        status = "okay";
 
-	flash0: mt25qu256aba@0 {
-		reg = <0>;
-		#address-cells = <1>;
-		#size-cells = <1>;
-		compatible = "micron,mt25qu256aba";
-		spi-max-frequency = <80000000>;
-		spi-nor,ddr-quad-read-dummy = <6>;
-	};
+        flash0: mt25qu256aba@0 {
+                reg = <0>;
+                #address-cells = <1>;
+                #size-cells = <1>;
+                compatible = "jedec,spi-nor";
+                spi-max-frequency = <80000000>;
+                spi-tx-bus-width = <4>;
+                spi-rx-bus-width = <4>;
+        };
 };
 
 &i2c1 {
