@@ -272,7 +272,7 @@ sd_alloc_ctl_domain_table(struct sched_domain *sd)
 	set_table_entry(&table[7] , "busy_factor",	   &sd->busy_factor,	     sizeof(int) , 0644, proc_dointvec_minmax,   false);
 	set_table_entry(&table[8] , "imbalance_pct",	   &sd->imbalance_pct,	     sizeof(int) , 0644, proc_dointvec_minmax,   false);
 	set_table_entry(&table[9] , "cache_nice_tries",	   &sd->cache_nice_tries,    sizeof(int) , 0644, proc_dointvec_minmax,   false);
-	set_table_entry(&table[10], "flags",		   &sd->flags,		     sizeof(int) , 0644, proc_dointvec_minmax,   false);
+	set_table_entry(&table[10], "flags",		   &sd->flags,		     sizeof(int) , 0444, proc_dointvec_minmax,   false);
 	set_table_entry(&table[11], "max_newidle_lb_cost", &sd->max_newidle_lb_cost, sizeof(long), 0644, proc_doulongvec_minmax, false);
 	set_table_entry(&table[12], "name",		   sd->name,		CORENAME_MAX_SIZE, 0444, proc_dostring,		 false);
 	/* &table[13] is terminator */
