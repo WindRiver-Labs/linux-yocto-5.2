@@ -7997,6 +7997,8 @@ static u32 qed_calc_regdump_header(enum debug_print_features feature,
 int qed_dbg_all_data(struct qed_dev *cdev, void *buffer)
 {
 	u8 cur_engine, omit_engine = 0, org_engine;
+	struct qed_hwfn *p_hwfn =
+		&cdev->hwfns[cdev->dbg_params.engine_for_debug];
 	u32 offset = 0, feature_size;
 	int rc;
 
@@ -8114,6 +8116,10 @@ int qed_dbg_all_data(struct qed_dev *cdev, void *buffer)
 	} else {
 		DP_ERR(cdev, "qed_dbg_mcp_trace failed. rc = %d\n", rc);
 	}
+
+	/* Re-populate nvm attribute info */
+	qed_mcp_nvm_info_free(p_hwfn);
+	qed_mcp_nvm_info_populate(p_hwfn);
 
 	/* nvm cfg1 */
 	rc = qed_dbg_nvm_image(cdev,
