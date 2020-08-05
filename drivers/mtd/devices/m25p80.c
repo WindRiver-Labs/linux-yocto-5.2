@@ -190,7 +190,6 @@ static int m25p_probe(struct spi_mem *spimem)
 
 	spi_mem_set_drvdata(spimem, flash);
 	flash->spimem = spimem;
-	nor->spi = spi;
 
 	if (spi->mode & SPI_RX_OCTAL) {
 		hwcaps.mask |= SNOR_HWCAPS_READ_1_1_8;
