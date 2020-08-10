@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 //
 // Copyright 2013 Freescale Semiconductor, Inc.
+// Copyright 2020 NXP
 //
 // Freescale DSPI driver
 // This file contains a driver for the Freescale DSPI
@@ -43,6 +44,9 @@
 #define SPI_MCR_CLR_TXF	(1 << 11)
 #define SPI_MCR_CLR_RXF	(1 << 10)
 #define SPI_MCR_XSPI		(1 << 3)
+#define SPI_MCR_DIS_TXF		(1 << 13)
+#define SPI_MCR_DIS_RXF		(1 << 12)
+#define SPI_MCR_HALT		(1 << 0)
 
 #define SPI_TCR			0x08
 #define SPI_TCR_GET_TCNT(x)	(((x) & 0xffff0000) >> 16)
@@ -185,7 +189,7 @@ struct fsl_dspi_dma {
 };
 
 struct fsl_dspi {
-	struct spi_master	*master;
+	struct spi_controller	*ctlr;
 	struct platform_device	*pdev;
 
 	struct regmap		*regmap;
@@ -233,7 +237,7 @@ static u32 dspi_pop_tx_pushr(struct fsl_dspi *dspi)
 {
 	u16 cmd = dspi->tx_cmd, data = dspi_pop_tx(dspi);
 
-	if (spi_controller_is_slave(dspi->master))
+	if (spi_controller_is_slave(dspi->ctlr))
 		return data;
 
 	if (dspi->len > 0)
@@ -332,7 +336,7 @@ static int dspi_next_xfer_dma_submit(struct fsl_dspi *dspi)
 	dma_async_issue_pending(dma->chan_rx);
 	dma_async_issue_pending(dma->chan_tx);
 
-	if (spi_controller_is_slave(dspi->master)) {
+	if (spi_controller_is_slave(dspi->ctlr)) {
 		wait_for_completion_interruptible(&dspi->dma->cmd_rx_complete);
 		return 0;
 	}
@@ -653,10 +657,10 @@ static void dspi_eoq_read(struct fsl_dspi *dspi)
 		dspi_push_rx(dspi, fifo_read(dspi));
 }
 
-static int dspi_transfer_one_message(struct spi_master *master,
+static int dspi_transfer_one_message(struct spi_controller *ctlr,
 		struct spi_message *message)
 {
-	struct fsl_dspi *dspi = spi_master_get_devdata(master);
+	struct fsl_dspi *dspi = spi_controller_get_devdata(ctlr);
 	struct spi_device *spi = message->spi;
 	struct spi_transfer *transfer;
 	int status = 0;
@@ -751,7 +755,7 @@ static int dspi_transfer_one_message(struct spi_master *master,
 
 out:
 	message->status = status;
-	spi_finalize_current_message(master);
+	spi_finalize_current_message(ctlr);
 
 	return status;
 }
@@ -759,7 +763,7 @@ out:
 static int dspi_setup(struct spi_device *spi)
 {
 	struct chip_data *chip;
-	struct fsl_dspi *dspi = spi_master_get_devdata(spi->master);
+	struct fsl_dspi *dspi = spi_controller_get_devdata(spi->controller);
 	struct fsl_dspi_platform_data *pdata;
 	u32 cs_sck_delay = 0, sck_cs_delay = 0;
 	unsigned char br = 0, pbr = 0, pcssck = 0, cssck = 0;
@@ -801,7 +805,7 @@ static int dspi_setup(struct spi_device *spi)
 	chip->ctar_val = SPI_CTAR_CPOL(spi->mode & SPI_CPOL ? 1 : 0)
 		| SPI_CTAR_CPHA(spi->mode & SPI_CPHA ? 1 : 0);
 
-	if (!spi_controller_is_slave(dspi->master)) {
+	if (!spi_controller_is_slave(dspi->ctlr)) {
 		chip->ctar_val |= SPI_CTAR_LSBFE(spi->mode &
 						 SPI_LSB_FIRST ? 1 : 0)
 			| SPI_CTAR_PCSSCK(pcssck)
@@ -822,7 +826,7 @@ static void dspi_cleanup(struct spi_device *spi)
 	struct chip_data *chip = spi_get_ctldata((struct spi_device *)spi);
 
 	dev_dbg(&spi->dev, "spi_device %u.%u cleanup\n",
-			spi->master->bus_num, spi->chip_select);
+			spi->controller->bus_num, spi->chip_select);
 
 	kfree(chip);
 }
@@ -897,10 +901,10 @@ MODULE_DEVICE_TABLE(of, fsl_dspi_dt_ids);
 #ifdef CONFIG_PM_SLEEP
 static int dspi_suspend(struct device *dev)
 {
-	struct spi_master *master = dev_get_drvdata(dev);
-	struct fsl_dspi *dspi = spi_master_get_devdata(master);
+	struct spi_controller *ctlr = dev_get_drvdata(dev);
+	struct fsl_dspi *dspi = spi_controller_get_devdata(ctlr);
 
-	spi_master_suspend(master);
+	spi_controller_suspend(ctlr);
 	clk_disable_unprepare(dspi->clk);
 
 	pinctrl_pm_select_sleep_state(dev);
@@ -910,8 +914,8 @@ static int dspi_suspend(struct device *dev)
 
 static int dspi_resume(struct device *dev)
 {
-	struct spi_master *master = dev_get_drvdata(dev);
-	struct fsl_dspi *dspi = spi_master_get_devdata(master);
+	struct spi_controller *ctlr = dev_get_drvdata(dev);
+	struct fsl_dspi *dspi = spi_controller_get_devdata(ctlr);
 	int ret;
 
 	pinctrl_pm_select_default_state(dev);
@@ -919,7 +923,7 @@ static int dspi_resume(struct device *dev)
 	ret = clk_prepare_enable(dspi->clk);
 	if (ret)
 		return ret;
-	spi_master_resume(master);
+	spi_controller_resume(ctlr);
 
 	return 0;
 }
@@ -980,7 +984,7 @@ static void dspi_init(struct fsl_dspi *dspi)
 	unsigned int mcr = SPI_MCR_PCSIS |
 		(dspi->devtype_data->xspi_mode ? SPI_MCR_XSPI : 0);
 
-	if (!spi_controller_is_slave(dspi->master))
+	if (!spi_controller_is_slave(dspi->ctlr))
 		mcr |= SPI_MCR_MASTER;
 
 	regmap_write(dspi->regmap, SPI_MCR, mcr);
@@ -993,7 +997,7 @@ static void dspi_init(struct fsl_dspi *dspi)
 static int dspi_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
-	struct spi_master *master;
+	struct spi_controller *ctlr;
 	struct fsl_dspi *dspi;
 	struct resource *res;
 	const struct regmap_config *regmap_config;
@@ -1001,26 +1005,25 @@ static int dspi_probe(struct platform_device *pdev)
 	struct fsl_dspi_platform_data *pdata;
 	int ret = 0, cs_num, bus_num;
 
-	master = spi_alloc_master(&pdev->dev, sizeof(struct fsl_dspi));
-	if (!master)
+	ctlr = spi_alloc_master(&pdev->dev, sizeof(struct fsl_dspi));
+	if (!ctlr)
 		return -ENOMEM;
 
-	dspi = spi_master_get_devdata(master);
+	dspi = spi_controller_get_devdata(ctlr);
 	dspi->pdev = pdev;
-	dspi->master = master;
+	dspi->ctlr = ctlr;
 
-	master->transfer = NULL;
-	master->setup = dspi_setup;
-	master->transfer_one_message = dspi_transfer_one_message;
-	master->dev.of_node = pdev->dev.of_node;
+	ctlr->setup = dspi_setup;
+	ctlr->transfer_one_message = dspi_transfer_one_message;
+	ctlr->dev.of_node = pdev->dev.of_node;
 
-	master->cleanup = dspi_cleanup;
-	master->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LSB_FIRST;
+	ctlr->cleanup = dspi_cleanup;
+	ctlr->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LSB_FIRST;
 
 	pdata = dev_get_platdata(&pdev->dev);
 	if (pdata) {
-		master->num_chipselect = pdata->cs_num;
-		master->bus_num = pdata->bus_num;
+		ctlr->num_chipselect = pdata->cs_num;
+		ctlr->bus_num = pdata->bus_num;
 
 		dspi->devtype_data = &coldfire_data;
 	} else {
@@ -1028,38 +1031,38 @@ static int dspi_probe(struct platform_device *pdev)
 		ret = of_property_read_u32(np, "spi-num-chipselects", &cs_num);
 		if (ret < 0) {
 			dev_err(&pdev->dev, "can't get spi-num-chipselects\n");
-			goto out_master_put;
+			goto out_ctlr_put;
 		}
-		master->num_chipselect = cs_num;
+		ctlr->num_chipselect = cs_num;
 
 		ret = of_property_read_u32(np, "bus-num", &bus_num);
 		if (ret < 0) {
 			dev_err(&pdev->dev, "can't get bus-num\n");
-			goto out_master_put;
+			goto out_ctlr_put;
 		}
-		master->bus_num = bus_num;
+		ctlr->bus_num = bus_num;
 
 		if (of_property_read_bool(np, "spi-slave"))
-			master->slave = true;
+			ctlr->slave = true;
 
 		dspi->devtype_data = of_device_get_match_data(&pdev->dev);
 		if (!dspi->devtype_data) {
 			dev_err(&pdev->dev, "can't get devtype_data\n");
 			ret = -EFAULT;
-			goto out_master_put;
+			goto out_ctlr_put;
 		}
 	}
 
 	if (dspi->devtype_data->xspi_mode)
-		master->bits_per_word_mask = SPI_BPW_RANGE_MASK(4, 32);
+		ctlr->bits_per_word_mask = SPI_BPW_RANGE_MASK(4, 32);
 	else
-		master->bits_per_word_mask = SPI_BPW_RANGE_MASK(4, 16);
+		ctlr->bits_per_word_mask = SPI_BPW_RANGE_MASK(4, 16);
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(base)) {
 		ret = PTR_ERR(base);
-		goto out_master_put;
+		goto out_ctlr_put;
 	}
 
 	if (dspi->devtype_data->xspi_mode)
@@ -1071,7 +1074,7 @@ static int dspi_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to init regmap: %ld\n",
 				PTR_ERR(dspi->regmap));
 		ret = PTR_ERR(dspi->regmap);
-		goto out_master_put;
+		goto out_ctlr_put;
 	}
 
 	if (dspi->devtype_data->xspi_mode) {
@@ -1083,7 +1086,7 @@ static int dspi_probe(struct platform_device *pdev)
 				"failed to init pushr regmap: %ld\n",
 				PTR_ERR(dspi->regmap_pushr));
 			ret = PTR_ERR(dspi->regmap_pushr);
-			goto out_master_put;
+			goto out_ctlr_put;
 		}
 	}
 
@@ -1091,11 +1094,11 @@ static int dspi_probe(struct platform_device *pdev)
 	if (IS_ERR(dspi->clk)) {
 		ret = PTR_ERR(dspi->clk);
 		dev_err(&pdev->dev, "unable to get clock\n");
-		goto out_master_put;
+		goto out_ctlr_put;
 	}
 	ret = clk_prepare_enable(dspi->clk);
 	if (ret)
-		goto out_master_put;
+		goto out_ctlr_put;
 
 	dspi_init(dspi);
 	dspi->irq = platform_get_irq(pdev, 0);
@@ -1120,15 +1123,15 @@ static int dspi_probe(struct platform_device *pdev)
 		}
 	}
 
-	master->max_speed_hz =
+	ctlr->max_speed_hz =
 		clk_get_rate(dspi->clk) / dspi->devtype_data->max_clock_factor;
 
 	init_waitqueue_head(&dspi->waitq);
-	platform_set_drvdata(pdev, master);
+	platform_set_drvdata(pdev, ctlr);
 
-	ret = spi_register_master(master);
+	ret = spi_register_controller(ctlr);
 	if (ret != 0) {
-		dev_err(&pdev->dev, "Problem registering DSPI master\n");
+		dev_err(&pdev->dev, "Problem registering DSPI ctlr\n");
 		goto out_clk_put;
 	}
 
@@ -1136,23 +1139,37 @@ static int dspi_probe(struct platform_device *pdev)
 
 out_clk_put:
 	clk_disable_unprepare(dspi->clk);
-out_master_put:
-	spi_master_put(master);
+out_ctlr_put:
+	spi_controller_put(ctlr);
 
 	return ret;
 }
 
 static int dspi_remove(struct platform_device *pdev)
 {
-	struct spi_master *master = platform_get_drvdata(pdev);
-	struct fsl_dspi *dspi = spi_master_get_devdata(master);
+	struct spi_controller *ctlr = platform_get_drvdata(pdev);
+	struct fsl_dspi *dspi = spi_controller_get_devdata(ctlr);
 
 	/* Disconnect from the SPI framework */
+	spi_unregister_controller(dspi->ctlr);
+
+	/* Disable RX and TX */
+	regmap_update_bits(dspi->regmap, SPI_MCR,
+			   SPI_MCR_DIS_TXF | SPI_MCR_DIS_RXF,
+			   SPI_MCR_DIS_TXF | SPI_MCR_DIS_RXF);
+
+	/* Stop Running */
+	regmap_update_bits(dspi->regmap, SPI_MCR, SPI_MCR_HALT, SPI_MCR_HALT);
+
 	dspi_release_dma(dspi);
 	clk_disable_unprepare(dspi->clk);
-	spi_unregister_master(dspi->master);
 
 	return 0;
+}
+
+static void dspi_shutdown(struct platform_device *pdev)
+{
+	dspi_remove(pdev);
 }
 
 static struct platform_driver fsl_dspi_driver = {
@@ -1162,6 +1179,7 @@ static struct platform_driver fsl_dspi_driver = {
 	.driver.pm = &dspi_pm,
 	.probe          = dspi_probe,
 	.remove		= dspi_remove,
+	.shutdown		= dspi_shutdown,
 };
 module_platform_driver(fsl_dspi_driver);
 
