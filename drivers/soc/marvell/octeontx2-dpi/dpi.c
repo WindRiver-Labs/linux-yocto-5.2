@@ -461,8 +461,16 @@ static int dpi_queue_config(struct pci_dev *pfdev,
 	return queue_config(dpi, dpivf, msg);
 }
 
+static int dpi_get_vf_count(struct pci_dev *pfdev)
+{
+	struct dpipf *dpi = pci_get_drvdata(pfdev);
+
+	return dpi->total_vfs;
+}
+
 struct otx2_dpipf_com_s otx2_dpipf_com  = {
-	.queue_config = dpi_queue_config
+	.queue_config = dpi_queue_config,
+	.get_vf_count = dpi_get_vf_count
 };
 EXPORT_SYMBOL(otx2_dpipf_com);
 

@@ -256,6 +256,7 @@ union dpi_mbox_message_t {
 struct otx2_dpipf_com_s {
 	int (*queue_config)(struct pci_dev *pfdev,
 			    union dpi_mbox_message_t *req);
+	int (*get_vf_count)(struct pci_dev *pfdev);
 };
 
 extern struct otx2_dpipf_com_s otx2_dpipf_com;
