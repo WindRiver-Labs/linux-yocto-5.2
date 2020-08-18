@@ -144,17 +144,20 @@ static inline unsigned get_max_io_size(struct request_queue *q,
 	return sectors;
 }
 
-static unsigned get_max_segment_size(struct request_queue *q,
-				     unsigned offset)
+static inline unsigned get_max_segment_size(struct request_queue *q,
+					    struct page *start_page,
+					    unsigned long offset)
 {
 	unsigned long mask = queue_segment_boundary(q);
 
-	/* default segment boundary mask means no boundary limit */
-	if (mask == BLK_SEG_BOUNDARY_MASK)
-		return queue_max_segment_size(q);
+	offset = mask & (page_to_phys(start_page) + offset);
 
-	return min_t(unsigned long, mask - (mask & offset) + 1,
-		     queue_max_segment_size(q));
+	/*
+	 * overflow may be triggered in case of zero page physical address
+	 * on 32bit arch, use queue's max segment size when that happens.
+	 */
+	return min_not_zero(mask - offset + 1,
+			(unsigned long)queue_max_segment_size(q));
 }
 
 /*
@@ -173,7 +176,8 @@ static bool bvec_split_segs(struct request_queue *q, struct bio_vec *bv,
 	 * current bvec has to be splitted as multiple segments.
 	 */
 	while (len && new_nsegs + *nsegs < max_segs) {
-		seg_size = get_max_segment_size(q, bv->bv_offset + total_len);
+		seg_size = get_max_segment_size(q, bv->bv_page,
+						bv->bv_offset + total_len);
 		seg_size = min(seg_size, len);
 
 		new_nsegs++;
@@ -375,7 +379,8 @@ static unsigned blk_bvec_map_sg(struct request_queue *q,
 
 	while (nbytes > 0) {
 		unsigned offset = bvec->bv_offset + total;
-		unsigned len = min(get_max_segment_size(q, offset), nbytes);
+		unsigned len = min(get_max_segment_size(q, bvec->bv_page,
+					offset), nbytes);
 		struct page *page = bvec->bv_page;
 
 		/*
