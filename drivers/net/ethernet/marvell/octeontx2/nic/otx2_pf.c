@@ -1326,6 +1326,16 @@ static int otx2_init_hw_resources(struct otx2_nic *pf)
 	pf->rbsize = RCV_FRAG_LEN(OTX2_HW_TIMESTAMP_LEN + pf->netdev->mtu +
 				  pf->addl_mtu + pf->xtra_hdr);
 
+	/* Get the size of receive buffers to allocate.
+	 *
+	 * Depending interface mode ie timestamp and/or Higig2 enabled
+	 * and presence of DSA tags in L2 header, the packet size would
+	 * vary, hence consider all while calculating receive buffer size.
+	 */
+	pf->rbsize = pf->netdev->mtu + OTX2_ETH_HLEN;
+	pf->rbsize += OTX2_HW_TIMESTAMP_LEN + pf->addl_mtu + pf->xtra_hdr;
+	pf->rbsize = RCV_FRAG_LEN(pf->rbsize);
+
 	otx2_mbox_lock(mbox);
 	/* NPA init */
 	err = otx2_config_npa(pf);
