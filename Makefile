@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 VERSION = 5
 PATCHLEVEL = 2
-SUBLEVEL = 55
+SUBLEVEL = 56
 EXTRAVERSION =
 NAME = Bobtail Squid
 
