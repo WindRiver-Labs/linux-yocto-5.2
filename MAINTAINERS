@@ -17421,6 +17421,14 @@ M:	John Linn <John.Linn@xilinx.com>
 S:	Maintained
 F:	drivers/net/ethernet/xilinx/xilinx_axienet*
 
+XILINX VERSAL SYSMON DRIVER
+M:	Anand Ashok Dumbre <anand.ashok.dumbre@xilinx.com>
+R:	Dragan Cvetic <dragan.cvetic@xilinx.com>
+L:	git@xilinx.com
+S:	Maintained
+F:	Documentation/devicetree/bindings/iio/adc/xlnx,versal-sysmon.yaml
+F:	drivers/iio/adc/versal-sysmon.c
+
 XILINX UARTLITE SERIAL DRIVER
 M:	Peter Korsgaard <jacmet@sunsite.dk>
 L:	linux-serial@vger.kernel.org
