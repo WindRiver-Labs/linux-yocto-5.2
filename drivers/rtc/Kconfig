@@ -1737,7 +1737,6 @@ config RTC_DRV_SNVS
 	   will be called "rtc-snvs".
 
 config RTC_DRV_IMX_SC
-	depends on IMX_SCU
 	depends on HAVE_ARM_SMCCC
 	tristate "NXP i.MX System Controller RTC support"
 	help
