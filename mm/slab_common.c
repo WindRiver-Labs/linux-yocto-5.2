@@ -759,7 +759,6 @@ void slab_deactivate_memcg_cache_rcu_sched(struct kmem_cache *s,
 	 * are queued (see flush_memcg_workqueue() ).
 	 */
 	spin_lock_irq(&memcg_kmem_wq_lock);
-
 	if (s->memcg_params.root_cache->memcg_params.dying)
 		goto unlock;
 
@@ -768,7 +767,6 @@ void slab_deactivate_memcg_cache_rcu_sched(struct kmem_cache *s,
 
 	s->memcg_params.deact_fn = deact_fn;
 	call_rcu(&s->memcg_params.deact_rcu_head, kmemcg_deactivate_rcufn);
-
 unlock:
 	spin_unlock_irq(&memcg_kmem_wq_lock);
 }
