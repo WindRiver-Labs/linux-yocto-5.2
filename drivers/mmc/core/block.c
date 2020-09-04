@@ -2864,6 +2864,20 @@ static void mmc_blk_remove_debugfs(struct mmc_card *card,
 
 #endif /* CONFIG_DEBUG_FS */
 
+#ifdef CONFIG_MMC_OOPS
+sector_t mmc_blk_get_start(struct mmc_card *card, int part_num)
+{
+	struct mmc_blk_data *md = dev_get_drvdata(&card->dev);
+	struct gendisk *disk = md->disk;
+	struct disk_part_tbl *part_tbl = disk->part_tbl;
+
+	if (part_num < 0 || part_num >= part_tbl->len)
+		return 0;
+
+	return part_tbl->part[part_num]->start_sect;
+}
+#endif
+
 static int mmc_blk_probe(struct mmc_card *card)
 {
 	struct mmc_blk_data *md, *part_md;
@@ -2907,6 +2921,10 @@ static int mmc_blk_probe(struct mmc_card *card)
 			goto out;
 	}
 
+#ifdef CONFIG_MMC_OOPS
+	if (mmc_card_mmc(card) || mmc_card_sd(card))
+		mmc_oops_card_set(card);
+#endif
 	/* Add two debugfs entries */
 	mmc_blk_add_debugfs(card, md);
 

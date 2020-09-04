@@ -81,3 +81,11 @@ config MMC_TEST
 	  This driver is only of interest to those developing or
 	  testing a host driver. Most people should say N here.
 
+config MMC_OOPS
+	bool "Log panic/oops to a MMC buffer"
+	depends on PSTORE
+	default n
+	help
+	  Oops driver to store the crash dumps to MMC device at a specified
+	  user partition number. The driver is based on pstore frontend
+	  filesystem to access the backend persistent MMC storage device.

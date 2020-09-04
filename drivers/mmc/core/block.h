@@ -16,5 +16,8 @@ void mmc_blk_mq_recovery(struct mmc_queue *mq);
 struct work_struct;
 
 void mmc_blk_mq_complete_work(struct work_struct *work);
+#ifdef CONFIG_MMC_OOPS
+sector_t mmc_blk_get_start(struct mmc_card *card, int part_num);
+#endif
 
 #endif
