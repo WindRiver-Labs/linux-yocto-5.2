@@ -29,6 +29,7 @@
 #include <linux/stddef.h>
 #include <linux/sysctl.h>
 #include <linux/swab.h>
+#include <linux/isolation.h>
 
 #include <asm/esr.h>
 #include <asm/fpsimd.h>
@@ -923,6 +924,8 @@ void fpsimd_release_task(struct task_struct *dead_task)
  */
 asmlinkage void do_sve_acc(unsigned int esr, struct pt_regs *regs)
 {
+	task_isolation_kernel_enter();
+
 	/* Even if we chose not to use SVE, the hardware could still trap: */
 	if (unlikely(!system_supports_sve()) || WARN_ON(is_compat_task())) {
 		force_signal_inject(SIGILL, ILL_ILLOPC, regs->pc);
@@ -950,6 +953,8 @@ asmlinkage void do_sve_acc(unsigned int esr, struct pt_regs *regs)
  */
 asmlinkage void do_fpsimd_acc(unsigned int esr, struct pt_regs *regs)
 {
+	task_isolation_kernel_enter();
+
 	/* TODO: implement lazy context saving/restoring */
 	WARN_ON(1);
 }
@@ -960,6 +965,8 @@ asmlinkage void do_fpsimd_acc(unsigned int esr, struct pt_regs *regs)
 asmlinkage void do_fpsimd_exc(unsigned int esr, struct pt_regs *regs)
 {
 	unsigned int si_code = FPE_FLTUNK;
+
+	task_isolation_kernel_enter();
 
 	if (esr & ESR_ELx_FP_EXC_TFV) {
 		if (esr & FPEXC_IOF)

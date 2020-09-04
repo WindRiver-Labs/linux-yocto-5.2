@@ -7,6 +7,7 @@
 #include <linux/irqflags.h>
 #include <linux/sched/task_stack.h>
 #include <linux/uaccess.h>
+#include <linux/isolation.h>
 
 #include <asm/alternative.h>
 #include <asm/kprobes.h>
@@ -208,6 +209,7 @@ static __kprobes unsigned long _sdei_handler(struct pt_regs *regs,
 	__uaccess_enable_hw_pan();
 
 	err = sdei_event_handler(regs, arg);
+	task_isolation_interrupt("SDEI handled");
 	if (err)
 		return SDEI_EV_FAILED;
 

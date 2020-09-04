@@ -22,6 +22,7 @@
 #include <linux/perf_event.h>
 #include <linux/preempt.h>
 #include <linux/hugetlb.h>
+#include <linux/isolation.h>
 
 #include <asm/acpi.h>
 #include <asm/bug.h>
@@ -530,6 +531,10 @@ retry:
 	 */
 	if (likely(!(fault & (VM_FAULT_ERROR | VM_FAULT_BADMAP |
 			      VM_FAULT_BADACCESS)))) {
+		/* No signal was generated, but notify task-isolation tasks. */
+		if (user_mode(regs))
+			task_isolation_interrupt("page fault at %#lx", addr);
+
 		/*
 		 * Major/minor page fault accounting is only done
 		 * once. If we go through a retry, it is extremely
@@ -719,6 +724,8 @@ asmlinkage void __exception do_mem_abort(unsigned long addr, unsigned int esr,
 {
 	const struct fault_info *inf = esr_to_fault_info(esr);
 
+	task_isolation_kernel_enter();
+
 	if (!inf->fn(addr, esr, regs))
 		return;
 
@@ -759,6 +766,8 @@ asmlinkage void __exception do_sp_pc_abort(unsigned long addr,
 					   unsigned int esr,
 					   struct pt_regs *regs)
 {
+	task_isolation_kernel_enter();
+
 	if (user_mode(regs)) {
 		if (!is_ttbr0_addr(instruction_pointer(regs)))
 			arm64_apply_bp_hardening();
@@ -883,6 +892,8 @@ asmlinkage void __exception do_debug_exception(unsigned long addr_if_watchpoint,
 {
 	const struct fault_info *inf = esr_to_debug_fault_info(esr);
 	unsigned long pc = instruction_pointer(regs);
+
+	task_isolation_kernel_enter();
 
 	if (cortex_a76_erratum_1463225_debug_handler(regs))
 		return;

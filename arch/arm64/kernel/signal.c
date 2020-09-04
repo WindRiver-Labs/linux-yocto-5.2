@@ -20,6 +20,7 @@
 #include <linux/tracehook.h>
 #include <linux/ratelimit.h>
 #include <linux/syscalls.h>
+#include <linux/isolation.h>
 
 #include <asm/daifflags.h>
 #include <asm/debug-monitors.h>
@@ -889,6 +890,11 @@ static void do_signal(struct pt_regs *regs)
 	restore_saved_sigmask();
 }
 
+#define NOTIFY_RESUME_LOOP_FLAGS \
+	(_TIF_NEED_RESCHED | _TIF_SIGPENDING | \
+	_TIF_NOTIFY_RESUME | _TIF_FOREIGN_FPSTATE | \
+	_TIF_UPROBE | _TIF_FSCHECK)
+
 asmlinkage void do_notify_resume(struct pt_regs *regs,
 				 unsigned long thread_flags)
 {
@@ -898,6 +904,8 @@ asmlinkage void do_notify_resume(struct pt_regs *regs,
 	 * Update the trace code with the current status.
 	 */
 	trace_hardirqs_off();
+
+	task_isolation_check_run_cleanup();
 
 	do {
 		/* Check valid user FS if needed */
@@ -929,7 +937,10 @@ asmlinkage void do_notify_resume(struct pt_regs *regs,
 
 		local_daif_mask();
 		thread_flags = READ_ONCE(current_thread_info()->flags);
-	} while (thread_flags & _TIF_WORK_MASK);
+	} while (thread_flags & NOTIFY_RESUME_LOOP_FLAGS);
+
+	if (thread_flags & _TIF_TASK_ISOLATION)
+		task_isolation_start();
 }
 
 unsigned long __ro_after_init signal_minsigstksz;

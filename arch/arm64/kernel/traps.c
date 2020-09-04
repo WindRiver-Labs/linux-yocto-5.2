@@ -27,6 +27,7 @@
 #include <linux/syscalls.h>
 #include <linux/mm_types.h>
 #include <linux/kasan.h>
+#include <linux/isolation.h>
 
 #include <asm/atomic.h>
 #include <asm/bug.h>
@@ -405,6 +406,8 @@ void arm64_notify_segfault(unsigned long addr)
 
 asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 {
+	task_isolation_kernel_enter();
+
 	/* check for AArch32 breakpoint instructions */
 	if (!aarch32_break_handler(regs))
 		return;
@@ -699,6 +702,8 @@ asmlinkage void __exception do_cp15instr(unsigned int esr, struct pt_regs *regs)
 		return;
 	}
 
+	task_isolation_kernel_enter();
+
 	switch (ESR_ELx_EC(esr)) {
 	case ESR_ELx_EC_CP15_32:
 		hook_base = cp15_32_hooks;
@@ -729,6 +734,8 @@ asmlinkage void __exception do_cp15instr(unsigned int esr, struct pt_regs *regs)
 asmlinkage void __exception do_sysinstr(unsigned int esr, struct pt_regs *regs)
 {
 	const struct sys64_hook *hook;
+
+	task_isolation_kernel_enter();
 
 	for (hook = sys64_hooks; hook->handler; hook++)
 		if ((hook->esr_mask & esr) == hook->esr_val) {
@@ -796,6 +803,8 @@ const char *esr_get_class_string(u32 esr)
  */
 asmlinkage void bad_mode(struct pt_regs *regs, int reason, unsigned int esr)
 {
+	task_isolation_kernel_enter();
+
 	console_verbose();
 
 	pr_crit("Bad mode in %s handler detected on CPU%d, code 0x%08x -- %s\n",
@@ -813,6 +822,8 @@ asmlinkage void bad_mode(struct pt_regs *regs, int reason, unsigned int esr)
 asmlinkage void bad_el0_sync(struct pt_regs *regs, int reason, unsigned int esr)
 {
 	void __user *pc = (void __user *)instruction_pointer(regs);
+
+	task_isolation_kernel_enter();
 
 	current->thread.fault_address = 0;
 	current->thread.fault_code = esr;
