@@ -435,11 +435,9 @@ static int ipu_drm_bind(struct device *dev, struct device *master, void *data)
 	struct ipu_client_platformdata *pdata = dev->platform_data;
 	struct drm_device *drm = data;
 	struct ipu_crtc *ipu_crtc;
-	int ret;
 
-	ipu_crtc = devm_kzalloc(dev, sizeof(*ipu_crtc), GFP_KERNEL);
-	if (!ipu_crtc)
-		return -ENOMEM;
+	ipu_crtc = dev_get_drvdata(dev);
+	memset(ipu_crtc, 0, sizeof(*ipu_crtc));
 
 	ipu_crtc->dev = dev;
 
@@ -452,8 +450,6 @@ static int ipu_drm_bind(struct device *dev, struct device *master, void *data)
 	if (!drm->mode_config.helper_private)
 		drm->mode_config.helper_private =
 					&ipuv3_drm_mode_config_helpers;
-
-	dev_set_drvdata(dev, ipu_crtc);
 
 	return 0;
 }
@@ -477,6 +473,7 @@ static const struct component_ops ipu_crtc_ops = {
 static int ipu_drm_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
+	struct ipu_crtc *ipu_crtc;
 	int ret;
 
 	if (!dev->platform_data)
@@ -485,6 +482,12 @@ static int ipu_drm_probe(struct platform_device *pdev)
 	ret = dma_set_coherent_mask(dev, DMA_BIT_MASK(32));
 	if (ret)
 		return ret;
+
+	ipu_crtc = devm_kzalloc(dev, sizeof(*ipu_crtc), GFP_KERNEL);
+	if (!ipu_crtc)
+		return -ENOMEM;
+
+	dev_set_drvdata(dev, ipu_crtc);
 
 	return component_add(dev, &ipu_crtc_ops);
 }
