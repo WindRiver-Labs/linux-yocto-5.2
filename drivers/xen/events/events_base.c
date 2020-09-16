@@ -37,6 +37,7 @@
 #include <linux/cpuhotplug.h>
 #include <linux/atomic.h>
 #include <linux/ktime.h>
+#include <linux/isolation.h>
 
 #ifdef CONFIG_X86
 #include <asm/desc.h>
@@ -1576,6 +1577,8 @@ static void __xen_evtchn_do_upcall(void)
 void xen_evtchn_do_upcall(struct pt_regs *regs)
 {
 	struct pt_regs *old_regs = set_irq_regs(regs);
+
+	task_isolation_kernel_enter();
 
 	irq_enter();
 #ifdef CONFIG_X86
