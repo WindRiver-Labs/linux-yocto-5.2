@@ -46,6 +46,7 @@
 #include <linux/livepatch.h>
 #include <linux/cgroup.h>
 #include <linux/audit.h>
+#include <linux/isolation.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/signal.h>
@@ -753,6 +754,7 @@ still_pending:
  */
 void signal_wake_up_state(struct task_struct *t, unsigned int state)
 {
+	task_isolation_signal(t);
 	set_tsk_thread_flag(t, TIF_SIGPENDING);
 	/*
 	 * TASK_WAKEKILL also means wake it up in the stopped/traced/killable

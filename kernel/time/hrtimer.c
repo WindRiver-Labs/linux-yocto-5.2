@@ -30,6 +30,7 @@
 #include <linux/syscalls.h>
 #include <linux/interrupt.h>
 #include <linux/tick.h>
+#include <linux/isolation.h>
 #include <linux/seq_file.h>
 #include <linux/err.h>
 #include <linux/debugobjects.h>
@@ -701,6 +702,19 @@ static void retrigger_next_event(void *arg)
 	raw_spin_unlock(&base->lock);
 }
 
+#ifdef CONFIG_TASK_ISOLATION
+void kick_hrtimer(void)
+{
+	unsigned long flags;
+
+	preempt_disable();
+	local_irq_save(flags);
+	retrigger_next_event(NULL);
+	local_irq_restore(flags);
+	preempt_enable();
+}
+#endif
+
 /*
  * Switch to high resolution mode
  */
@@ -848,8 +862,21 @@ static void hrtimer_reprogram(struct hrtimer *timer, bool reprogram)
 void clock_was_set(void)
 {
 #ifdef CONFIG_HIGH_RES_TIMERS
+#ifdef CONFIG_TASK_ISOLATION
+	struct cpumask mask;
+
+	cpumask_clear(&mask);
+	task_isolation_cpumask(&mask);
+	cpumask_complement(&mask, &mask);
+	/*
+	 * Retrigger the CPU local events everywhere except CPUs
+	 * running isolated tasks.
+	 */
+	on_each_cpu_mask(&mask, retrigger_next_event, NULL, 1);
+#else
 	/* Retrigger the CPU local events everywhere */
 	on_each_cpu(retrigger_next_event, NULL, 1);
+#endif
 #endif
 	timerfd_clock_was_set();
 }
