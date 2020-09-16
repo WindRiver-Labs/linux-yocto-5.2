@@ -16,6 +16,7 @@
 #include <linux/bitmap.h>
 #include <linux/irqdomain.h>
 #include <linux/sysfs.h>
+#include <linux/isolation.h>
 
 #include "internals.h"
 
@@ -669,12 +670,18 @@ int __handle_domain_irq(struct irq_domain *domain, unsigned int hwirq,
 	unsigned int irq = hwirq;
 	int ret = 0;
 
+	task_isolation_kernel_enter();
+
 	irq_enter();
 
 #ifdef CONFIG_IRQ_DOMAIN
 	if (lookup)
 		irq = irq_find_mapping(domain, hwirq);
 #endif
+
+	task_isolation_interrupt((irq == hwirq) ?
+				 "irq %d (%s)" : "irq %d (%s hwirq %d)",
+				 irq, domain ? domain->name : "", hwirq);
 
 	/*
 	 * Some hardware gives randomly wrong interrupts.  Rather
@@ -710,12 +717,18 @@ int handle_domain_nmi(struct irq_domain *domain, unsigned int hwirq,
 	unsigned int irq;
 	int ret = 0;
 
+	task_isolation_kernel_enter();
+
 	/*
 	 * NMI context needs to be setup earlier in order to deal with tracing.
 	 */
 	WARN_ON(!in_nmi());
 
 	irq = irq_find_mapping(domain, hwirq);
+
+	task_isolation_interrupt((irq == hwirq) ?
+				 "NMI irq %d (%s)" : "NMI irq %d (%s hwirq %d)",
+				 irq, domain ? domain->name : "", hwirq);
 
 	/*
 	 * ack_bad_irq is not NMI-safe, just report

@@ -6,6 +6,7 @@
 #include <linux/lockdep.h>
 #include <linux/ftrace_irq.h>
 #include <linux/vtime.h>
+#include <linux/isolation.h>
 #include <asm/hardirq.h>
 
 
@@ -68,6 +69,7 @@ extern void irq_exit(void);
 #define nmi_enter()						\
 	do {							\
 		arch_nmi_enter();				\
+		task_isolation_kernel_enter();			\
 		printk_nmi_enter();				\
 		lockdep_off();					\
 		ftrace_nmi_enter();				\

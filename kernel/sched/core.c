@@ -12,6 +12,8 @@
 
 #include <linux/kcov.h>
 
+#include <linux/isolation.h>
+
 #include <asm/switch_to.h>
 #include <asm/tlb.h>
 
@@ -1784,6 +1786,7 @@ void sched_ttwu_pending(void)
 
 void scheduler_ipi(void)
 {
+	task_isolation_kernel_enter();
 	/*
 	 * Fold TIF_NEED_RESCHED into the preempt_count; anybody setting
 	 * TIF_NEED_RESCHED remotely (for the first time) will also send

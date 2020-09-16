@@ -21,6 +21,7 @@
 #include <linux/hardirq.h>
 #include <linux/export.h>
 #include <linux/kprobes.h>
+#include <linux/isolation.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/context_tracking.h>
@@ -147,6 +148,8 @@ void __context_tracking_exit(enum ctx_state state)
 	if (!context_tracking_recursion_enter())
 		return;
 
+	task_isolation_kernel_enter();
+
 	if (__this_cpu_read(context_tracking.state) == state) {
 		if (__this_cpu_read(context_tracking.active)) {
 			/*
@@ -157,6 +160,7 @@ void __context_tracking_exit(enum ctx_state state)
 			if (state == CONTEXT_USER) {
 				vtime_user_exit(current);
 				trace_user_exit(0);
+				task_isolation_user_exit();
 			}
 		}
 		__this_cpu_write(context_tracking.state, CONTEXT_KERNEL);
