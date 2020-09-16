@@ -85,7 +85,7 @@ static inline const char *perf_reg_name(int id)
 	case PERF_REG_ARM64_PC:
 		return "pc";
 	default:
-		return NULL;
+		return "NULL";
 	}
 
 	return NULL;
