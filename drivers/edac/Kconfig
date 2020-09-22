@@ -526,4 +526,15 @@ config EDAC_ASPEED
 	  First, ECC must be configured in the bootloader. Then, this driver
 	  will expose error counters via the EDAC kernel framework.
 
+config EDAC_XILINX_DDR
+	tristate "Xilinx Versal DDR Memory Controller"
+	depends on ARCH_ZYNQMP
+	help
+	  Support for error detection and correction on the Xilinx Versal DDR
+	  memory controller.
+
+	  Report both Single Bit Errors (CE) and Double Bit Errors (UE).
+	  Support injecting both Correctable and UnCorrectable errors for debug
+	  purpose using sysfs entries.
+
 endif # EDAC
