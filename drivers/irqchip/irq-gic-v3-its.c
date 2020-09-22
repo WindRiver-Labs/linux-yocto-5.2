@@ -1710,13 +1710,11 @@ static int __init its_setup_lpi_prop_table(void)
 				    GICD_TYPER_ID_BITS(gic_rdists->gicd_typer),
 				    ITS_MAX_LPI_NRBITS);
 		page = its_allocate_prop_table(GFP_NOWAIT);
-		if (!page) {
+		if (!page && !gic_rdists->prop_table_va) {
 			pr_err("Failed to allocate PROPBASE\n");
 			return -ENOMEM;
 		}
 
-		gic_rdists->prop_table_pa = page_to_phys(page);
-		gic_rdists->prop_table_va = page_address(page);
 		WARN_ON(gic_reserve_range(gic_rdists->prop_table_pa,
 					  LPI_PROPBASE_SZ));
 	}
@@ -2077,7 +2075,7 @@ static int __init allocate_lpi_tables(void)
 		struct page *pend_page;
 
 		pend_page = its_allocate_pending_table(GFP_NOWAIT);
-		if (!pend_page) {
+		if (!pend_page && !gic_data_rdist()->pend_vaddr) {
 			pr_err("Failed to allocate PENDBASE for CPU%d\n", cpu);
 			return -ENOMEM;
 		}
@@ -2114,7 +2112,6 @@ static u64 its_clear_vpend_valid(void __iomem *vlpi_base)
 static void its_cpu_init_lpis(void)
 {
 	void __iomem *rbase = gic_data_rdist_rd_base();
-	struct page *pend_page;
 	phys_addr_t paddr;
 	u64 val, tmp;
 
@@ -2137,14 +2134,15 @@ static void its_cpu_init_lpis(void)
 		paddr &= GENMASK_ULL(51, 16);
 
 		WARN_ON(!gic_check_reserved_range(paddr, LPI_PENDBASE_SZ));
-		its_free_pending_table(gic_data_rdist()->pend_page);
-		gic_data_rdist()->pend_page = NULL;
+		if (gic_data_rdist()->pend_page) {
+			its_free_pending_table(gic_data_rdist()->pend_page);
+			gic_data_rdist()->pend_page = NULL;
+		}
 
 		goto out;
 	}
 
-	pend_page = gic_data_rdist()->pend_page;
-	paddr = page_to_phys(pend_page);
+	paddr = gic_data_rdist()->pend_paddr;
 	WARN_ON(gic_reserve_range(paddr, LPI_PENDBASE_SZ));
 
 	/* set PROPBASE */
@@ -3029,7 +3027,7 @@ static int its_vpe_init(struct its_vpe *vpe)
 
 	/* Allocate VPT */
 	vpt_page = its_allocate_pending_table(GFP_KERNEL);
-	if (!vpt_page) {
+	if (!vpt_page && !gic_data_rdist()->pend_vaddr) {
 		its_vpe_id_free(vpe_id);
 		return -ENOMEM;
 	}
@@ -3101,7 +3099,7 @@ static int its_vpe_irq_domain_alloc(struct irq_domain *domain, unsigned int virq
 	}
 
 	vprop_page = its_allocate_prop_table(GFP_KERNEL);
-	if (!vprop_page) {
+	if (!vprop_page && !gic_rdists->prop_table_va) {
 		its_lpi_free(bitmap, base, nr_ids);
 		return -ENOMEM;
 	}

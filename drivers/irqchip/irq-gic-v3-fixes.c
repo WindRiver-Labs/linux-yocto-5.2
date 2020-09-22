@@ -187,6 +187,7 @@ struct page *its_prop_alloc_pages(struct rdists *gic_rdists,
 
 		gic_rdists->prop_table_pa = page_to_phys(prop_page);
 		gic_rdists->prop_table_va = page_address(prop_page);
+		gic_rdists->prop_page = prop_page;
 	}
 
 	return prop_page;
