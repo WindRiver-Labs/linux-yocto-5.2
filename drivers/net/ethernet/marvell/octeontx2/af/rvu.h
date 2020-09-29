@@ -24,6 +24,9 @@
 /* Subsystem Device ID */
 #define PCI_SUBSYS_DEVID_98XX                  0xB100
 #define PCI_SUBSYS_DEVID_96XX                  0xB200
+#define PCI_SUBSYS_DEVID_95XX                  0xB300
+#define PCI_SUBSYS_DEVID_LOKI                  0xB400
+#define PCI_SUBSYS_DEVID_95XXMM                0xB500
 
 /* PCI BAR nos */
 #define	PCI_AF_REG_BAR_NUM			0
@@ -570,6 +573,15 @@ static inline bool is_rvu_95xx_A0(struct rvu *rvu)
 	struct pci_dev *pdev = rvu->pdev;
 
 	return (pdev->revision == 0x10) || (pdev->revision == 0x11);
+}
+
+static inline bool is_rvu_otx2(struct rvu *rvu)
+{
+	unsigned short id = rvu->pdev->subsystem_device;
+
+	return (id == PCI_SUBSYS_DEVID_96XX || id == PCI_SUBSYS_DEVID_98XX ||
+		id == PCI_SUBSYS_DEVID_95XX || id == PCI_SUBSYS_DEVID_LOKI ||
+		id == PCI_SUBSYS_DEVID_95XXMM);
 }
 
 static inline bool is_cgx_mapped_to_nix(unsigned short id, u8 cgx_id)

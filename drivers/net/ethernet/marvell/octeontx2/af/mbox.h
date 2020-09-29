@@ -309,7 +309,8 @@ M(NIX_GET_MAC_ADDR, 0x8018, nix_get_mac_addr, msg_req, nix_get_mac_addr_rsp) \
 M(NIX_INLINE_IPSEC_CFG, 0x8019, nix_inline_ipsec_cfg,			\
 				nix_inline_ipsec_cfg, msg_rsp)		\
 M(NIX_INLINE_IPSEC_LF_CFG, 0x801a, nix_inline_ipsec_lf_cfg,		\
-				nix_inline_ipsec_lf_cfg, msg_rsp)
+				nix_inline_ipsec_lf_cfg, msg_rsp)	\
+M(NIX_GET_HW_INFO,	0x801c, nix_get_hw_info, msg_req, nix_hw_info)
 
 /* Messages initiated by AF (range 0xC00 - 0xDFF) */
 #define MBOX_UP_CGX_MESSAGES						\
@@ -1092,6 +1093,12 @@ struct nix_inline_ipsec_lf_cfg {
 		u8 sa_idx_w;
 	} ipsec_cfg1;
 	u8 enable;
+};
+
+struct nix_hw_info {
+	struct mbox_msghdr hdr;
+	u16 vwqe_delay;
+	u16 rsvd[15];
 };
 
 /* SSO mailbox error codes
