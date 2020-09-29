@@ -136,9 +136,9 @@
 			reg-names = "pp", "mspg", "cm3";
 		};
 
-		CP11X_LABEL(comphy): phy@120000 {
+		CP11X_LABEL(comphy): phy@441000 {
 			compatible = "marvell,comphy-cp110";
-			reg = <0x120000 0x6000>;
+			reg = <0x441000 0xf4>, <0x120000 0x6000>;
 			marvell,system-controller = <&CP11X_LABEL(syscon0)>;
 			clocks = <&CP11X_LABEL(clk) 1 5>, <&CP11X_LABEL(clk) 1 6>,
 				 <&CP11X_LABEL(clk) 1 18>;
