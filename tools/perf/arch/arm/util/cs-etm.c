@@ -679,6 +679,8 @@ static int cs_etm_info_fill(struct auxtrace_record *itr,
 	u64 nr_cpu, type;
 	struct cpu_map *cpu_map;
 	struct cpu_map *event_cpus = session->evlist->cpus;
+	struct perf_evlist *evlist = session->evlist;
+	struct perf_evsel *evsel, *cs_etm_evsel = NULL;
 	struct cpu_map *online_cpus = cpu_map__new(NULL);
 	struct cs_etm_recording *ptr =
 			container_of(itr, struct cs_etm_recording, itr);
@@ -714,6 +716,40 @@ static int cs_etm_info_fill(struct auxtrace_record *itr,
 	info->priv[CS_PMU_TYPE_CPUS] = type << 32;
 	info->priv[CS_PMU_TYPE_CPUS] |= nr_cpu;
 	info->priv[CS_ETM_SNAPSHOT] = ptr->snapshot_mode;
+
+	/* Find the etm_pmu event from the event list */
+	evlist__for_each_entry(evlist, evsel) {
+		if (evsel->attr.type == cs_etm_pmu->type) {
+			cs_etm_evsel = evsel;
+			break;
+		}
+	}
+
+	/* From the etm_pmu event determine if the sink supports
+	 * formatted trace by reading the sink's FFSR register
+	 * exposed through SysFS
+	 */
+	if (cs_etm_evsel) {
+		struct perf_evsel_config_term *term;
+		char path[PATH_MAX], *sink;
+		int ret;
+		u32 val;
+
+		list_for_each_entry(term, &cs_etm_evsel->config_terms, list) {
+			if (term->type != PERF_EVSEL__CONFIG_TERM_DRV_CFG)
+				continue;
+
+			sink = term->val.drv_cfg;
+			snprintf(path, PATH_MAX, "sink_%s/mgmt/ffsr", sink);
+			ret = perf_pmu__scan_file(cs_etm_pmu, path, "%x", &val);
+			if (ret != 1) {
+				pr_err("%s: can't read file %s\n",
+				       CORESIGHT_ETM_PMU_NAME, path);
+				break;
+			}
+			info->priv[CS_SINK_FORMATTED] = val & (1 << 4) ? 0 : 1;
+		}
+	}
 
 	offset = CS_ETM_SNAPSHOT + 1;
 
