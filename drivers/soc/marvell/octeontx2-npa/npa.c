@@ -20,6 +20,7 @@
 #include "rvu_reg.h"
 #include "mbox.h"
 #include "npa.h"
+#include "npa_api.h"
 
 #define DRV_NAME "octeontx2-npapf"
 #define DRV_VERSION "1.0"
