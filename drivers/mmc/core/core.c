@@ -597,12 +597,15 @@ EXPORT_SYMBOL(mmc_cqe_recovery);
  */
 void mmc_wait_for_oops_req(struct mmc_host *host, struct mmc_request *mrq)
 {
+	unsigned int timeout;
+
+	host->ops->req_cleanup_pending(host);
 	mmc_start_request(host, mrq);
 
-	if (mrq->data)
-		mdelay((mrq->data->timeout_ns) / NSEC_PER_MSEC);
-
-	local_irq_enable();
+	if (mrq->data) {
+		timeout = mrq->data->timeout_ns / NSEC_PER_MSEC;
+		host->ops->req_completion_poll(host, timeout);
+	}
 }
 #endif
 

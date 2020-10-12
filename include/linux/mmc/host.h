@@ -168,6 +168,11 @@ struct mmc_host_ops {
 	 */
 	int	(*multi_io_quirk)(struct mmc_card *card,
 				  unsigned int direction, int blk_size);
+#ifdef CONFIG_MMC_OOPS
+	void	(*req_cleanup_pending)(struct mmc_host *host);
+	int	(*req_completion_poll)(struct mmc_host *host,
+					unsigned long timeout);
+#endif
 };
 
 struct mmc_cqe_ops {
