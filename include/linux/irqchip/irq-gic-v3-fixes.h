@@ -21,11 +21,5 @@ void gic_write_sgi1r_retry(int dest_cpu, int irq, u64 val);
 void gic_v3_enable_quirks(void __iomem *base);
 void gic_v3_enable_ipimiss_quirk(void);
 
-struct page *its_prop_alloc_pages(struct rdists *gic_rdists,
-				size_t prop_tbl_sz,  gfp_t gfp_flags);
-struct page *its_pend_alloc_pages(struct rdists *gic_rdists,
-		size_t prop_tbl_sz, size_t pend_tbl_sz, gfp_t gfp_flags);
-int redist_lpis_enabled(struct rdists *gic_rdists);
-
 #endif
 
