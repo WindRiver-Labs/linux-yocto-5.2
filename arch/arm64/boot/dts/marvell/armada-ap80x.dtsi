@@ -174,6 +174,7 @@
 				msi-parent = <&gic_v2m0>;
 				clocks = <&ap_clk 3>;
 				dma-coherent;
+				iommus = <&smmu 0x1>;
 			};
 
 			xor@420000 {
@@ -183,6 +184,7 @@
 				msi-parent = <&gic_v2m0>;
 				clocks = <&ap_clk 3>;
 				dma-coherent;
+				iommus = <&smmu 0x2>;
 			};
 
 			xor@440000 {
@@ -257,6 +259,7 @@
 				clock-names = "core";
 				clocks = <&ap_clk 4>;
 				dma-coherent;
+				iommus = <&smmu 0x5>;
 				marvell,xenon-phy-slow-mode;
 				status = "disabled";
 			};
