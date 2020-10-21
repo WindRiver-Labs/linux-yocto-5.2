@@ -134,7 +134,7 @@
 	pinctrl-0 = <&cp0_i2c0_pins>;
 	clock-frequency = <100000>;
 
-	expander0: mcp23x17@20 {
+	expander0: mcp23x17@27 {
 		compatible = "microchip,mcp23017";
 		pinctrl-names = "default";
 		gpio-controller;
