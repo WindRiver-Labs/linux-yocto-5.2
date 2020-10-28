@@ -406,9 +406,9 @@ static int aquantia_config_advert(struct phy_device *phydev)
 
 	if (linkmode_test_bit(ETHTOOL_LINK_MODE_1000baseT_Full_BIT, phydev->advertising))
 		adv1 |= 0x8000;
-	if (linkmode_test_bit(ADVERTISED_10000baseT_Full, phydev->advertising))
+	if (linkmode_test_bit(ETHTOOL_LINK_MODE_10000baseT_Full_BIT, phydev->advertising))
 		adv |= 0x1000;
-	if (linkmode_test_bit(ADVERTISED_2500baseX_Full, phydev->advertising))
+	if (linkmode_test_bit(ETHTOOL_LINK_MODE_2500baseX_Full_BIT, phydev->advertising))
 		adv1 |= 0x400;
 
 	if (adv != oldadv) {
