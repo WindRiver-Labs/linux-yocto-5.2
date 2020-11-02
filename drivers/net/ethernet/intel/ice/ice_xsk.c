@@ -1134,11 +1134,8 @@ bool ice_xsk_any_rx_ring_ena(struct ice_vsi *vsi)
 {
 	int i;
 
-	if (!vsi->xsk_umems)
-		return false;
-
-	for (i = 0; i < vsi->num_xsk_umems; i++) {
-		if (vsi->xsk_umems[i])
+	ice_for_each_rxq(vsi, i) {
+		if (xdp_get_umem_from_qid(vsi->netdev, i))
 			return true;
 	}
 
