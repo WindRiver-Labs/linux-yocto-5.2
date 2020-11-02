@@ -38,6 +38,7 @@
 #include <net/devlink.h>
 #include <net/ipv6.h>
 #include <net/xdp_sock.h>
+#include <net/xdp_sock.h>
 #include <net/geneve.h>
 #include <net/gre.h>
 #include <net/udp_tunnel.h>
@@ -508,17 +509,15 @@ static inline void ice_set_ring_xdp(struct ice_ring *ring)
  */
 static inline struct xdp_umem *ice_xsk_umem(struct ice_ring *ring)
 {
-	struct xdp_umem **umems = ring->vsi->xsk_umems;
 	u16 qid = ring->q_index;
 
 	if (ice_ring_is_xdp(ring))
 		qid -= ring->vsi->num_xdp_txq;
 
-	if (qid >= ring->vsi->num_xsk_umems || !umems || !umems[qid] ||
-	    !ice_is_xdp_ena_vsi(ring->vsi))
+	if (!ice_is_xdp_ena_vsi(ring->vsi))
 		return NULL;
 
-	return umems[qid];
+	return xdp_get_umem_from_qid(ring->vsi->netdev, qid);
 }
 
 /**
