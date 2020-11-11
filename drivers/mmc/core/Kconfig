@@ -34,9 +34,22 @@ config PWRSEQ_SIMPLE
 	  This driver can also be built as a module. If so, the module
 	  will be called pwrseq_simple.
 
+config MMC_PSTORE_BACKEND
+	bool "Log panic/oops to a MMC buffer"
+	depends on MMC_BLOCK
+	help
+	  This option will let you create platform backend to store kmsg
+	  crash dumps to a user specified MMC device. This is primarily
+	  based on pstore/blk.
+
+config MMC_PSTORE
+	tristate
+	select PSTORE_BLK
+
 config MMC_BLOCK
 	tristate "MMC block device driver"
 	depends on BLOCK
+	select MMC_PSTORE if MMC_PSTORE_BACKEND=y
 	default y
 	help
 	  Say Y here to enable the MMC block device driver support.
@@ -80,4 +93,3 @@ config MMC_TEST
 
 	  This driver is only of interest to those developing or
 	  testing a host driver. Most people should say N here.
-

@@ -2864,6 +2864,28 @@ static void mmc_blk_remove_debugfs(struct mmc_card *card,
 
 #endif /* CONFIG_DEBUG_FS */
 
+#if IS_ENABLED(CONFIG_MMC_PSTORE)
+int mmc_blk_needs_part_switch(struct mmc_card *card)
+{
+	struct mmc_blk_data *md = dev_get_drvdata(&card->dev);
+
+	return (md->part_curr != md->part_type);
+}
+
+sector_t mmc_blk_get_part(struct mmc_card *card, int part_num, sector_t *size)
+{
+	struct mmc_blk_data *md = dev_get_drvdata(&card->dev);
+	struct gendisk *disk = md->disk;
+	struct disk_part_tbl *part_tbl = disk->part_tbl;
+
+	if (part_num < 0 || part_num >= part_tbl->len)
+		return 0;
+
+	*size = part_tbl->part[part_num]->nr_sects << SECTOR_SHIFT;
+	return part_tbl->part[part_num]->start_sect;
+}
+#endif
+
 static int mmc_blk_probe(struct mmc_card *card)
 {
 	struct mmc_blk_data *md, *part_md;
@@ -2906,6 +2928,9 @@ static int mmc_blk_probe(struct mmc_card *card)
 		if (mmc_add_disk(part_md))
 			goto out;
 	}
+
+	if (mmc_card_mmc(card) || mmc_card_sd(card))
+		mmcpstore_card_set(card, md->disk->disk_name);
 
 	/* Add two debugfs entries */
 	mmc_blk_add_debugfs(card, md);
@@ -3054,6 +3079,7 @@ static void __exit mmc_blk_exit(void)
 	unregister_blkdev(MMC_BLOCK_MAJOR, "mmc");
 	unregister_chrdev_region(mmc_rpmb_devt, MAX_DEVICES);
 	bus_unregister(&mmc_rpmb_bus_type);
+	unregister_mmcpstore();
 }
 
 module_init(mmc_blk_init);

@@ -16,5 +16,15 @@ void mmc_blk_mq_recovery(struct mmc_queue *mq);
 struct work_struct;
 
 void mmc_blk_mq_complete_work(struct work_struct *work);
+#if IS_ENABLED(CONFIG_MMC_PSTORE)
+int mmc_blk_needs_part_switch(struct mmc_card *card);
+sector_t mmc_blk_get_part(struct mmc_card *card, int part_num, sector_t *size);
+void mmcpstore_card_set(struct mmc_card *card, const char *disk_name);
+void unregister_mmcpstore(void);
+#else
+static inline void mmcpstore_card_set(struct mmc_card *card,
+					const char *disk_name) {}
+static inline void unregister_mmcpstore(void) {}
+#endif
 
 #endif
