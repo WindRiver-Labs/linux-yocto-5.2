@@ -30,11 +30,16 @@ enum xen_irq_type {
  */
 struct irq_info {
 	struct list_head list;
-	int refcnt;
+	struct list_head eoi_list;
+	short refcnt;
+	short spurious_cnt;
 	enum xen_irq_type type;	/* type */
 	unsigned irq;
-	unsigned int evtchn;	/* event channel */
+	evtchn_port_t evtchn;	/* event channel */
 	unsigned short cpu;	/* cpu bound */
+	unsigned short eoi_cpu;	/* EOI must happen on this cpu */
+	unsigned int irq_epoch;	/* If eoi_cpu valid: irq_epoch of event */
+	u64 eoi_time;		/* Time in jiffies when to EOI. */
 
 	union {
 		unsigned short virq;
@@ -53,6 +58,8 @@ struct irq_info {
 #define PIRQ_SHAREABLE	(1 << 1)
 #define PIRQ_MSI_GROUP	(1 << 2)
 
+struct evtchn_loop_ctrl;
+
 struct evtchn_ops {
 	unsigned (*max_channels)(void);
 	unsigned (*nr_channels)(void);
@@ -60,25 +67,29 @@ struct evtchn_ops {
 	int (*setup)(struct irq_info *info);
 	void (*bind_to_cpu)(struct irq_info *info, unsigned cpu);
 
-	void (*clear_pending)(unsigned port);
-	void (*set_pending)(unsigned port);
-	bool (*is_pending)(unsigned port);
-	bool (*test_and_set_mask)(unsigned port);
-	void (*mask)(unsigned port);
-	void (*unmask)(unsigned port);
+	void (*clear_pending)(evtchn_port_t port);
+	void (*set_pending)(evtchn_port_t port);
+	bool (*is_pending)(evtchn_port_t port);
+	bool (*test_and_set_mask)(evtchn_port_t port);
+	void (*mask)(evtchn_port_t port);
+	void (*unmask)(evtchn_port_t port);
 
-	void (*handle_events)(unsigned cpu);
+	void (*handle_events)(unsigned cpu, struct evtchn_loop_ctrl *ctrl);
 	void (*resume)(void);
+
+	int (*percpu_init)(unsigned int cpu);
+	int (*percpu_deinit)(unsigned int cpu);
 };
 
 extern const struct evtchn_ops *evtchn_ops;
 
 extern int **evtchn_to_irq;
-int get_evtchn_to_irq(unsigned int evtchn);
+int get_evtchn_to_irq(evtchn_port_t evtchn);
+void handle_irq_for_port(evtchn_port_t port, struct evtchn_loop_ctrl *ctrl);
 
 struct irq_info *info_for_irq(unsigned irq);
 unsigned cpu_from_irq(unsigned irq);
-unsigned cpu_from_evtchn(unsigned int evtchn);
+unsigned int cpu_from_evtchn(evtchn_port_t evtchn);
 
 static inline unsigned xen_evtchn_max_channels(void)
 {
@@ -102,39 +113,40 @@ static inline void xen_evtchn_port_bind_to_cpu(struct irq_info *info,
 	evtchn_ops->bind_to_cpu(info, cpu);
 }
 
-static inline void clear_evtchn(unsigned port)
+static inline void clear_evtchn(evtchn_port_t port)
 {
 	evtchn_ops->clear_pending(port);
 }
 
-static inline void set_evtchn(unsigned port)
+static inline void set_evtchn(evtchn_port_t port)
 {
 	evtchn_ops->set_pending(port);
 }
 
-static inline bool test_evtchn(unsigned port)
+static inline bool test_evtchn(evtchn_port_t port)
 {
 	return evtchn_ops->is_pending(port);
 }
 
-static inline bool test_and_set_mask(unsigned port)
+static inline bool test_and_set_mask(evtchn_port_t port)
 {
 	return evtchn_ops->test_and_set_mask(port);
 }
 
-static inline void mask_evtchn(unsigned port)
+static inline void mask_evtchn(evtchn_port_t port)
 {
 	return evtchn_ops->mask(port);
 }
 
-static inline void unmask_evtchn(unsigned port)
+static inline void unmask_evtchn(evtchn_port_t port)
 {
 	return evtchn_ops->unmask(port);
 }
 
-static inline void xen_evtchn_handle_events(unsigned cpu)
+static inline void xen_evtchn_handle_events(unsigned cpu,
+					    struct evtchn_loop_ctrl *ctrl)
 {
-	return evtchn_ops->handle_events(cpu);
+	return evtchn_ops->handle_events(cpu, ctrl);
 }
 
 static inline void xen_evtchn_resume(void)
