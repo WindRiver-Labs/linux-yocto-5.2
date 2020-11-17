@@ -533,9 +533,12 @@ int ghes_edac_register(struct ghes *ghes, struct device *dev)
 	mci->dev_name = "ghes";
 
 	if (fake) {
+/* OCTEONTX2_SDEI_GHES supports correct DIMM reporting w/o DMI/SMBIOS info */
+#ifndef CONFIG_OCTEONTX2_SDEI_GHES
 		pr_info("This system has a very crappy BIOS: It doesn't even list the DIMMS.\n");
 		pr_info("Its SMBIOS info is wrong. It is doubtful that the error report would\n");
 		pr_info("work on such system. Use this driver with caution\n");
+#endif
 	} else if (idx < 0) {
 		pr_info("This EDAC driver relies on BIOS to enumerate memory and get error reports.\n");
 		pr_info("Unfortunately, not all BIOSes reflect the memory layout correctly.\n");
