@@ -649,8 +649,13 @@ static int __init sdei_ghes_bert_init(struct device_node *of_node)
 
 	bed_ring = memblock_va;
 
+	/*
+	 * This indicates that the firmware does not support BERT.
+	 * This is not an error, exit with success.
+	 */
 	if (!bed_ring->size) {
-		pr_err("Invalid ring size %d\n", bed_ring->size);
+		pr_info("BERT support disabled by firmware\n");
+		ret = 0;
 		goto exit;
 	}
 
