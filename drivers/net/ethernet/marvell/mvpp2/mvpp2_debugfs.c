@@ -13,21 +13,6 @@
 #include "mvpp2_prs.h"
 #include "mvpp2_cls.h"
 
-struct mvpp2_dbgfs_prs_entry {
-	int tid;
-	struct mvpp2 *priv;
-};
-
-struct mvpp2_dbgfs_flow_entry {
-	int flow;
-	struct mvpp2 *priv;
-};
-
-struct mvpp2_dbgfs_port_flow_entry {
-	struct mvpp2_port *port;
-	struct mvpp2_dbgfs_flow_entry *dbg_fe;
-};
-
 static int mvpp2_dbgfs_flow_flt_hits_show(struct seq_file *s, void *unused)
 {
 	struct mvpp2_dbgfs_flow_entry *entry = s->private;
@@ -98,19 +83,10 @@ static int mvpp2_dbgfs_flow_type_open(struct inode *inode, struct file *file)
 	return single_open(file, mvpp2_dbgfs_flow_type_show, inode->i_private);
 }
 
-static int mvpp2_dbgfs_flow_type_release(struct inode *inode, struct file *file)
-{
-	struct seq_file *seq = file->private_data;
-	struct mvpp2_dbgfs_flow_entry *flow_entry = seq->private;
-
-	kfree(flow_entry);
-	return single_release(inode, file);
-}
-
 static const struct file_operations mvpp2_dbgfs_flow_type_fops = {
 	.open = mvpp2_dbgfs_flow_type_open,
 	.read = seq_read,
-	.release = mvpp2_dbgfs_flow_type_release,
+	.release = single_release,
 };
 
 static int mvpp2_dbgfs_flow_id_show(struct seq_file *s, void *unused)
@@ -161,20 +137,10 @@ static int mvpp2_dbgfs_port_flow_hash_opt_open(struct inode *inode,
 			   inode->i_private);
 }
 
-static int mvpp2_dbgfs_port_flow_hash_opt_release(struct inode *inode,
-						  struct file *file)
-{
-	struct seq_file *seq = file->private_data;
-	struct mvpp2_dbgfs_port_flow_entry *flow_entry = seq->private;
-
-	kfree(flow_entry);
-	return single_release(inode, file);
-}
-
 static const struct file_operations mvpp2_dbgfs_port_flow_hash_opt_fops = {
 	.open = mvpp2_dbgfs_port_flow_hash_opt_open,
 	.read = seq_read,
-	.release = mvpp2_dbgfs_port_flow_hash_opt_release,
+	.release = single_release,
 };
 
 static int mvpp2_dbgfs_port_flow_engine_show(struct seq_file *s, void *unused)
@@ -498,19 +464,10 @@ static int mvpp2_dbgfs_prs_valid_open(struct inode *inode, struct file *file)
 	return single_open(file, mvpp2_dbgfs_prs_valid_show, inode->i_private);
 }
 
-static int mvpp2_dbgfs_prs_valid_release(struct inode *inode, struct file *file)
-{
-	struct seq_file *seq = file->private_data;
-	struct mvpp2_dbgfs_prs_entry *entry = seq->private;
-
-	kfree(entry);
-	return single_release(inode, file);
-}
-
 static const struct file_operations mvpp2_dbgfs_prs_valid_fops = {
 	.open = mvpp2_dbgfs_prs_valid_open,
 	.read = seq_read,
-	.release = mvpp2_dbgfs_prs_valid_release,
+	.release = single_release,
 };
 
 static int mvpp2_dbgfs_flow_port_init(struct dentry *parent,
@@ -524,13 +481,13 @@ static int mvpp2_dbgfs_flow_port_init(struct dentry *parent,
 	if (IS_ERR(port_dir))
 		return PTR_ERR(port_dir);
 
-	/* This will be freed by 'hash_opts' release op */
 	port_entry = kmalloc(sizeof(*port_entry), GFP_KERNEL);
 	if (!port_entry)
 		return -ENOMEM;
 
 	port_entry->port = port;
 	port_entry->dbg_fe = entry;
+	port->dbgfs_port_flow_entry = port_entry;
 
 	debugfs_create_file("hash_opts", 0444, port_dir, port_entry,
 			    &mvpp2_dbgfs_port_flow_hash_opt_fops);
@@ -555,13 +512,13 @@ static int mvpp2_dbgfs_flow_entry_init(struct dentry *parent,
 	if (!flow_entry_dir)
 		return -ENOMEM;
 
-	/* This will be freed by 'type' release op */
 	entry = kmalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry)
 		return -ENOMEM;
 
 	entry->flow = flow;
 	entry->priv = priv;
+	priv->dbgfs_flow_entry[flow] = entry;
 
 	debugfs_create_file("flow_hits", 0444, flow_entry_dir, entry,
 			    &mvpp2_dbgfs_flow_flt_hits_fops);
@@ -619,13 +576,13 @@ static int mvpp2_dbgfs_prs_entry_init(struct dentry *parent,
 	if (!prs_entry_dir)
 		return -ENOMEM;
 
-	/* The 'valid' entry's ops will free that */
 	entry = kmalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry)
 		return -ENOMEM;
 
 	entry->tid = tid;
 	entry->priv = priv;
+	priv->dbgfs_prs_entry[tid] = entry;
 
 	/* Create each attr */
 	debugfs_create_file("sram", 0444, prs_entry_dir, entry,
@@ -699,6 +656,14 @@ static int mvpp2_dbgfs_port_init(struct dentry *parent,
 
 void mvpp2_dbgfs_cleanup(struct mvpp2 *priv)
 {
+	int i;
+
+	for (i = 0; i < MVPP2_PRS_TCAM_SRAM_SIZE; i++)
+		kfree(priv->dbgfs_prs_entry[i]);
+
+	for (i = 0; i < MVPP2_N_FLOWS; i++)
+		kfree(priv->dbgfs_flow_entry[i]);
+
 	debugfs_remove_recursive(priv->dbgfs_dir);
 }
 

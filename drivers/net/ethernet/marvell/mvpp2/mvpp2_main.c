@@ -6900,6 +6900,7 @@ static void mvpp2_port_remove(struct mvpp2_port *port)
 	int i;
 
 	mvpp2_port_musdk_set(port->dev, false);
+	kfree(port->dbgfs_port_flow_entry);
 	unregister_netdev(port->dev);
 	unregister_dsa_notifier(&port->dsa_notifier);
 	if (port->phylink)
