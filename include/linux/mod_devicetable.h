@@ -804,4 +804,12 @@ struct wmi_device_id {
 	const char guid_string[UUID_STRING_LEN+1];
 };
 
+#define AUXILIARY_NAME_SIZE 32
+#define AUXILIARY_MODULE_PREFIX "auxiliary:"
+
+struct auxiliary_device_id {
+	char name[AUXILIARY_NAME_SIZE];
+	kernel_ulong_t driver_data;
+};
+
 #endif /* LINUX_MOD_DEVICETABLE_H */

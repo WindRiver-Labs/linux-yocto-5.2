@@ -57,6 +57,7 @@ available subsections can be seen below.
    soundwire/index
    fpga/index
    acpi/index
+   auxiliary_bus
    generic-counter
 
 .. only::  subproject and html
