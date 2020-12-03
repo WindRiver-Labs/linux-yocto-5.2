@@ -231,5 +231,8 @@ int main(void)
 	DEVID(wmi_device_id);
 	DEVID_FIELD(wmi_device_id, guid_string);
 
+	DEVID(auxiliary_device_id);
+	DEVID_FIELD(auxiliary_device_id, name);
+
 	return 0;
 }
