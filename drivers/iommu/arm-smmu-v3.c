@@ -384,6 +384,11 @@
 #define MSI_IOVA_BASE			0x8000000
 #define MSI_IOVA_LENGTH			0x100000
 
+#define ARM_SMMU_IIDR			0x18
+#define IIDR_MRVL_CN96XX_A0		0x2b20034c
+#define IIDR_MRVL_CN96XX_B0		0x2b20134c
+#define IIDR_MRVL_CN95XX_A0		0x2b30034c
+#define IIDR_MRVL_CN95XX_A1		0x2b30134c
 /*
  * not really modular, but the easiest way to keep compat with existing
  * bootargs behaviour is to continue using module_param_named here.
@@ -528,6 +533,7 @@ struct arm_smmu_cmdq {
 	atomic_long_t			*valid_map;
 	atomic_t			owner_prod;
 	atomic_t			lock;
+	spinlock_t			spin_lock;
 };
 
 struct arm_smmu_evtq {
@@ -599,6 +605,7 @@ struct arm_smmu_device {
 
 #define ARM_SMMU_OPT_SKIP_PREFETCH	(1 << 0)
 #define ARM_SMMU_OPT_PAGE0_REGS_ONLY	(1 << 1)
+#define ARM_SMMU_OPT_FORCE_QDRAIN	(1 << 2)
 	u32				options;
 
 	struct arm_smmu_cmdq		cmdq;
@@ -627,6 +634,7 @@ struct arm_smmu_device {
 
 	/* IOMMU core code handle */
 	struct iommu_device		iommu;
+	int				max_cmd_ents;
 };
 
 /* SMMU private data for each master */
@@ -1288,6 +1296,72 @@ static void arm_smmu_cmdq_write_entries(struct arm_smmu_cmdq *cmdq, u64 *cmds,
 	}
 }
 
+
+
+static int queue_poll_cons(struct arm_smmu_queue *q, bool sync, bool wfe)
+{
+	ktime_t timeout;
+	unsigned int delay = 1, spin_cnt = 0;
+
+	/* Wait longer if it's a CMD_SYNC */
+	timeout = ktime_add_us(ktime_get(), ARM_SMMU_POLL_TIMEOUT_US);
+
+	while (queue_sync_cons_out(q), (sync ? !queue_empty(&q->llq) : queue_full(&q->llq))) {
+		if (ktime_compare(ktime_get(), timeout) > 0)
+			return -ETIMEDOUT;
+
+		if (wfe) {
+			wfe();
+		} else if (++spin_cnt < ARM_SMMU_POLL_SPIN_COUNT) {
+			cpu_relax();
+			continue;
+		} else {
+			udelay(delay);
+			delay *= 2;
+			spin_cnt = 0;
+		}
+	}
+
+	return 0;
+}
+
+static void arm_smmu_cmdq_insert_cmd(struct arm_smmu_device *smmu, u64 *cmds, int n)
+{
+	struct arm_smmu_cmdq *cmdq = &smmu->cmdq;
+	struct arm_smmu_ll_queue *llq = &cmdq->q.llq;
+	u32 prod = llq->prod;
+	int i;
+
+	/* Ensure command queue has atmost two entries */
+	if (!(prod & 0x1) && queue_poll_cons(&cmdq->q, true, false))
+		dev_err(smmu->dev, "command drain timeout\n");
+
+	for (i = 0; i < n; ++i) {
+		u64 *cmd = &cmds[i * CMDQ_ENT_DWORDS];
+
+		prod = queue_inc_prod_n(llq, i);
+		queue_write(Q_ENT(&cmdq->q, prod), cmd, CMDQ_ENT_DWORDS);
+	}
+}
+
+static int __arm_smmu_cmdq_issue_sync(struct arm_smmu_device *smmu)
+{
+	u64 cmd[CMDQ_ENT_DWORDS];
+	unsigned long flags;
+	bool wfe = !!(smmu->features & ARM_SMMU_FEAT_SEV);
+	struct arm_smmu_cmdq_ent ent = { .opcode = CMDQ_OP_CMD_SYNC };
+	int ret;
+
+	arm_smmu_cmdq_build_cmd(cmd, &ent);
+
+	spin_lock_irqsave(&smmu->cmdq.spin_lock, flags);
+	arm_smmu_cmdq_insert_cmd(smmu, cmd, 1);
+	ret = queue_poll_cons(&smmu->cmdq.q, true, wfe);
+	spin_unlock_irqrestore(&smmu->cmdq.spin_lock, flags);
+
+	return ret;
+}
+
 /*
  * This is the actual insertion function, and provides the following
  * ordering guarantees to callers:
@@ -1316,6 +1390,13 @@ static int arm_smmu_cmdq_issue_cmdlist(struct arm_smmu_device *smmu,
 		.max_n_shift = cmdq->q.llq.max_n_shift,
 	}, head = llq;
 	int ret = 0;
+
+	if (smmu->options & ARM_SMMU_OPT_FORCE_QDRAIN) {
+		spin_lock_irqsave(&smmu->cmdq.spin_lock, flags);
+		arm_smmu_cmdq_insert_cmd(smmu, cmds, n);
+		spin_unlock_irqrestore(&smmu->cmdq.spin_lock, flags);
+		return 0;
+	}
 
 	/* 1. Allocate some space in the queue */
 	local_irq_save(flags);
@@ -1440,7 +1521,15 @@ static int arm_smmu_cmdq_issue_cmd(struct arm_smmu_device *smmu,
 
 static int arm_smmu_cmdq_issue_sync(struct arm_smmu_device *smmu)
 {
-	return arm_smmu_cmdq_issue_cmdlist(smmu, NULL, 0, true);
+	int ret;
+
+	if (!(smmu->options & ARM_SMMU_OPT_FORCE_QDRAIN))
+		return arm_smmu_cmdq_issue_cmdlist(smmu, NULL, 0, true);
+
+	ret = __arm_smmu_cmdq_issue_sync(smmu);
+	if (ret)
+		dev_err_ratelimited(smmu->dev, "CMD_SYNC timeout\n");
+	return 0;
 }
 
 /* Context descriptor manipulation functions */
@@ -2013,7 +2102,7 @@ static void arm_smmu_tlb_inv_range(unsigned long iova, size_t size,
 	}
 
 	while (iova < end) {
-		if (i == CMDQ_BATCH_ENTRIES) {
+		if (i == smmu->max_cmd_ents) {
 			arm_smmu_cmdq_issue_cmdlist(smmu, cmds, i, false);
 			i = 0;
 		}
@@ -2024,7 +2113,8 @@ static void arm_smmu_tlb_inv_range(unsigned long iova, size_t size,
 		i++;
 	}
 
-	arm_smmu_cmdq_issue_cmdlist(smmu, cmds, i, true);
+	arm_smmu_cmdq_issue_cmdlist(smmu, cmds, i, false);
+	arm_smmu_cmdq_issue_sync(smmu);
 
 	/*
 	 * Unfortunately, this can't be leaf-only since we may have
@@ -2821,6 +2911,7 @@ static int arm_smmu_init_queues(struct arm_smmu_device *smmu)
 	int ret;
 
 	/* cmdq */
+	spin_lock_init(&smmu->cmdq.spin_lock);
 	ret = arm_smmu_init_one_queue(smmu, &smmu->cmdq.q, ARM_SMMU_CMDQ_PROD,
 				      ARM_SMMU_CMDQ_CONS, CMDQ_ENT_DWORDS,
 				      "cmdq");
@@ -3500,6 +3591,26 @@ static int arm_smmu_device_hw_probe(struct arm_smmu_device *smmu)
 
 	dev_info(smmu->dev, "ias %lu-bit, oas %lu-bit (features 0x%08x)\n",
 		 smmu->ias, smmu->oas, smmu->features);
+
+	smmu->max_cmd_ents = CMDQ_BATCH_ENTRIES;
+	/* Options based on implementation */
+	reg = readl_relaxed(smmu->base + ARM_SMMU_IIDR);
+
+	/* Marvell Octeontx2 SMMU wrongly issues unsupported
+	 * 64 byte memory reads under certain conditions for
+	 * reading commands from the command queue.
+	 * Force command queue drain for every two writes,
+	 * so that SMMU issues only 32 byte reads.
+	 */
+	switch (reg) {
+	case IIDR_MRVL_CN96XX_A0:
+	case IIDR_MRVL_CN96XX_B0:
+	case IIDR_MRVL_CN95XX_A0:
+	case IIDR_MRVL_CN95XX_A1:
+		smmu->options |= ARM_SMMU_OPT_FORCE_QDRAIN;
+		smmu->max_cmd_ents = 2;
+		break;
+	}
 	return 0;
 }
 
