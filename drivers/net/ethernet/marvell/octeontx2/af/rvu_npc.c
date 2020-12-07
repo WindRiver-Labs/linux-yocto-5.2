@@ -645,6 +645,7 @@ void rvu_npc_install_promisc_entry(struct rvu *rvu, u16 pcifunc,
 	int blkaddr, ucast_idx, index, kwi;
 	struct mcam_entry entry = { {0} };
 	struct nix_rx_action action = { };
+	u8 dmac_off;
 
 	/* Only PF or AF VF can add a promiscuous entry */
 	if ((pcifunc & RVU_PFVF_FUNC_MASK) && !is_afvf(pcifunc))
@@ -662,8 +663,9 @@ void rvu_npc_install_promisc_entry(struct rvu *rvu, u16 pcifunc,
 
 	if (allmulti) {
 		kwi = NPC_KEXOF_DMAC / sizeof(u64);
-		entry.kw[kwi] = BIT_ULL(40); /* LSB bit of 1st byte in DMAC */
-		entry.kw_mask[kwi] = BIT_ULL(40);
+		dmac_off = ((NPC_KEXOF_DMAC % 8) * 8);
+		entry.kw[kwi] = (BIT_ULL(40) << dmac_off); /* LSB bit of 1st byte in DMAC */
+		entry.kw_mask[kwi] = (BIT_ULL(40) << dmac_off);
 	}
 
 	ucast_idx = npc_get_nixlf_mcam_index(mcam, pcifunc,
@@ -725,6 +727,7 @@ void rvu_npc_install_bcast_match_entry(struct rvu *rvu, u16 pcifunc,
 	struct nix_rx_action action;
 	struct rvu_pfvf *pfvf;
 	int blkaddr, index;
+	u8 kwi, dmac_off;
 
 	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NPC, 0);
 	if (blkaddr < 0)
@@ -753,8 +756,10 @@ void rvu_npc_install_bcast_match_entry(struct rvu *rvu, u16 pcifunc,
 	/* Match broadcast MAC address.
 	 * DMAC is extracted at 0th bit of PARSE_KEX::KW1
 	 */
-	entry.kw[1] = 0xffffffffffffull;
-	entry.kw_mask[1] = 0xffffffffffffull;
+	kwi = NPC_KEXOF_DMAC / sizeof(u64);
+	dmac_off = ((NPC_KEXOF_DMAC % 8) * 8);
+	entry.kw[kwi] = (0xffffffffffffull << dmac_off);
+	entry.kw_mask[kwi] = (0xffffffffffffull << dmac_off);
 
 	*(u64 *)&action = 0x00;
 	if (!hw->cap.nix_rx_multicast) {
