@@ -3382,11 +3382,15 @@ static int rvu_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	if (err)
 		goto err_flr;
 
+	err = rvu_register_dl(rvu);
+	if (err)
+		goto err_irq;
+
 	rvu_setup_rvum_blk_revid(rvu);
 
 	err = rvu_policy_init(rvu);
 	if (err)
-		goto err_irq;
+		goto err_dl;
 
 	/* Enable AF's VFs (if any) */
 	err = rvu_enable_sriov(rvu);
@@ -3397,8 +3401,11 @@ static int rvu_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	rvu_dbg_init(rvu);
 
 	return 0;
+
 err_policy:
 	rvu_policy_destroy(rvu);
+err_dl:
+	rvu_unregister_dl(rvu);
 err_irq:
 	rvu_unregister_interrupts(rvu);
 err_flr:
@@ -3431,6 +3438,7 @@ static void rvu_remove(struct pci_dev *pdev)
 	rvu_dbg_exit(rvu);
 	rvu_policy_destroy(rvu);
 	rvu_unregister_interrupts(rvu);
+	rvu_unregister_dl(rvu);
 	rvu_flr_wq_destroy(rvu);
 	rvu_cgx_exit(rvu);
 	rvu_fwdata_exit(rvu);
