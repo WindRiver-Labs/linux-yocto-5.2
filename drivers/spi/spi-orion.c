@@ -559,6 +559,13 @@ static const struct orion_spi_dev armada_380_spi_dev_data = {
 	.is_errata_50mhz_ac = true,
 };
 
+static const struct orion_spi_dev armada_cp110_spi_dev_data = {
+	.typ = ARMADA_SPI,
+	.max_hz = 41000000,
+	.max_divisor = 1920,
+	.prescale_mask = ARMADA_SPI_CLK_PRESCALE_MASK,
+};
+
 static const struct of_device_id orion_spi_of_match_table[] = {
 	{
 		.compatible = "marvell,orion-spi",
@@ -579,6 +586,10 @@ static const struct of_device_id orion_spi_of_match_table[] = {
 	{
 		.compatible = "marvell,armada-390-spi",
 		.data = &armada_xp_spi_dev_data,
+	},
+	{
+		.compatible = "marvell,armada-cp110-spi",
+		.data = &armada_cp110_spi_dev_data,
 	},
 	{
 		.compatible = "marvell,armada-xp-spi",
