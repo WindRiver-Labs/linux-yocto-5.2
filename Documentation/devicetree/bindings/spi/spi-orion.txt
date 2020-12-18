@@ -7,6 +7,7 @@ Required properties:
     - "marvell,armada-375-spi", for the Armada 375 SoCs
     - "marvell,armada-380-spi", for the Armada 38x SoCs
     - "marvell,armada-390-spi", for the Armada 39x SoCs
+    - "marvell,armada-cp110-spi", for the Armada 7K/8K and Octeon TX2 CN913x SoCs
     - "marvell,armada-xp-spi", for the Armada XP SoCs
 - reg : offset and length of the register set for the device.
 	This property can optionally have additional entries to configure
