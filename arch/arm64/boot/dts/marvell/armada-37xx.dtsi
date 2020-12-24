@@ -155,6 +155,11 @@
 				status = "disabled";
 			};
 
+			uio-sam {
+				compatible = "marvell,uio-sam";
+				eip_access = <&crypto>;
+			};
+
 			nb_periph_clk: nb-periph-clk@13000 {
 				compatible = "marvell,armada-3700-periph-clock-nb";
 				reg = <0x13000 0x100>;
