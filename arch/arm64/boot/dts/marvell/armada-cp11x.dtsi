@@ -340,6 +340,16 @@
 				 <&CP11X_LABEL(clk) 1 14>;
 		};
 
+		CP11X_LABEL(uio_xor0) {
+			compatible = "marvell,uio-xor-v2";
+			xor_access = <&CP11X_LABEL(xor0)>;
+		};
+
+		CP11X_LABEL(uio_xor1) {
+			compatible = "marvell,uio-xor-v2";
+			xor_access = <&CP11X_LABEL(xor1)>;
+		};
+
 		CP11X_LABEL(spi0): spi@700600 {
 			compatible = "marvell,armada-380-spi";
 			reg = <0x700600 0x50>;
