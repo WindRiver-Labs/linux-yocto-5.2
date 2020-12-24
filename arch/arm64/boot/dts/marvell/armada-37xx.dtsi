@@ -460,6 +460,10 @@
 				      <0x1da0000 0x20000>; /* GICV */
 				interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
 			};
+
+			musdk_cma {
+				compatible = "marvell,musdk-cma";
+			};
 		};
 
 		pcie0: pcie@d0070000 {

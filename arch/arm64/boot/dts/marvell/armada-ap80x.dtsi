@@ -301,6 +301,10 @@
 					#thermal-sensor-cells = <1>;
 				};
 			};
+
+			musdk_cma {
+				compatible = "marvell,musdk-cma";
+			};
 		};
 	};
 
