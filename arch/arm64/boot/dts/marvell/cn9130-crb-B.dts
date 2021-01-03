@@ -36,13 +36,15 @@
 &cp0_usb3_0 {
 	status = "okay";
 	usb-phy = <&cp0_usb3_0_phy0>;
-	phys = <&cp0_comphy1 0>;
-	phy-names = "usb2", "usb3";
+	phys = <&cp0_comphy1 0>, <&cp0_utmi0>;
+	phy-names = "usb3", "utmi";
+	dr_mode = "host";
 };
 
 &cp0_usb3_1 {
 	status = "okay";
 	usb-phy = <&cp0_usb3_0_phy1>;
-	phys = <&cp0_comphy3 1>;
-	phy-names = "usb2", "usb3";
+	phys = <&cp0_comphy3 1>, <&cp0_utmi1>;
+	phy-names = "usb3", "utmi";
+	dr_mode = "host";
 };
