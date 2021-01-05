@@ -123,7 +123,6 @@
 
 &cp1_sata0 {
 	status = "okay";
-	iommus = <&smmu 0x454>;
 
 	/* CON32 */
 	sata-port@1 {
@@ -196,7 +195,6 @@
 /* CON58 */
 &cp1_usb3_1 {
 	status = "okay";
-	iommus = <&smmu 0x451>;
 	usb-phy = <&cp1_usb3_0_phy0>;
 	/* Generic PHY, providing serdes lanes */
 	phys = <&cp1_comphy3 1>;

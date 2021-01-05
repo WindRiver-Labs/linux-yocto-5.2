@@ -35,24 +35,3 @@
 #undef CP11X_PCIE0_BASE
 #undef CP11X_PCIE1_BASE
 #undef CP11X_PCIE2_BASE
-
-&smmu {
-	status = "okay";
-};
-
-&cp0_sata0 {
-	iommus = <&smmu 0x444>;
-};
-
-&cp0_sdhci0 {
-	iommus = <&smmu 0x445>;
-};
-
-&cp0_usb3_0 {
-	iommus = <&smmu 0x440>;
-};
-
-&cp0_usb3_1 {
-	iommus = <&smmu 0x441>;
-};
-
