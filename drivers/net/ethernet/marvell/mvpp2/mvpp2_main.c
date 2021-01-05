@@ -7636,7 +7636,7 @@ err_gop_clk:
 err_pp_clk:
 	clk_disable_unprepare(priv->pp_clk);
 err_cm3:
-	if (!has_acpi_companion(&pdev->dev))
+	if (!has_acpi_companion(&pdev->dev) && priv->cm3_base)
 		gen_pool_free(priv->sram_pool, (unsigned long)priv->cm3_base,
 			      MSS_SRAM_SIZE);
 
