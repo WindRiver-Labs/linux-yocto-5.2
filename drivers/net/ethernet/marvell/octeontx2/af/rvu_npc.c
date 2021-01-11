@@ -96,6 +96,9 @@ int npc_mcam_verify_channel(struct rvu *rvu, u16 pcifunc, u8 intf, u16 channel)
 		if (end < 0)
 			return -EINVAL;
 		end = NIX_CHAN_LBK_CHX(max_lbkid, end);
+	} else if (is_sdp_pfvf(pcifunc)) {
+		base = NIX_CHAN_SDP_CH_START;
+		end = NIX_CHAN_SDP_CHX((NIX_CHAN_SDP_NUM_CHANS - 1));
 	} else {
 		rvu_get_cgx_lmac_id(rvu->pf2cgxlmac_map[pf], &cgx_id, &lmac_id);
 		base = NIX_CHAN_CGX_LMAC_CHX(cgx_id, lmac_id, 0x0);
@@ -599,8 +602,8 @@ void rvu_npc_install_ucast_entry(struct rvu *rvu, u16 pcifunc,
 	struct nix_rx_action action;
 	int blkaddr, index;
 
-	/* AF's VFs work in promiscuous mode */
-	if (is_afvf(pcifunc))
+	/* AF's and SDP VFs work in promiscuous mode */
+	if (is_afvf(pcifunc) || is_sdp_vf(pcifunc))
 		return;
 
 	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NPC, 0);
