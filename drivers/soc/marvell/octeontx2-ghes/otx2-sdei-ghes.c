@@ -326,16 +326,24 @@ static int __init sdei_ghes_hest_init(struct device_node *of_node)
 {
 	const __be32 *of_base0, *of_base1, *of_base2;
 	struct acpi_hest_generic *hest_gen_entry;
+	u64 error_status_address, of_size2;
 	struct device_node *child_node;
 	struct otx2_ghes_source *event;
 	size_t event_cnt, size, idx;
+	bool err_status_is_mapped;
+	phys_addr_t pg_pa, tmp_pa;
 	const u32 *evt_id_prop;
 	int ret, prop_sz;
+	struct page *pg;
 	void *memblock;
+	void *pg_va;
 
 	initdbgmsg("%s: entry\n", __func__);
 
 	ret = -ENODEV;
+
+	err_status_is_mapped = true;
+	pg_pa = 0;
 
 	/* enumerate [GHES] producers available for subscription */
 	event_cnt = 0;
@@ -363,6 +371,34 @@ static int __init sdei_ghes_hest_init(struct device_node *of_node)
 		       (long long)of_translate_address(child_node, of_base1),
 		       (long long)of_translate_address(child_node, of_base2),
 		       be32_to_cpu(*evt_id_prop));
+
+		error_status_address = of_translate_address(child_node,
+							    of_base0);
+		/*
+		 * For ACPI, the Error Status address must be present in the
+		 * memory map.  If not present, ACPI can generate an exception
+		 * when trying to map it (see apei_read/acpi_os_read_memory()).
+		 * For this reason, if the Error Status Address is NOT present
+		 * we allocate one here (the firmware doesn't actually write
+		 * to this block; THIS driver does so, in response to SDEI
+		 * notifications).
+		 */
+		if (!pfn_valid(PHYS_PFN(error_status_address)))
+			err_status_is_mapped = false;
+	}
+
+	/* If necessary, allocate page to use for Error Status addr/block */
+	if (!err_status_is_mapped) {
+		pg = alloc_page(GFP_KERNEL);
+		if (!pg) {
+			pr_err("Unable to allocate Error Status block\n");
+			ret = -ENOMEM;
+			goto exit;
+		}
+		pg_pa = PFN_PHYS(page_to_pfn(pg));
+		pg_va = page_address(pg);
+		initdbgmsg("Allocated Error Status Address @ %llx (%llx)\n",
+			   (long long)pg_va, (long long)pg_pa);
 	}
 
 	/* allocate room for HEST */
@@ -430,7 +466,7 @@ static int __init sdei_ghes_hest_init(struct device_node *of_node)
 		if ((of_base1 == NULL) ||
 		    (of_translate_address(child_node, of_base1) == OF_BAD_ADDR))
 			continue;
-		of_base2 = of_get_address(child_node, 2, NULL, NULL);
+		of_base2 = of_get_address(child_node, 2, &of_size2, NULL);
 		if ((of_base2 == NULL) ||
 		    (of_translate_address(child_node, of_base2) == OF_BAD_ADDR))
 			continue;
@@ -460,9 +496,15 @@ static int __init sdei_ghes_hest_init(struct device_node *of_node)
 		hest_gen_entry->error_status_address.bit_width = 64;
 		hest_gen_entry->error_status_address.bit_offset = 0;
 		hest_gen_entry->error_status_address.access_width = 4;
-		hest_gen_entry->error_status_address.address =
+		error_status_address =
 			of_translate_address(child_node, of_base0);
-
+		if (!err_status_is_mapped) {
+			/* isolate the page OFFSET, then add our page address */
+			error_status_address =
+				pg_pa + (error_status_address & ~PAGE_MASK);
+		}
+		hest_gen_entry->error_status_address.address =
+			error_status_address;
 		hest_gen_entry->notify.type = ACPI_HEST_NOTIFY_POLLED;
 		hest_gen_entry->notify.length = sizeof(hest_gen_entry->notify);
 		hest_gen_entry->notify.config_write_enable = 0;
@@ -476,26 +518,44 @@ static int __init sdei_ghes_hest_init(struct device_node *of_node)
 			sizeof(struct acpi_hest_generic_data) +
 			sizeof(struct cper_sec_mem_err_old);
 
-		event->estatus_address = phys_to_virt(
-				hest_gen_entry->error_status_address.address);
+		if (pfn_valid(PHYS_PFN(error_status_address)))
+			event->estatus_address =
+				phys_to_virt(error_status_address);
+		else
+			event->estatus_address = ioremap(
+				error_status_address,
+				sizeof(event->estatus_address));
 		if (event->estatus_address == NULL) {
 			initerrmsg("Unable to access estatus_address 0x%llx\n",
-				   hest_gen_entry->error_status_address.address)
+				   error_status_address)
 				   ;
 			goto exit;
 		}
 
 		event->estatus_pa = of_translate_address(child_node, of_base1);
-		event->estatus = phys_to_virt(event->estatus_pa);
+		if (!err_status_is_mapped) {
+			/* isolate the page OFFSET, then add our page address */
+			event->estatus_pa =
+				pg_pa + (event->estatus_pa & ~PAGE_MASK);
+		}
+
+		if (pfn_valid(PHYS_PFN(event->estatus_pa)))
+			event->estatus = phys_to_virt(event->estatus_pa);
+		else
+			event->estatus = ioremap(event->estatus_pa,
+						 sizeof(*event->estatus));
 		if (event->estatus == NULL) {
 			initerrmsg("Unable to access estatus block 0x%llx\n",
-				   of_translate_address(child_node, of_base1));
+				   event->estatus_pa);
 			goto exit;
 		}
 
 		/* Event ring buffer in memory */
-		event->ring = phys_to_virt(of_translate_address(child_node,
-								of_base2));
+		tmp_pa = of_translate_address(child_node, of_base2);
+		if (pfn_valid(PHYS_PFN(tmp_pa)))
+			event->ring = phys_to_virt(tmp_pa);
+		else
+			event->ring = ioremap(tmp_pa, of_size2);
 		if (event->ring == NULL) {
 			initerrmsg("Unable to access event 0x%x ring buffer\n",
 				   event->id);
