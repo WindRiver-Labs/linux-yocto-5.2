@@ -77,10 +77,6 @@
 #undef CP11X_PCIE1_BASE
 #undef CP11X_PCIE2_BASE
 
-&cp1_crypto {
-	status = "disabled";
-};
-
 &cp1_ethernet {
 	status = "okay";
 };

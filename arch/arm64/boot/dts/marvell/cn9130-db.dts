@@ -117,10 +117,6 @@
 	status = "okay";
 };
 
-&cp0_crypto {
-	status = "disabled";
-};
-
 &cp0_ethernet {
 	status = "okay";
 };
