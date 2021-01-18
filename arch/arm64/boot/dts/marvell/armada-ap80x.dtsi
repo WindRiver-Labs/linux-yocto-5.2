@@ -324,6 +324,7 @@
 
 			musdk_cma {
 				compatible = "marvell,musdk-cma";
+				dma-coherent;
 			};
 		};
 	};
