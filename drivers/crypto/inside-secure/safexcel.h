@@ -230,6 +230,7 @@
 /* EIP197_HIA_OPTIONS */
 #define EIP197_N_PES_OFFSET			4
 #define EIP197_N_PES_MASK			GENMASK(4, 0)
+#define EIP197_N_RINGS_MASK			GENMASK(3, 0)
 #define EIP97_N_PES_MASK			GENMASK(2, 0)
 #define EIP197_HWDATAW_OFFSET			25
 #define EIP197_HWDATAW_MASK			GENMASK(3, 0)
@@ -598,6 +599,7 @@ enum safexcel_alg_type {
 struct safexcel_config {
 	u32 pes;
 	u32 rings;
+	u32 hw_rings;
 
 	u32 cd_size;
 	u32 cd_offset;

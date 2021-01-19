@@ -675,7 +675,7 @@ static int safexcel_hw_init(struct safexcel_crypto_priv *priv)
 	}
 
 	/* Command Descriptor Rings prepare */
-	for (i = 0; i < priv->config.rings; i++) {
+	for (i = 0; i < priv->config.hw_rings; i++) {
 		/* Clear interrupts for this ring */
 		writel(GENMASK(31, 0),
 		       EIP197_HIA_AIC_R(priv) + EIP197_HIA_AIC_R_ENABLE_CLR(i));
@@ -701,7 +701,7 @@ static int safexcel_hw_init(struct safexcel_crypto_priv *priv)
 	}
 
 	/* Result Descriptor Ring prepare */
-	for (i = 0; i < priv->config.rings; i++) {
+	for (i = 0; i < priv->config.hw_rings; i++) {
 		/* Disable external triggering*/
 		writel(0, EIP197_HIA_RDR(priv, i) + EIP197_HIA_xDR_CFG);
 
@@ -725,11 +725,11 @@ static int safexcel_hw_init(struct safexcel_crypto_priv *priv)
 
 	for (pe = 0; pe < priv->config.pes; pe++) {
 		/* Enable command descriptor rings */
-		writel(EIP197_DxE_THR_CTRL_EN | GENMASK(priv->config.rings - 1, 0),
+		writel(EIP197_DxE_THR_CTRL_EN | GENMASK(priv->config.hw_rings - 1, 0),
 		       EIP197_HIA_DFE_THR(priv) + EIP197_HIA_DFE_THR_CTRL(pe));
 
 		/* Enable result descriptor rings */
-		writel(EIP197_DxE_THR_CTRL_EN | GENMASK(priv->config.rings - 1, 0),
+		writel(EIP197_DxE_THR_CTRL_EN | GENMASK(priv->config.hw_rings - 1, 0),
 		       EIP197_HIA_DSE_THR(priv) + EIP197_HIA_DSE_THR_CTRL(pe));
 	}
 
@@ -1254,7 +1254,15 @@ static void safexcel_configure(struct safexcel_crypto_priv *priv)
 
 	priv->config.pes = (val >> EIP197_N_PES_OFFSET) & mask;
 
-	priv->config.rings = min_t(u32, val & GENMASK(3, 0), max_rings);
+	priv->config.hw_rings = val & EIP197_N_RINGS_MASK;
+	if (max_rings > priv->config.hw_rings) {
+		/* Invalid, use all available rings */
+		priv->config.rings = priv->config.hw_rings;
+		dev_warn(priv->dev, "requested %d rings, given only %d rings\n",
+				max_rings, priv->config.hw_rings);
+	} else {
+		priv->config.rings = max_rings;
+	}
 
 	val = (val & GENMASK(27, 25)) >> 25;
 	mask = BIT(val) - 1;
