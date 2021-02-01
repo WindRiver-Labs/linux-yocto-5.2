@@ -29,6 +29,9 @@
 #define EFD_SHARED_FCNTL_FLAGS (O_CLOEXEC | O_NONBLOCK)
 #define EFD_FLAGS_SET (EFD_SHARED_FCNTL_FLAGS | EFD_SEMAPHORE)
 
+/* This is the maximum recursion depth we find so far */
+#define EFD_WAKE_COUNT_MAX 1
+
 struct eventfd_ctx;
 struct file;
 
