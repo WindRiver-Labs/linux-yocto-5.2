@@ -58,7 +58,7 @@
 		regulator-name = "cp0_sd_vccq";
 		regulator-min-microvolt = <1800000>;
 		regulator-max-microvolt = <3300000>;
-		gpios = <&expander0 15 GPIO_ACTIVE_HIGH>;
+		gpios = <&cp0_gpio2 18 GPIO_ACTIVE_HIGH>;
 		states = <1800000 0x1
 			  3300000 0x0>;
 	};
@@ -68,7 +68,7 @@
 		regulator-name = "cp0_sd_vcc";
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
-		gpio = <&expander0 14 GPIO_ACTIVE_HIGH>;
+		gpio = <&cp0_gpio2 19 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
 		regulator-always-on;
 	};
