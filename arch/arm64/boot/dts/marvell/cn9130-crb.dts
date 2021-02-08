@@ -84,7 +84,6 @@
 	bus-width = <8>;
 	vqmmc-supply = <&ap0_reg_mmc_vccq>;
 	mmc-ddr-1_8v;
-	mmc-hs400-1_8v;
 	status = "okay";
 };
 
