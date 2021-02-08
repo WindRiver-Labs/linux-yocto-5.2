@@ -186,8 +186,9 @@
 	status = "okay";
 	pinctrl-names = "default";
 	pinctrl-0 = <&cp0_sdhci_pins
-		     &cp0_sdhci_cd_pins>;
+		     &cp0_sdhci_cd_pins_crb>;
 	bus-width = <4>;
+	cd-gpios = <&cp0_gpio2 23 GPIO_ACTIVE_HIGH>;
 	vqmmc-supply = <&cp0_reg_sd_vccq>;
 	vmmc-supply = <&cp0_reg_sd_vcc>;
 };
@@ -263,7 +264,7 @@
 			marvell,pins = "mpp13", "mpp14", "mpp15", "mpp16";
 			marvell,function = "spi1";
 		};
-		cp0-sdhci-cd-pins-crb {
+		cp0_sdhci_cd_pins_crb: cp0-sdhci-cd-pins-crb {
 			marvell,pins = "mpp55";
 			marvell,function = "gpio";
 		};
