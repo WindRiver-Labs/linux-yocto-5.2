@@ -139,7 +139,7 @@
 		pinctrl-names = "default";
 		gpio-controller;
 		#gpio-cells = <2>;
-		reg = <0x27>;
+		reg = <0x20>;
 		status = "okay";
 	};
 };
