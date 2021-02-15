@@ -17,14 +17,24 @@
 /* SDP PF number */
 static int sdp_pf_num = -1;
 
-bool is_sdp_pf(u16 pcifunc)
+bool is_sdp_pfvf(u16 pcifunc)
 {
 	if (rvu_get_pf(pcifunc) != sdp_pf_num)
 		return false;
-	if (pcifunc & RVU_PFVF_FUNC_MASK)
-		return false;
 
 	return true;
+}
+
+bool is_sdp_pf(u16 pcifunc)
+{
+	return (is_sdp_pfvf(pcifunc) &&
+		!(pcifunc & RVU_PFVF_FUNC_MASK));
+}
+
+bool is_sdp_vf(u16 pcifunc)
+{
+	return (is_sdp_pfvf(pcifunc) &&
+		!!(pcifunc & RVU_PFVF_FUNC_MASK));
 }
 
 int rvu_sdp_init(struct rvu *rvu)

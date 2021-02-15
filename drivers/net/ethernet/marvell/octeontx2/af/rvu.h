@@ -691,7 +691,8 @@ int npc_config_ts_kpuaction(struct rvu *rvu, int pf, u16 pcifunc, bool en);
 void rvu_npc_install_ucast_entry(struct rvu *rvu, u16 pcifunc,
 				 int nixlf, u64 chan, u8 *mac_addr);
 void rvu_npc_install_promisc_entry(struct rvu *rvu, u16 pcifunc,
-				   int nixlf, u64 chan, bool allmulti);
+				   int nixlf, u64 chan, u8 chan_cnt,
+				   bool allmulti);
 void rvu_npc_disable_promisc_entry(struct rvu *rvu, u16 pcifunc, int nixlf);
 void rvu_npc_enable_promisc_entry(struct rvu *rvu, u16 pcifunc, int nixlf);
 void rvu_npc_install_bcast_match_entry(struct rvu *rvu, u16 pcifunc,
@@ -739,6 +740,7 @@ int rvu_tim_lf_teardown(struct rvu *rvu, u16 pcifunc, int lf, int slot);
 /* SDP APIs */
 int rvu_sdp_init(struct rvu *rvu);
 bool is_sdp_pf(u16 pcifunc);
+bool is_sdp_vf(u16 pcifunc);
 
 /* REE APIs */
 int rvu_ree_init(struct rvu *rvu);
