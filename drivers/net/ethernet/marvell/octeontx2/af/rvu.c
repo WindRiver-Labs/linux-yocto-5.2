@@ -2685,6 +2685,26 @@ static void rvu_sso_pfvf_rst(struct rvu *rvu, u16 pcifunc)
 	}
 }
 
+/* Reset PF/VF MSIX config space */
+static void rvu_pfvf_msix_reset(struct rvu *rvu, u16 pcifunc)
+{
+	u64 reg, val;
+	int pfvf;
+
+	if (pcifunc & RVU_PFVF_FUNC_MASK) {
+		pfvf = rvu_get_hwvf(rvu, pcifunc);
+		reg = RVU_AF_HWVF_RST;
+		val = (pfvf & 0xFF) | BIT_ULL(12);
+	} else {
+		pfvf = rvu_get_pf(pcifunc);
+		reg = RVU_AF_PF_RST;
+		val = (pfvf & 0x1F) | BIT_ULL(12);
+	}
+
+	rvu_write64(rvu, BLKADDR_RVUM, reg, val);
+	rvu_poll_reg(rvu, BLKADDR_RVUM, reg, BIT_ULL(12), true);
+}
+
 static void __rvu_flr_handler(struct rvu *rvu, u16 pcifunc)
 {
 	mutex_lock(&rvu->flr_lock);
@@ -2706,6 +2726,7 @@ static void __rvu_flr_handler(struct rvu *rvu, u16 pcifunc)
 	rvu_reset_lmt_map_tbl(rvu, pcifunc);
 	rvu_detach_rsrcs(rvu, NULL, pcifunc);
 	rvu_sso_pfvf_rst(rvu, pcifunc);
+	rvu_pfvf_msix_reset(rvu, pcifunc);
 	mutex_unlock(&rvu->flr_lock);
 }
 
@@ -2724,6 +2745,9 @@ static void rvu_afvf_flr_handler(struct rvu *rvu, int vf)
 	/* Signal FLR finish and enable IRQ */
 	rvupf_write64(rvu, RVU_PF_VFTRPENDX(reg), BIT_ULL(vf));
 	rvupf_write64(rvu, RVU_PF_VFFLR_INT_ENA_W1SX(reg), BIT_ULL(vf));
+	/* Re-enable MBOX and ME interrupt as it gets cleared in HWVF_RST reset */
+	rvupf_write64(rvu, RVU_PF_VFME_INT_ENA_W1SX(reg), BIT_ULL(vf));
+	rvupf_write64(rvu, RVU_PF_VFPF_MBOX_INT_ENA_W1SX(0), BIT_ULL(vf));
 }
 
 static void rvu_flr_handler(struct work_struct *work)
