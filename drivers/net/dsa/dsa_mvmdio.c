@@ -73,7 +73,7 @@ static int dsa_mvmdio_read_xmdio(unsigned char phy,
 				 unsigned char dev,
 				 unsigned char reg)
 {
-	return mdiobus_read(mv_mii_bus, phy, (dev << 16) | reg);
+	return mdiobus_read(mv_xmii_bus, phy, (dev << 16) | reg);
 }
 
 /* Write extended phy register that is connected on xmdio bus.
@@ -84,7 +84,7 @@ static int dsa_mvmdio_write_xmdio(unsigned char phy,
 				  unsigned char reg,
 				  unsigned short val)
 {
-	return mdiobus_write(mv_mii_bus, phy, (dev << 16) | reg, val);
+	return mdiobus_write(mv_xmii_bus, phy, (dev << 16) | reg, val);
 }
 
 /* Read switch register that is connected on mdio bus.
@@ -99,7 +99,7 @@ static int dsa_mvmdio_read_register(unsigned char dev, unsigned char reg)
 	unsigned short cmd_data;
 
 	if (mv_phy_addr == 0)
-		return mdiobus_read(mv_mii_bus, phy, (dev << 16) | reg);
+		return mdiobus_read(mv_mii_bus, dev, reg);
 
 	/* Write to SMI Command Register */
 	cmd_data = (1 << MV_SMIBUSY_OFFSET) |
@@ -315,58 +315,27 @@ static ssize_t dsa_mvmdio_help(char *buf)
 {
 	int off = 0;
 
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			"cat help                         - print help\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			"echo [t] [p] [x] [r]     > read  - read register\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			"echo [t] [p] [x] [r] [v] > write - write register\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			"echo [t] [p] [x]
-			 > dump  - dump 32 registers\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			"parameters (in hexadecimal):\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			"    [t] type.
-			0-switch, 1-internal phy, 2-external phy regs\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			"              3-regular phy, 4-extended phy\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			"    [p] port addr or phy-id.\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			"    [x] device address.
-			valid only for extended phy.\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			"    [r] register address.\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "cat help                         - print help\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "echo [t] [p] [x] [r]     > read  - read register\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "echo [t] [p] [x] [r] [v] > write - write register\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "echo [t] [p] [x] > dump  - dump 32 registers\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "parameters (in hexadecimal):\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "    [t] type. 0-switch, 1-internal phy, 2-external phy regs\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "              3-regular phy, 4-extended phy\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "    [p] port addr or phy-id.\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "    [x] device address.	valid only for extended phy.\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "    [r] register address.\n");
 	off += scnprintf(buf + off, PAGE_SIZE - off, "    [v] value.\n");
 	off += scnprintf(buf + off, PAGE_SIZE - off, "Examples:\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			 "  1. echo 0  1 0  3   > read  -
-			read switch register\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			 "  2. echo 0 1b 0 1c   > read  -
-			read switch global1 register\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			 "  3. echo 1  3 0  2   > read  -
-			read internal phy register\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			 "  4. echo 2  0 0  2   > read  -
-			read external phy register\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			 "  5. echo 3  1 0  2   > read  -
-			read regular phy register, phyid=1\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			 "  6. echo 4  0 7 3c   > read  -
-			read xmdio phy, EEE advertisement register\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			 "  7. echo 0  2 0  7 5 > write -
-			write switch register, set vlan id\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			 "  8. echo 1  3 0      > dump  -
-			dump internal switch phy registers\n");
-	off += scnprintf(buf + off, PAGE_SIZE - off,
-			 "  9. echo 4  0 7      > dump  -
-			dump xmdio phy registers for dev-addr=7");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "  1. echo 0  1 0  3   > read  - read switch register\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "  2. echo 0 1b 0 1c   > read  - read switch global1 register\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "  3. echo 1  3 0  2   > read  - read internal phy register\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "  4. echo 2  0 0  2   > read  - read external phy register\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "  5. echo 3  1 0  2   > read  - read regular phy register, phyid=1\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "  6. echo 4  0 7 3c   > read  - read xmdio phy, EEE advertisement register\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "  7. echo 0  2 0  7 5 > write - write switch register, set vlan id\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "  8. echo 1  3 0      > dump  - dump internal switch phy registers\n");
+	off += scnprintf(buf + off, PAGE_SIZE - off, "  9. echo 4  0 7      > dump  - dump xmdio phy registers for dev-addr=7");
 	return off;
 }
 
@@ -406,8 +375,7 @@ static ssize_t dsa_mvmdio_store(struct device *dev,
 		     &type, &port, &dev_addr, &reg, &val);
 
 	if (mv_phy_addr == MV_INVALID_PHY_ADDR && type < MV_REG_TYPE_MDIO) {
-		pr_err("\"sw-smi-addr\" property not defined in dts file.
-			Assuming switch not connected\n");
+		pr_err("\"sw-smi-addr\" property not defined in dts file.	Assuming switch not connected\n");
 		return len;
 	}
 
@@ -420,9 +388,7 @@ static ssize_t dsa_mvmdio_store(struct device *dev,
 		if (err)
 			pr_err("Register read failed, err - %d\n", err);
 		else
-			pr_err("read:: type:%d, port=0x%X, dev=0x%X,
-				reg=0x%X, val=0x%04X\n",
-				type, port, dev_addr, reg, data);
+			pr_err("read:: type:%d, port=0x%X, dev=0x%X,reg=0x%X, val=0x%04X\n", type, port, dev_addr, reg, data);
 	} else if (!strcmp(name, "write")) {
 		err = dsa_mvmdio_write((unsigned char)port,
 				       (unsigned char)dev_addr,
@@ -432,9 +398,7 @@ static ssize_t dsa_mvmdio_store(struct device *dev,
 		if (err)
 			pr_err("Register write failed, err - %d\n", err);
 		else
-			pr_err("write:: type:%d, port=0x%X, dev=0x%X,
-				reg=0x%X, val=0x%X\n",
-				type, port, dev_addr, reg, val);
+			pr_err("write:: type:%d, port=0x%X, dev=0x%X,reg=0x%X, val=0x%X\n", type, port, dev_addr, reg, val);
 	} else if (!strcmp(name, "dump")) {
 		err = dsa_mvmdio_dump((unsigned char)port,
 				      (unsigned char)dev_addr,
