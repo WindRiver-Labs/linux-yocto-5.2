@@ -136,4 +136,10 @@ config OCTEONTX_SERDES
 	  Provides debugfs commands which allows to collect serdes information,
 	  capture eye or use PRBS.
 
+config HW_CSR_ACCESS
+       tristate "Access HW Device Config Space Registers"
+        default m
+	help
+	  provides an interface which enables user space utility to read from or to write
+	  to HW Device Config Space Registers.
 endmenu
