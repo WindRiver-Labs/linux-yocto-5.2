@@ -2919,6 +2919,7 @@ static void rvu_unregister_interrupts(struct rvu *rvu)
 	for (irq = 0; irq < rvu->num_vec; irq++) {
 		if (rvu->irq_allocated[irq])
 			free_irq(pci_irq_vector(rvu->pdev, irq), rvu);
+			rvu->irq_allocated[irq] = false;
 	}
 
 	pci_free_irq_vectors(rvu->pdev);
@@ -3466,8 +3467,8 @@ static void rvu_remove(struct pci_dev *pdev)
 
 	rvu_dbg_exit(rvu);
 	rvu_policy_destroy(rvu);
-	rvu_unregister_interrupts(rvu);
 	rvu_unregister_dl(rvu);
+	rvu_unregister_interrupts(rvu);
 	rvu_flr_wq_destroy(rvu);
 	rvu_cgx_exit(rvu);
 	rvu_fwdata_exit(rvu);
