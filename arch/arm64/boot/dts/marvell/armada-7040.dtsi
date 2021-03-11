@@ -16,7 +16,7 @@
 };
 
 &smmu {
-	status = "okay";
+	status = "disabled";
 };
 
 &cp0_pcie0 {

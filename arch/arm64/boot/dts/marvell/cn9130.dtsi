@@ -39,7 +39,7 @@
 #undef CP11X_PCIE2_BASE
 
 &smmu {
-	status = "okay";
+	status = "disabled";
 };
 
 &cp0_sata0 {
