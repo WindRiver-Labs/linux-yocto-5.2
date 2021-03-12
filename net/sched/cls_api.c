@@ -3381,6 +3381,8 @@ int tc_setup_flow_action(struct flow_action *flow_action,
 			entry->police.burst = tcf_police_burst(act);
 			entry->police.rate_bytes_ps =
 				tcf_police_rate_bytes_ps(act);
+			entry->police.burst_pkt = tcf_police_burst_pkt(act);
+			entry->police.rate_pkt_ps = tcf_police_rate_pkt_ps(act);
 		} else {
 			goto err_out;
 		}
