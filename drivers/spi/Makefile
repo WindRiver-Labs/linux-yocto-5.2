@@ -122,8 +122,10 @@ obj-$(CONFIG_SPI_XLP)			+= spi-xlp.o
 obj-$(CONFIG_SPI_XTENSA_XTFPGA)		+= spi-xtensa-xtfpga.o
 obj-$(CONFIG_SPI_ZYNQ_QSPI)		+= spi-zynq-qspi.o
 obj-$(CONFIG_SPI_ZYNQMP_GQSPI)		+= spi-zynqmp-gqspi.o
-spi-cdns-xspi-plat-objs              	:= spi-cadence-xspi.o spi-cadence-xspi-platform.o
-obj-$(CONFIG_SPI_CADENCE_XSPI_PLATFORM) += spi-cdns-xspi-plat.o
+spi-cdns-xspi-plat-objs			:= spi-cadence-xspi.o spi-cadence-xspi-platform.o
+obj-$(CONFIG_SPI_CADENCE_XSPI_PLATFORM)	+= spi-cdns-xspi-plat.o
+spi-cdns-xspi-pci-objs			:= spi-cadence-xspi.o spi-cadence-xspi-pci.o
+obj-$(CONFIG_SPI_CADENCE_XSPI_PCI)	+= spi-cdns-xspi-pci.o
 
 # SPI slave protocol handlers
 obj-$(CONFIG_SPI_SLAVE_TIME)		+= spi-slave-time.o

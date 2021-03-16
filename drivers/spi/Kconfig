@@ -883,6 +883,17 @@ config SPI_CADENCE_XSPI_PLATFORM
 	  device with a Cadence XSPI controller and want to access the
 	  Flash as an MTD device. Register as platform device.
 
+config SPI_CADENCE_XSPI_PCI
+	tristate "Cadence XSPI controller with PCI support"
+	depends on (OF || COMPILE_TEST) && HAS_IOMEM && PCI && 64BIT && ARM64
+	help
+	  Enable support for the Cadence XSPI Flash controller with PCI support.
+
+	  Cadence XSPI is a specialized controller for connecting an SPI
+	  Flash over upto 8bit wide bus. Enable this option if you have a
+	  device with a Cadence XSPI controller and want to access the
+	  Flash as an MTD device. Register as PCI device.
+
 #
 # Add new SPI master controllers in alphabetical order above this line
 #
