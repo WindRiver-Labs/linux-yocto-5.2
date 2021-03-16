@@ -872,7 +872,7 @@ config SPI_ZYNQMP_GQSPI
 	help
 	  Enables Xilinx GQSPI controller driver for Zynq UltraScale+ MPSoC.
 
-config SPI_CADENCE_XSPI
+config SPI_CADENCE_XSPI_PLATFORM
 	tristate "Cadence XSPI controller"
 	depends on (OF || COMPILE_TEST) && HAS_IOMEM
 	help
@@ -881,7 +881,7 @@ config SPI_CADENCE_XSPI
 	  Cadence XSPI is a specialized controller for connecting an SPI
 	  Flash over upto 8bit wide bus. Enable this option if you have a
 	  device with a Cadence XSPI controller and want to access the
-	  Flash as an MTD device.
+	  Flash as an MTD device. Register as platform device.
 
 #
 # Add new SPI master controllers in alphabetical order above this line
