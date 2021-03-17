@@ -62,6 +62,8 @@ static int cdns_xspi_read_dqs_delay_training(struct cdns_xspi_dev *cdns_xspi)
 	}
 
 	if (rd_dqs_del_min == -1) {
+		if (cdns_xspi->skip_sim_check)
+			return 0;
 		dev_err(cdns_xspi->dev, "PHY training failed\n");
 		return -EBUSY;
 	} else if (rd_dqs_del_max == -1) {
@@ -199,6 +201,8 @@ static int cdns_xspi_check_command_status(struct cdns_xspi_dev *cdns_xspi)
 			}
 		}
 	} else {
+		if (cdns_xspi->skip_sim_check)
+			return 0;
 		dev_err(cdns_xspi->dev, "Fatal error - command not completed\n");
 		ret = -EPROTO;
 	}

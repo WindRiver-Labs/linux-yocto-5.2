@@ -56,6 +56,7 @@ static int cadence_octeon_spi_probe(struct pci_dev *pdev,
 	cdns_xspi->auxbase  = register_base + AUX_OFFSET;
 	cdns_xspi->sdmabase = register_base + STIG_OFFSET;
 	cdns_xspi->irq = 0;
+	cdns_xspi->skip_sim_check = true;
 
 	init_completion(&cdns_xspi->cmd_complete);
 	init_completion(&cdns_xspi->sdma_complete);
