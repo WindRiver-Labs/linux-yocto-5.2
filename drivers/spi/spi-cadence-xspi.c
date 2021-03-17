@@ -303,13 +303,28 @@ bool cdns_xspi_sdma_ready(struct cdns_xspi_dev *cdns_xspi)
 	return true;
 }
 
+static int cdns_verify_stig_mode_config(struct cdns_xspi_dev *cdns_xspi)
+{
+	int cntrl = readl(cdns_xspi->iobase + CDNS_XSPI_CTRL_CONFIG_REG);
+
+	if (FIELD_GET(CDNS_XSPI_CTRL_WORK_MODE, cntrl) != CDNS_XSPI_CTRL_WORK_MODE_STIG)
+		return cdns_xspi_controller_init(cdns_xspi);
+
+	return 0;
+}
+
 static int cdns_xspi_send_stig_command(struct cdns_xspi_dev *cdns_xspi,
 	const struct spi_mem_op *op, bool data_phase)
 {
+	struct device *dev = cdns_xspi->dev;
 	u32 cmd_regs[5] = {0};
 	u32 cmd_status;
 
 	cdns_xspi_wait_for_controller_idle(cdns_xspi);
+	if (cdns_verify_stig_mode_config(cdns_xspi) < 0) {
+		dev_err(dev, "Failed to enter STIG mode\n");
+		return -EPROTO;
+	}
 	cdns_xspi_set_interrupts(cdns_xspi, true);
 	cdns_xspi->sdma_error = false;
 
