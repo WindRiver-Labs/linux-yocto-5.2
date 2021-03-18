@@ -135,10 +135,6 @@ static void cptpf_flr_wq_handler(struct work_struct *work)
 			  RVU_PF_VFTRPENDX(reg), BIT_ULL(vf));
 	cn10k_cpt_write64(pf->reg_base, BLKADDR_RVUM, 0,
 			  RVU_PF_VFFLR_INT_ENA_W1SX(reg), BIT_ULL(vf));
-
-	/* Re-enable MBOX interrupt as it gets cleared in HWVF_RST reset */
-	cn10k_cpt_write64(pf->reg_base, BLKADDR_RVUM, 0,
-			  RVU_PF_VFPF_MBOX_INT_ENA_W1SX(reg), BIT_ULL(vf));
 }
 
 static irqreturn_t cptpf_vf_flr_intr(int __always_unused irq, void *arg)
