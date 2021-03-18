@@ -128,9 +128,6 @@ static void otx2_flr_handler(struct work_struct *work)
 		/* clear transcation pending bit */
 		otx2_write64(pf, RVU_PF_VFTRPENDX(reg), BIT_ULL(vf));
 		otx2_write64(pf, RVU_PF_VFFLR_INT_ENA_W1SX(reg), BIT_ULL(vf));
-	/* Re-enable MBOX and ME interrupt as it gets cleared in HWVF_RST reset */
-		otx2_write64(pf, RVU_PF_VFME_INT_ENA_W1SX(reg), BIT_ULL(vf));
-		otx2_write64(pf, RVU_PF_VFPF_MBOX_INT_ENA_W1SX(reg), BIT_ULL(vf));
 	}
 
 	mutex_unlock(&mbox->lock);
