@@ -74,6 +74,8 @@ struct scmi_clk_ops {
 			u64 rate);
 	int (*enable)(const struct scmi_handle *handle, u32 clk_id);
 	int (*disable)(const struct scmi_handle *handle, u32 clk_id);
+	int (*available_rates)(const struct scmi_handle *handle, u32 clk_id,
+			       u64 *rates);
 };
 
 /**
