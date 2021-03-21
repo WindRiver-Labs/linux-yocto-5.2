@@ -234,6 +234,9 @@
 				#clock-cells = <2>;
 			};
 
+			CP11X_LABEL(pinctrl): pinctrl {
+			};
+
 			CP11X_LABEL(gpio1): gpio@100 {
 				compatible = "marvell,armada-8k-gpio";
 				offset = <0x100>;
