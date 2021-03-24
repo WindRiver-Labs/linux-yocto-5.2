@@ -191,10 +191,6 @@ static void cleanup_el3_irqs(struct task_struct *task)
 				pr_alert("Exiting, thread info matches, not removing handler for BPHY IRQ %d\n", i);
 		}
 	}
-
-	kfree(irq_installed);
-	kfree(irq_installed_threads);
-	kfree(irq_installed_tasks);
 }
 
 static int otx_dev_open(struct inode *inode, struct file *fp)
@@ -219,6 +215,11 @@ static int otx_dev_release(struct inode *inode, struct file *fp)
 {
 	if (in_use == 0)
 		return -EINVAL;
+
+	kfree(irq_installed);
+	kfree(irq_installed_threads);
+	kfree(irq_installed_tasks);
+
 	in_use = 0;
 	return 0;
 }
