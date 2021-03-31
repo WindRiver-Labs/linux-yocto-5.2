@@ -244,11 +244,15 @@ static struct mmc_oops_context oops_cxt = {
 int mmc_oops_card_set(struct mmc_card *card)
 {
 	struct mmc_oops_context *cxt = &oops_cxt;
+	struct mmc_host *host = card->host;
 
 	if (strcmp(mmc_hostname(card->host), mmcdev) || mmc_partnum == -1)
 		return 0;
 
 	if (!mmc_card_mmc(card) && !mmc_card_sd(card))
+		return -ENODEV;
+
+	if (!host->ops->req_cleanup_pending || !host->ops->req_completion_poll)
 		return -ENODEV;
 
 	cxt->blk_offset = mmc_blk_get_start(card, mmc_partnum);
