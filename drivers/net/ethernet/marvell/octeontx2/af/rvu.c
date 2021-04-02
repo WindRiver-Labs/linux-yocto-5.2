@@ -1069,7 +1069,6 @@ cpt:
 			       sizeof(struct rvu_pfvf), GFP_KERNEL);
 	if (!rvu->pf)
 		return -ENOMEM;
-
 	rvu->hwvf = devm_kcalloc(rvu->dev, hw->total_vfs,
 				 sizeof(struct rvu_pfvf), GFP_KERNEL);
 	if (!rvu->hwvf)
@@ -1464,6 +1463,10 @@ static int rvu_get_nix_blkaddr(struct rvu *rvu, u16 pcifunc)
 	if (is_pf_cgxmapped(rvu, rvu_get_pf(pcifunc))) {
 		pf = rvu_get_pfvf(rvu, pcifunc & ~RVU_PFVF_FUNC_MASK);
 		blkaddr = pf->nix_blkaddr;
+
+		/* if SDP1 then the blkaddr is NIX1 */
+		if (is_sdp_pfvf(pcifunc) && pf->sdp_info->node_id == 1)
+			blkaddr = BLKADDR_NIX1;
 	} else if (is_afvf(pcifunc)) {
 		vf = pcifunc - 1;
 		/* Assign NIX based on VF number. All even numbered VFs get
