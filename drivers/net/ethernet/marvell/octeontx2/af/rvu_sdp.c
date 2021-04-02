@@ -14,12 +14,24 @@
 /* SDP PF device id */
 #define PCI_DEVID_OTX2_SDP_PF   0xA0F6
 
+/* Maximum SDP blocks in a chip */
+#define MAX_SDP		2
+
 /* SDP PF number */
-static int sdp_pf_num = -1;
+static int sdp_pf_num[MAX_SDP] = {-1, -1};
 
 bool is_sdp_pfvf(u16 pcifunc)
 {
-	if (rvu_get_pf(pcifunc) != sdp_pf_num)
+	u16 pf = rvu_get_pf(pcifunc);
+	u32 found = 0, i = 0;
+
+	while (i < MAX_SDP) {
+		if (pf == sdp_pf_num[i])
+			found = 1;
+		i++;
+	}
+
+	if (!found)
 		return false;
 
 	return true;
@@ -49,12 +61,13 @@ int rvu_sdp_init(struct rvu *rvu)
 			continue;
 
 		if (pdev->device == PCI_DEVID_OTX2_SDP_PF) {
-			sdp_pf_num = i;
+			sdp_pf_num[i] = pdev->bus->number - 1;
 			put_device(&pdev->dev);
 			break;
 		}
 
 		put_device(&pdev->dev);
+		i++;
 	}
 
 	return 0;
