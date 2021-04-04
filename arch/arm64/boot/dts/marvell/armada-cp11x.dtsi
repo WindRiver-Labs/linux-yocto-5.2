@@ -425,6 +425,18 @@
 			status = "disabled";
 		};
 
+		CP11X_LABEL(mss_i2c): i2c@211000 {
+			compatible = "marvell,mv78230-i2c";
+			reg = <0x211000 0x20>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupts = <0 IRQ_TYPE_LEVEL_HIGH>;
+			clock-names = "core", "reg";
+			clocks = <&CP11X_LABEL(clk) 1 21>,
+				 <&CP11X_LABEL(clk) 1 17>;
+			status = "disabled";
+		};
+
 		CP11X_LABEL(uart0): serial@702000 {
 			compatible = "snps,dw-apb-uart";
 			reg = <0x702000 0x100>;
