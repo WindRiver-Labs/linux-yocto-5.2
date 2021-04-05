@@ -121,6 +121,13 @@ config ARM_SPE_PMU
 	  Extension, which provides periodic sampling of operations in
 	  the CPU pipeline and reports this via the perf AUX interface.
 
+config MARVELL_CN10K_TAD_PMU
+	tristate "Marvell CN10K LLC-TAD PMU"
+	depends on ARM64
+	help
+	  Provides support for Last-Level cache Tag-and-data Units (LLC-TAD)
+	  performance monitors on CN10K family silicons.
+
 config MARVELL_CN10K_DDR_PMU
 	tristate "MARVELL CN10K DRAM Subsystem(DSS) PMU Support"
 	depends on ARM64
