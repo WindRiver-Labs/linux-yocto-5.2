@@ -340,6 +340,7 @@ struct etmv4_config {
  * @nooverflow:	Indicate if overflow prevention is supported.
  * @atbtrig:	If the implementation can support ATB triggers
  * @lpoverride:	If the implementation can support low-power state over.
+ * @trfc:	If the implementation supports Arm v8.4 trace filter controls.
  * @config:	structure holding configuration parameters.
  */
 struct etmv4_drvdata {
@@ -387,6 +388,7 @@ struct etmv4_drvdata {
 	bool				nooverflow;
 	bool				atbtrig;
 	bool				lpoverride;
+	bool				trfc;
 	struct etmv4_config		config;
 };
 
