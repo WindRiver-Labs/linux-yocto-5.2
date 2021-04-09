@@ -5,9 +5,7 @@
  * Device tree for the CN9130-DB-A board.
  */
 
-#include "cn9130.dtsi"
-
-#include <dt-bindings/gpio/gpio.h>
+#include "cn9130-db.dtsi"
 
 / {
 	model = "Marvell Armada CN9130-DB setup A";
