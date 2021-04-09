@@ -21,6 +21,14 @@
 
 #define DEVICE_NAME	"otx-bphy-ctr"
 #define OTX_IOC_MAGIC	0xF3
+/* Old MAX_IRQ has been redefined - now it describes
+ * maximum supported number of interrupts rather than
+ * actual number on current platform. The latter is obtained
+ * from ATF and indicates current capabilities.
+ * This is a limitationm but complies with maximum number of
+ * interrupts' bitmask.
+ */
+#define MAX_IRQ		64
 
 static unsigned long bphy_max_irq;
 static struct device *otx_device;
@@ -29,9 +37,9 @@ static struct cdev *otx_cdev;
 static dev_t otx_dev;
 static DEFINE_SPINLOCK(el3_inthandler_lock);
 static int in_use;
-static int *irq_installed;
-static struct thread_info **irq_installed_threads;
-static struct task_struct **irq_installed_tasks;
+static int irq_installed[MAX_IRQ];
+static struct thread_info *irq_installed_threads[MAX_IRQ];
+static struct task_struct *irq_installed_tasks[MAX_IRQ];
 
 /* SMC definitons */
 /* X1 - irq_num, X2 - sp, X3 - cpu, X4 - ttbr0 */
@@ -195,6 +203,15 @@ static void cleanup_el3_irqs(struct task_struct *task)
 
 static int otx_dev_open(struct inode *inode, struct file *fp)
 {
+	struct arm_smccc_res res;
+
+	arm_smccc_smc(OCTEONTX_GET_BPHY_PSM_MAX_IRQ, 0,
+		      0, 0, 0, 0, 0, 0, &res);
+	bphy_max_irq = res.a0;
+
+	if (bphy_max_irq > MAX_IRQ)
+		return -1;
+
 	in_use = 1;
 	return 0;
 }
@@ -217,7 +234,6 @@ static const struct file_operations fops = {
 
 static int __init otx_ctr_dev_init(void)
 {
-	struct arm_smccc_res res;
 	int err = 0;
 
 	/* create a character device */
@@ -261,26 +277,7 @@ static int __init otx_ctr_dev_init(void)
 		goto cleanup_handler_err;
 	}
 
-	arm_smccc_smc(OCTEONTX_GET_BPHY_PSM_MAX_IRQ, 0,
-		      0, 0, 0, 0, 0, 0, &res);
-	bphy_max_irq = res.a0;
-
-	irq_installed = kcalloc(bphy_max_irq, sizeof(int), GFP_KERNEL);
-	irq_installed_threads = (struct thread_info **)
-		kcalloc(bphy_max_irq, sizeof(struct thread_info *), GFP_KERNEL);
-	irq_installed_tasks = (struct task_struct **)
-		kcalloc(bphy_max_irq, sizeof(struct task_struct *), GFP_KERNEL);
-	if (!irq_installed || !irq_installed_threads || !irq_installed_tasks) {
-		err = -ENOMEM;
-		goto alloc_err;
-	}
-
 	return err;
-
-alloc_err:
-	kfree(irq_installed);
-	kfree(irq_installed_threads);
-	kfree(irq_installed_tasks);
 
 device_create_err:
 	class_destroy(otx_class);
@@ -304,10 +301,6 @@ static void __exit otx_ctr_dev_exit(void)
 	unregister_chrdev_region(otx_dev, 1);
 
 	task_cleanup_handler_remove(cleanup_el3_irqs);
-
-	kfree(irq_installed);
-	kfree(irq_installed_threads);
-	kfree(irq_installed_tasks);
 }
 
 module_init(otx_ctr_dev_init);
