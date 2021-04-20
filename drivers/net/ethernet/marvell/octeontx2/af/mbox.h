@@ -731,6 +731,7 @@ enum nix_af_status {
 	NIX_AF_ERR_TX_VTAG_NOSPC    = -421,
 	NIX_AF_ERR_RX_VTAG_INUSE    = -422,
 	NIX_AF_ERR_PTP_CONFIG_FAIL  = -423,
+	NIX_AF_ERR_INVALID_NIXBLK   = -424,
 };
 
 /* For NIX RX vtag action  */

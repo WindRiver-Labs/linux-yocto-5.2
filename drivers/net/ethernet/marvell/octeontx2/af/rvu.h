@@ -267,9 +267,13 @@ struct rvu_pfvf {
 	u8		mac_addr[ETH_ALEN]; /* MAC address of this PF/VF */
 	u8		default_mac[ETH_ALEN]; /* MAC address from FWdata */
 
-	/* Broadcast pkt replication info */
+	/* Broadcast/Multicast/Promisc pkt replication info */
 	u16			bcast_mce_idx;
+	u16			mcast_mce_idx;
+	u16			promisc_mce_idx;
 	struct nix_mce_list	bcast_mce_list;
+	struct nix_mce_list	mcast_mce_list;
+	struct nix_mce_list	promisc_mce_list;
 
 	/* For resource limits */
 	struct pci_dev	*pdev;
@@ -576,9 +580,14 @@ static inline bool is_cgx_mapped_to_nix(unsigned short id, u8 cgx_id)
 /* Function Prototypes
  * RVU
  */
-static inline int is_afvf(u16 pcifunc)
+static inline bool is_afvf(u16 pcifunc)
 {
 	return !(pcifunc & ~RVU_PFVF_FUNC_MASK);
+}
+
+static inline bool is_vf(u16 pcifunc)
+{
+	return !!(pcifunc & RVU_PFVF_FUNC_MASK);
 }
 
 /* check if PF_FUNC is AF */
@@ -646,6 +655,12 @@ static inline void rvu_get_cgx_lmac_id(u8 map, u8 *cgx_id, u8 *lmac_id)
 	*lmac_id = (map & 0xF);
 }
 
+static inline bool is_cgx_vf(struct rvu *rvu, u16 pcifunc)
+{
+	return ((pcifunc & RVU_PFVF_FUNC_MASK) &&
+		is_pf_cgxmapped(rvu, rvu_get_pf(pcifunc)));
+}
+
 #define M(_name, _id, fn_name, req, rsp)				\
 int rvu_mbox_handler_ ## fn_name(struct rvu *, struct req *, struct rsp *);
 MBOX_MESSAGES
@@ -696,9 +711,15 @@ int rvu_nix_register_interrupts(struct rvu *rvu);
 void rvu_nix_unregister_interrupts(struct rvu *rvu);
 void rvu_nix_reset_mac(struct rvu_pfvf *pfvf, int pcifunc);
 bool rvu_nix_is_ptp_tx_enabled(struct rvu *rvu, u16 pcifunc);
-int nix_update_bcast_mce_list(struct rvu *rvu, u16 pcifunc, bool add);
+int nix_update_mce_list(struct rvu *rvu, u16 pcifunc,
+			struct nix_mce_list *mce_list,
+			int mce_idx, int mcam_index, bool add);
+void nix_get_mce_list(struct rvu *rvu, u16 pcifunc, int type,
+		      struct nix_mce_list **mce_list, int *mce_idx);
 struct nix_hw *get_nix_hw(struct rvu_hwinfo *hw, int blkaddr);
 int rvu_get_next_nix_blkaddr(struct rvu *rvu, int blkaddr);
+int nix_get_struct_ptrs(struct rvu *rvu, u16 pcifunc,
+			struct nix_hw **nix_hw, int *blkaddr);
 
 /* NPC APIs */
 int rvu_npc_init(struct rvu *rvu);
@@ -709,13 +730,19 @@ int npc_config_ts_kpuaction(struct rvu *rvu, int pf, u16 pcifunc, bool en);
 void rvu_npc_install_ucast_entry(struct rvu *rvu, u16 pcifunc,
 				 int nixlf, u64 chan, u8 *mac_addr);
 void rvu_npc_install_promisc_entry(struct rvu *rvu, u16 pcifunc,
-				   int nixlf, u64 chan, u8 chan_cnt,
-				   bool allmulti);
-void rvu_npc_disable_promisc_entry(struct rvu *rvu, u16 pcifunc, int nixlf);
-void rvu_npc_enable_promisc_entry(struct rvu *rvu, u16 pcifunc, int nixlf);
+				   int nixlf, u64 chan, u8 chan_cnt);
+void rvu_npc_enable_promisc_entry(struct rvu *rvu, u16 pcifunc, int nixlf,
+				  bool enable);
 void rvu_npc_install_bcast_match_entry(struct rvu *rvu, u16 pcifunc,
 				       int nixlf, u64 chan);
-void rvu_npc_enable_bcast_entry(struct rvu *rvu, u16 pcifunc, bool enable);
+void rvu_npc_enable_bcast_entry(struct rvu *rvu, u16 pcifunc, int nixlf,
+				bool enable);
+void rvu_npc_install_allmulti_entry(struct rvu *rvu, u16 pcifunc, int nixlf,
+				    u64 chan);
+void rvu_npc_enable_allmulti_entry(struct rvu *rvu, u16 pcifunc, int nixlf,
+				   bool enable);
+void npc_enadis_default_mce_entry(struct rvu *rvu, u16 pcifunc,
+				  int nixlf, int type, bool enable);
 void rvu_npc_disable_mcam_entries(struct rvu *rvu, u16 pcifunc, int nixlf);
 void rvu_npc_free_mcam_entries(struct rvu *rvu, u16 pcifunc, int nixlf);
 void rvu_npc_disable_default_entries(struct rvu *rvu, u16 pcifunc, int nixlf);
