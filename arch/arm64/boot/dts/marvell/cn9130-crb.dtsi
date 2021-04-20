@@ -145,6 +145,8 @@
 
 &cp0_i2c1 {
 	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&cp0_i2c1_pins>;
 	clock-frequency = <100000>;
 };
 
