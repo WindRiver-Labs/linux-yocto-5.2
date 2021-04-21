@@ -1086,6 +1086,7 @@ int rvu_mbox_handler_nix_aq_enq(struct rvu *rvu,
 	return rvu_nix_aq_enq_inst(rvu, req, rsp);
 }
 #endif
+EXPORT_SYMBOL(rvu_mbox_handler_nix_aq_enq);
 
 int rvu_mbox_handler_nix_hwctx_disable(struct rvu *rvu,
 				       struct hwctx_disable_req *req,
