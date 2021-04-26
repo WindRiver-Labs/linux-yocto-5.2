@@ -63,22 +63,6 @@
 	status = "okay";
 };
 
-&cp0_comphy0 {
-	phy-skip-config;
-};
-
-&cp0_comphy1 {
-	phy-skip-config;
-};
-
-&cp0_comphy2 {
-	phy-skip-config;
-};
-
-&cp0_comphy3 {
-	phy-skip-config;
-};
-
 &cp0_armada_ep {
 	status = "okay";
 };
