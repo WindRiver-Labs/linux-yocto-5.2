@@ -121,4 +121,10 @@ config ARM_SPE_PMU
 	  Extension, which provides periodic sampling of operations in
 	  the CPU pipeline and reports this via the perf AUX interface.
 
+config MARVELL_CN10K_DDR_PMU
+	tristate "MARVELL CN10K DRAM Subsystem(DSS) PMU Support"
+	depends on ARM64
+	help
+	  Support for Marvell DDR PMU event on CN10K platform
+
 endmenu
