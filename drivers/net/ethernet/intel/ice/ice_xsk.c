@@ -390,6 +390,7 @@ static int ice_xsk_umem_disable(struct ice_vsi *vsi, u16 qid)
 	    !vsi->xsk_umems[qid])
 		return -EINVAL;
 
+	clear_bit(qid, vsi->af_xdp_zc_qps);
 	ice_xsk_umem_dma_unmap(vsi, vsi->xsk_umems[qid]);
 	ice_xsk_remove_umem(vsi, qid);
 
@@ -434,6 +435,8 @@ ice_xsk_umem_enable(struct ice_vsi *vsi, struct xdp_umem *umem, u16 qid)
 	err = ice_xsk_add_umem(vsi, umem, qid);
 	if (err)
 		return err;
+
+	set_bit(qid, vsi->af_xdp_zc_qps);
 
 	return 0;
 }
