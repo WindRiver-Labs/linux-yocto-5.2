@@ -2517,8 +2517,8 @@ static int nix_blk_setup_mce(struct rvu *rvu, struct nix_hw *nix_hw,
 	aq_req.op = op;
 	aq_req.qidx = mce;
 
-	/* Forward bcast pkts to RQ0, RSS not needed */
-	aq_req.mce.op = 0;
+	/* Use RSS with RSS index 0 */
+	aq_req.mce.op = 1;
 	aq_req.mce.index = 0;
 	aq_req.mce.eol = eol;
 	aq_req.mce.pf_func = pcifunc;
@@ -3522,17 +3522,19 @@ int rvu_mbox_handler_nix_get_mac_addr(struct rvu *rvu,
 int rvu_mbox_handler_nix_set_rx_mode(struct rvu *rvu, struct nix_rx_mode *req,
 				     struct msg_rsp *rsp)
 {
-	struct rvu_hwinfo *hw = rvu->hw;
+	bool allmulti, promisc, nix_rx_multicast;
 	u16 pcifunc = req->hdr.pcifunc;
-	bool allmulti, promisc;
 	struct rvu_pfvf *pfvf;
 	int nixlf, err;
 
 	pfvf = rvu_get_pfvf(rvu, pcifunc);
 	promisc = req->mode & NIX_RX_MODE_PROMISC ? true : false;
 	allmulti = req->mode & NIX_RX_MODE_ALLMULTI ? true : false;
+	pfvf->use_mce_list = req->mode & NIX_RX_MODE_USE_MCE ? true : false;
 
-	if (is_vf(pcifunc) && !rvu->hw->cap.nix_rx_multicast &&
+	nix_rx_multicast = rvu->hw->cap.nix_rx_multicast & pfvf->use_mce_list;
+
+	if (is_vf(pcifunc) && !nix_rx_multicast &&
 	    (promisc || allmulti)) {
 		dev_warn_ratelimited(rvu->dev,
 				     "VF promisc/multicast not supported\n");
@@ -3548,7 +3550,7 @@ int rvu_mbox_handler_nix_set_rx_mode(struct rvu *rvu, struct nix_rx_mode *req,
 	if (err)
 		return err;
 
-	if (hw->cap.nix_rx_multicast) {
+	if (nix_rx_multicast) {
 		/* add/del this PF_FUNC to/from mcast pkt replication list */
 		err = nix_update_mce_rule(rvu, pcifunc, NIXLF_ALLMULTI_ENTRY,
 					  allmulti);
@@ -3575,7 +3577,7 @@ int rvu_mbox_handler_nix_set_rx_mode(struct rvu *rvu, struct nix_rx_mode *req,
 		rvu_npc_install_allmulti_entry(rvu, pcifunc, nixlf,
 					       pfvf->rx_chan_base);
 	} else {
-		if (!hw->cap.nix_rx_multicast)
+		if (!nix_rx_multicast)
 			rvu_npc_enable_allmulti_entry(rvu, pcifunc, nixlf, false);
 	}
 
@@ -3585,7 +3587,7 @@ int rvu_mbox_handler_nix_set_rx_mode(struct rvu *rvu, struct nix_rx_mode *req,
 					      pfvf->rx_chan_base,
 					      pfvf->rx_chan_cnt);
 	} else {
-		if (!hw->cap.nix_rx_multicast)
+		if (!nix_rx_multicast)
 			rvu_npc_enable_promisc_entry(rvu, pcifunc, nixlf, false);
 	}
 

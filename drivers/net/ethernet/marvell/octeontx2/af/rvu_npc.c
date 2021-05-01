@@ -687,7 +687,7 @@ void rvu_npc_install_promisc_entry(struct rvu *rvu, u16 pcifunc,
 	}
 
 	/* RX_ACTION set to MCAST for CGX PF's */
-	if (hw->cap.nix_rx_multicast &&
+	if (hw->cap.nix_rx_multicast && pfvf->use_mce_list &&
 	    is_pf_cgxmapped(rvu, rvu_get_pf(pcifunc))) {
 		*(u64 *)&action = 0x00;
 		action.op = NIX_RX_ACTIONOP_MCAST;
@@ -851,7 +851,7 @@ void rvu_npc_install_allmulti_entry(struct rvu *rvu, u16 pcifunc, int nixlf,
 	}
 
 	/* RX_ACTION set to MCAST for CGX PF's */
-	if (hw->cap.nix_rx_multicast) {
+	if (hw->cap.nix_rx_multicast && pfvf->use_mce_list) {
 		*(u64 *)&action = 0x00;
 		action.op = NIX_RX_ACTIONOP_MCAST;
 		action.index = pfvf->mcast_mce_idx;
@@ -991,7 +991,7 @@ void rvu_npc_update_flowkey_alg_idx(struct rvu *rvu, u16 pcifunc, int nixlf,
 	/* If PF's promiscuous entry is enabled,
 	 * Set RSS action for that entry as well
 	 */
-	if (!hw->cap.nix_rx_multicast &&
+	if ((!hw->cap.nix_rx_multicast || !pfvf->use_mce_list) &&
 	    is_mcam_entry_enabled(rvu, mcam, blkaddr, index)) {
 		bank = npc_get_bank(mcam, index);
 		index &= (mcam->banksize - 1);
@@ -1009,6 +1009,7 @@ void npc_enadis_default_mce_entry(struct rvu *rvu, u16 pcifunc,
 	struct rvu_hwinfo *hw = rvu->hw;
 	struct nix_mce_list *mce_list;
 	int index, blkaddr, mce_idx;
+	struct rvu_pfvf *pfvf;
 
 	blkaddr = rvu_get_blkaddr(rvu, BLKTYPE_NPC, 0);
 	if (blkaddr < 0)
@@ -1022,6 +1023,12 @@ void npc_enadis_default_mce_entry(struct rvu *rvu, u16 pcifunc,
 		npc_enable_mcam_entry(rvu, mcam, blkaddr, index, enable);
 		return;
 	}
+
+	/* return incase mce list is not enabled */
+	pfvf = rvu_get_pfvf(rvu, pcifunc & ~RVU_PFVF_FUNC_MASK);
+	if (hw->cap.nix_rx_multicast && is_vf(pcifunc) &&
+	    type != NIXLF_BCAST_ENTRY && !pfvf->use_mce_list)
+		return;
 
 	nix_get_mce_list(rvu, pcifunc, type, &mce_list, &mce_idx);
 
