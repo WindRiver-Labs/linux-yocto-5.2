@@ -88,7 +88,6 @@
 };
 
 &cp0_crypto {
-	cell-index = <0x0>;
 	status = "okay";
 };
 
