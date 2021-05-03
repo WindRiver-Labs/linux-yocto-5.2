@@ -51,9 +51,10 @@ struct lmac {
 	struct rsrc_bmap mac_to_index_bmap;
 	struct cgx_event_cb event_cb;
 	spinlock_t event_cb_lock;
-	bool cmd_pend;
 	struct cgx *cgx;
+	u8 mcast_filters_count;
 	u8 lmac_id;
+	bool cmd_pend;
 	char *name;
 };
 
@@ -188,6 +189,14 @@ static u64 mac2u64 (u8 *mac_addr)
 	return mac;
 }
 
+static void cfg2mac(u64 cfg, u8 *mac_addr)
+{
+	int i, index = 0;
+
+	for (i = ETH_ALEN - 1; i >= 0; i--, index++)
+		mac_addr[i] = (cfg >> (8 * index)) & 0xFF;
+}
+
 int cgx_lmac_addr_set(u8 cgx_id, u8 lmac_id, u8 *mac_addr)
 {
 	struct cgx *cgx_dev = cgx_get_pdata(cgx_id);
@@ -235,8 +244,16 @@ int cgx_lmac_addr_add(u8 cgx_id, u8 lmac_id, u8 *mac_addr)
 	cgx_write(cgx_dev, 0, (CGXX_CMRX_RX_DMAC_CAM0 + (index * 0x8)), cfg);
 
 	cfg = cgx_read(cgx_dev, lmac_id, CGXX_CMRX_RX_DMAC_CTL0);
-	cfg |= (CGX_DMAC_BCAST_MODE | CGX_DMAC_MCAST_MODE |
-		CGX_DMAC_CAM_ACCEPT);
+	cfg |= (CGX_DMAC_BCAST_MODE | CGX_DMAC_CAM_ACCEPT);
+
+	if (is_multicast_ether_addr(mac_addr)) {
+		cfg &= ~GENMASK_ULL(2, 1);
+		cfg |= CGX_DMAC_MCAST_MODE_CAM;
+		lmac->mcast_filters_count++;
+	} else if (!lmac->mcast_filters_count) {
+		cfg |= CGX_DMAC_MCAST_MODE;
+	}
+
 	cgx_write(cgx_dev, lmac_id, CGXX_CMRX_RX_DMAC_CTL0, cfg);
 
 	return idx;
@@ -272,6 +289,8 @@ int cgx_lmac_addr_del(u8 cgx_id, u8 lmac_id, u8 index)
 {
 	struct cgx *cgx_dev = cgx_get_pdata(cgx_id);
 	struct lmac *lmac = lmac_pdata(lmac_id, cgx_dev);
+	u8 mac[ETH_ALEN];
+	u64 cfg;
 
 	/* Validate the index */
 	if (index >= lmac->mac_to_index_bmap.max)
@@ -284,6 +303,22 @@ int cgx_lmac_addr_del(u8 cgx_id, u8 lmac_id, u8 index)
 	rvu_free_rsrc(&lmac->mac_to_index_bmap, index);
 
 	index = lmac_id * lmac->mac_to_index_bmap.max + index;
+
+	/* Read MAC address to check whether it is ucast or mcast */
+	cfg = cgx_read(cgx_dev, lmac_id,
+		       (CGXX_CMRX_RX_DMAC_CAM0 + (index * 0x8)));
+
+	cfg2mac(cfg, mac);
+	if (is_multicast_ether_addr(mac))
+		lmac->mcast_filters_count--;
+
+	if (!lmac->mcast_filters_count) {
+		cfg = cgx_read(cgx_dev, lmac_id, CGXX_CMRX_RX_DMAC_CTL0);
+		cfg &= ~GENMASK_ULL(2, 1);
+		cfg |= CGX_DMAC_MCAST_MODE;
+		cgx_write(cgx_dev, lmac_id, CGXX_CMRX_RX_DMAC_CTL0, cfg);
+	}
+
 	cgx_write(cgx_dev, 0, (CGXX_CMRX_RX_DMAC_CAM0 + (index * 0x8)), 0);
 
 	return 0;
