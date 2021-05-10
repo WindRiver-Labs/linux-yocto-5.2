@@ -4895,14 +4895,15 @@ static int mvpp2_open(struct net_device *dev)
 		return err;
 	}
 
-	if (port->flags & MVPP22_F_IF_MUSDK)
-		goto skip_musdk_parser;
-
 	err = mvpp2_prs_mac_da_accept(port, dev->dev_addr, true);
 	if (err) {
 		netdev_err(dev, "mvpp2_prs_mac_da_accept own addr failed\n");
 		return err;
 	}
+
+	if (port->flags & MVPP22_F_IF_MUSDK)
+		goto skip_musdk_parser;
+
 	err = mvpp2_prs_tag_mode_set(port->priv, port->id, MVPP2_TAG_TYPE_MH);
 	if (err) {
 		netdev_err(dev, "mvpp2_prs_tag_mode_set failed\n");
