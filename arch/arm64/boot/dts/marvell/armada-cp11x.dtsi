@@ -12,6 +12,7 @@
 
 #define CP11X_PCIEx_CONF_BASE(iface)	(CP11X_PCIEx_MEM_BASE(iface) + CP11X_PCIEx_MEM_SIZE(iface))
 #define CP11X_PCIEx_EP_REG_BASE(iface)	(ADDRESSIFY(CP11X_BASE) + 0x600000 + (iface) * 0x4000)
+#define CP11X_EIP197_INDEX		CP11X_NUM
 #define CP11X_PCIEx_MAC_RESET_BIT(n)	(11 + ((n + 2) % 3))
 
 / {
@@ -556,6 +557,7 @@
 			clock-names = "core", "reg";
 			clocks = <&CP11X_LABEL(clk) 1 26>,
 				 <&CP11X_LABEL(clk) 1 17>;
+			cell-index = <CP11X_EIP197_INDEX>;
 			dma-coherent;
 		};
 
