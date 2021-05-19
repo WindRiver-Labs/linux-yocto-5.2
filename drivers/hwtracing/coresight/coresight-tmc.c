@@ -541,8 +541,7 @@ static int tmc_probe(struct amba_device *adev, const struct amba_id *id)
 		if (drvdata->etr_options & CSETR_QUIRK_SECURE_BUFF) {
 			if (tmc_get_cpu_tracebufsize(drvdata, &drvdata->size) ||
 			    !drvdata->size) {
-				dev_info(&drvdata->csdev->dev,
-					 "Secure tracebuffer not available\n");
+				pr_err("Secure tracebuffer not available\n");
 				ret = -ENOMEM;
 				goto out;
 			}
