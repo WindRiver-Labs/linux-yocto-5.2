@@ -729,6 +729,8 @@ struct safexcel_crypto_priv {
 	atomic_t ring_used;
 
 	struct safexcel_ring *ring;
+
+	int id;
 };
 
 struct safexcel_context {
