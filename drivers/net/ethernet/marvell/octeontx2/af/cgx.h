@@ -51,6 +51,7 @@
 #define CGX_DMAC_BCAST_MODE		BIT_ULL(0)
 #define CGXX_CMRX_RX_DMAC_CAM0		0x200
 #define CGX_DMAC_CAM_ADDR_ENABLE	BIT_ULL(48)
+#define CGX_DMAC_CAM_ENTRY_LMACID	GENMASK_ULL(50, 49)
 #define CGXX_CMRX_RX_DMAC_CAM1		0x400
 #define CGX_RX_DMAC_ADR_MASK		GENMASK_ULL(47, 0)
 #define CGXX_CMRX_TX_FIFO_LEN		0x618
@@ -179,5 +180,6 @@ int cgx_get_fec_stats(void *cgxd, int lmac_id, struct cgx_fec_stats_rsp *rsp);
 int cgx_get_phy_fec_stats(void *cgxd, int lmac_id);
 int cgx_set_link_mode(void *cgxd, struct cgx_set_link_mode_args args,
 		      int cgx_id, int lmac_id);
-
+u64 cgx_read_dmac_ctrl(void *cgxd, int lmac_id);
+u64 cgx_read_dmac_entry(void *cgxd, int index);
 #endif /* CGX_H */
