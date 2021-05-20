@@ -182,4 +182,5 @@ int cgx_set_link_mode(void *cgxd, struct cgx_set_link_mode_args args,
 		      int cgx_id, int lmac_id);
 u64 cgx_read_dmac_ctrl(void *cgxd, int lmac_id);
 u64 cgx_read_dmac_entry(void *cgxd, int index);
+int cgx_lmac_addr_update(u8 cgx_id, u8 lmac_id, u8 *mac_addr, u8 index);
 #endif /* CGX_H */
