@@ -132,6 +132,7 @@ M(VF_FLR,		0x006, vf_flr, msg_req, msg_rsp)		\
 M(PTP_OP,		0x007, ptp_op, ptp_req, ptp_rsp)		\
 M(GET_HW_CAP,		0x008, get_hw_cap, msg_req, get_hw_cap_rsp)	\
 M(NDC_SYNC_OP,		0x009, ndc_sync_op, ndc_sync_op, msg_rsp)	\
+M(SET_VF_PERM,		0x00b, set_vf_perm, set_vf_perm, msg_rsp)       \
 /* CGX mbox IDs (range 0x200 - 0x3FF) */				\
 M(CGX_START_RXTX,	0x200, cgx_start_rxtx, msg_req, msg_rsp)	\
 M(CGX_STOP_RXTX,	0x201, cgx_stop_rxtx, msg_req, msg_rsp)		\
@@ -1553,6 +1554,14 @@ struct ndc_sync_op {
 	u8 nix_lf_tx_sync;
 	u8 nix_lf_rx_sync;
 	u8 npa_lf_sync;
+};
+
+struct set_vf_perm  {
+	struct  mbox_msghdr hdr;
+	u16	vf;
+#define RESET_VF_PERM		BIT_ULL(0)
+#define	VF_TRUSTED		BIT_ULL(1)
+	u64	flags;
 };
 
 /* CPT mailbox error codes
