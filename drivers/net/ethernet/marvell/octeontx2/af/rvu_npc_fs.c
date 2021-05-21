@@ -1140,10 +1140,10 @@ int rvu_mbox_handler_npc_install_flow(struct rvu *rvu,
 	}
 
 	if (!is_npc_interface_valid(rvu, req->intf))
-		return -EINVAL;
+		return NPC_FLOW_INTF_INVALID;
 
 	if (from_vf && req->default_rule)
-		return NPC_MCAM_PERM_DENIED;
+		return NPC_FLOW_VF_PERM_DENIED;
 
 	/* Each PF/VF info is maintained in struct rvu_pfvf.
 	 * rvu_pfvf for the target PF/VF needs to be retrieved
@@ -1168,10 +1168,10 @@ int rvu_mbox_handler_npc_install_flow(struct rvu *rvu,
 		req->chan_mask = 0xFFF;
 
 	if (npc_check_unsupported_flows(rvu, req->features, req->intf))
-		return -EOPNOTSUPP;
+		return NPC_FLOW_NOT_SUPPORTED;
 
 	if (npc_mcam_verify_channel(rvu, target, req->intf, req->channel))
-		return -EINVAL;
+		return NPC_FLOW_CHAN_INVALID;
 
 	pfvf = rvu_get_pfvf(rvu, target);
 
@@ -1202,14 +1202,14 @@ int rvu_mbox_handler_npc_install_flow(struct rvu *rvu,
 
 	/* Do not allow requests from uninitialized VFs */
 	if (from_vf && !enable)
-		return -EINVAL;
+		return NPC_FLOW_VF_NOT_INIT;
 
 	/* If message is from VF then its flow should not overlap with
 	 * reserved unicast flow.
 	 */
 	if (from_vf && pfvf->def_ucast_rule && is_npc_intf_rx(req->intf) &&
 	    pfvf->def_ucast_rule->features & req->features)
-		return -EINVAL;
+		return NPC_FLOW_VF_OVERLAP;
 
 	return npc_install_flow(rvu, blkaddr, target, nixlf, pfvf,
 				req, rsp, enable, pf_set_vfs_mac);
