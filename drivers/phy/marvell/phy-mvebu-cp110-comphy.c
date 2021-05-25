@@ -797,7 +797,8 @@ static int mvebu_comphy_power_on(struct phy *phy)
 			fw_speed = COMPHY_FW_SPEED_1250;
 			break;
 		case PHY_INTERFACE_MODE_2500BASEX:
-			dev_dbg(priv->dev, "set lane %d to 2500BASE-X mode\n",
+		case PHY_INTERFACE_MODE_2500BASET:
+			dev_dbg(priv->dev, "set lane %d to 2500BASE mode\n",
 				lane->id);
 			fw_speed = COMPHY_FW_SPEED_3125;
 			break;
