@@ -324,7 +324,7 @@ static int nix_interface_init(struct rvu *rvu, u16 pcifunc, int type, int nixlf,
 			for (vfid = 0; vfid < vf; vfid++)
 				req_chan_base += sdp_info->vf_rings[vfid];
 			req_chan_cnt = sdp_info->vf_rings[vf];
-			req_chan_end = req_chan_base + req_chan_cnt;
+			req_chan_end = req_chan_base + req_chan_cnt - 1;
 			if (req_chan_base < NIX_CHAN_SDP_CHX(0) ||
 			    req_chan_end > NIX_CHAN_SDP_CHX(255)) {
 				dev_err(rvu->dev,
