@@ -6826,10 +6826,9 @@ static int mvpp2_port_probe(struct platform_device *pdev,
 	}
 
 	features = NETIF_F_SG | NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM |
-		   NETIF_F_TSO;
+		   NETIF_F_TSO | NETIF_F_HW_VLAN_CTAG_FILTER;
 	dev->features = features | NETIF_F_RXCSUM;
-	dev->hw_features |= features | NETIF_F_RXCSUM | NETIF_F_GRO |
-			    NETIF_F_HW_VLAN_CTAG_FILTER;
+	dev->hw_features |= features | NETIF_F_RXCSUM | NETIF_F_GRO;
 
 	if (mvpp22_rss_is_supported(port))
 		dev->hw_features |= NETIF_F_RXHASH;
