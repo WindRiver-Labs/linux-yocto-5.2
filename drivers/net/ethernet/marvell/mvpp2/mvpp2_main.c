@@ -4146,6 +4146,32 @@ struct sk_buff *mvpp2_build_skb(void *data, unsigned int frag_size,
 	return skb;
 }
 
+static void mvpp2_buff_hdr_pool_put(struct mvpp2_port *port, struct mvpp2_rx_desc *rx_desc,
+				    int pool, u32 rx_status)
+{
+	dma_addr_t dma_addr, dma_addr_next;
+	struct mvpp2_buff_hdr *buff_hdr;
+	phys_addr_t phys_addr;
+
+	dma_addr = mvpp2_rxdesc_dma_addr_get(port, rx_desc);
+	phys_addr = dma_to_phys(port->dev->dev.parent, dma_addr);
+
+	do {
+		buff_hdr = (struct mvpp2_buff_hdr *)phys_to_virt(phys_addr);
+
+		dma_addr_next = le32_to_cpu(buff_hdr->next_dma_addr);
+
+		if (port->priv->hw_version >= MVPP22)
+			dma_addr_next |= ((u64)buff_hdr->next_dma_addr_high << 32);
+
+		mvpp2_bm_pool_put(port, pool, dma_addr);
+
+		dma_addr = dma_addr_next;
+		phys_addr = dma_to_phys(port->dev->dev.parent, dma_addr);
+
+	} while (!MVPP2_B_HDR_INFO_IS_LAST(le16_to_cpu(buff_hdr->info)));
+}
+
 /* Main rx processing */
 static int mvpp2_rx(struct mvpp2_port *port, struct napi_struct *napi,
 		    int rx_todo, struct mvpp2_rx_queue *rxq)
@@ -4194,20 +4220,6 @@ static int mvpp2_rx(struct mvpp2_port *port, struct napi_struct *napi,
 			MVPP2_RXD_BM_POOL_ID_OFFS;
 		bm_pool = &port->priv->bm_pools[pool];
 
-		/* In case of an error, release the requested buffer pointer
-		 * to the Buffer Manager. This request process is controlled
-		 * by the hardware, and the information about the buffer is
-		 * comprised by the RX descriptor.
-		 */
-		if (rx_status & MVPP2_RXD_ERR_SUMMARY) {
-err_drop_frame:
-			dev->stats.rx_errors++;
-			mvpp2_rx_error(port, rx_desc);
-			/* Return the buffer to the pool */
-			mvpp2_bm_pool_put(port, pool, dma_addr);
-			continue;
-		}
-
 		if (bm_pool->frag_size > PAGE_SIZE)
 			frag_size = 0;
 		else
@@ -4223,6 +4235,27 @@ err_drop_frame:
 						DMA_FROM_DEVICE);
 		dma_unmap_single(dev->dev.parent, dma_addr,
 				 bm_pool->buf_size, DMA_FROM_DEVICE);
+
+		/* Buffer header not supported */
+		if (rx_status & MVPP2_RXD_BUF_HDR)
+			goto err_drop_frame;
+
+		/* In case of an error, release the requested buffer pointer
+		 * to the Buffer Manager. This request process is controlled
+		 * by the hardware, and the information about the buffer is
+		 * comprised by the RX descriptor.
+		 */
+		if (rx_status & MVPP2_RXD_ERR_SUMMARY) {
+err_drop_frame:
+			dev->stats.rx_errors++;
+			mvpp2_rx_error(port, rx_desc);
+			/* Return the buffer to the pool */
+			if (rx_status & MVPP2_RXD_BUF_HDR)
+				mvpp2_buff_hdr_pool_put(port, rx_desc, pool, rx_status);
+			else
+				mvpp2_bm_pool_put(port, pool, dma_addr);
+			continue;
+		}
 
 		prefetch(data + NET_SKB_PAD); /* packet header */
 
