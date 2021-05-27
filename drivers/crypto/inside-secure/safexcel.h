@@ -26,6 +26,11 @@
 						((reg >> 4) & 0xf0) | \
 						((reg >> 12) & 0xf))
 
+/* Number of eip devices */
+#define MAX_EIP_DEVICE					2
+
+#define RINGS_UNINITIALIZED				0xff
+
 /* Static configuration */
 #define EIP197_DEFAULT_RING_SIZE		400
 #define EIP197_MAX_TOKENS			18
