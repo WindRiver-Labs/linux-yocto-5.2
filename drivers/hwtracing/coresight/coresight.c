@@ -508,10 +508,6 @@ static int coresight_enabled_sink(struct device *dev, const void *data)
 
 /**
  * coresight_get_enabled_sink - returns the first enabled sink found on the bus
- * In case the child port for the given source device is a per core sink,
- * no bus search is done if the sink is in enabled state.
- *
- * @source: Coresight source device reference
  * @deactivate:	Whether the 'enable_sink' flag should be reset
  *
  * When operated from perf the deactivate parameter should be set to 'true'.
@@ -522,25 +518,10 @@ static int coresight_enabled_sink(struct device *dev, const void *data)
  * parameter should be set to 'false', hence mandating users to explicitly
  * clear the flag.
  */
-struct coresight_device *
-coresight_get_enabled_sink(struct coresight_device *source, bool deactivate)
+struct coresight_device *coresight_get_enabled_sink(bool deactivate)
 {
-	struct coresight_device *child;
 	struct device *dev = NULL;
 
-	if (source == NULL || source->pdata->nr_outport != 1)
-		goto skip_single_sink_check;
-
-	/* If the connected port is a sink with single trace source,
-	 * nothing to search further on the bus.
-	 */
-	child = source->pdata->conns[0].child_dev;
-	if (child->pdata->nr_inport == 1) {
-		if (coresight_enabled_sink(&child->dev, &deactivate))
-			return child;
-	}
-
-skip_single_sink_check:
 	dev = bus_find_device(&coresight_bustype, NULL, &deactivate,
 			      coresight_enabled_sink);
 
@@ -788,7 +769,7 @@ int coresight_enable(struct coresight_device *csdev)
 	 * Search for a valid sink for this session but don't reset the
 	 * "enable_sink" flag in sysFS.  Users get to do that explicitly.
 	 */
-	sink = coresight_get_enabled_sink(csdev, false);
+	sink = coresight_get_enabled_sink(false);
 	if (!sink) {
 		ret = -EINVAL;
 		goto out;
@@ -880,7 +861,7 @@ void coresight_disable(struct coresight_device *csdev)
 	}
 
 	if (!is_etm_sync_mode_hw()) {
-		sink = coresight_get_enabled_sink(csdev, false);
+		sink = coresight_get_enabled_sink(false);
 		if (!sink)
 			goto out;
 		/* Remove source reference
