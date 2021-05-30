@@ -27,7 +27,7 @@
 						((reg >> 12) & 0xf))
 
 /* Number of eip devices */
-#define MAX_EIP_DEVICE					2
+#define MAX_EIP_DEVICE					3
 
 #define RINGS_UNINITIALIZED				0xff
 
