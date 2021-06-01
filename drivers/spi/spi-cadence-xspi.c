@@ -569,6 +569,8 @@ int cdns_xspi_configure(struct cdns_xspi_dev *cdns_xspi)
 		return ret;
 	}
 
+	mutex_init(&cdns_xspi->lock);
+
 	return ret;
 }
 
