@@ -84,6 +84,7 @@ config MVNETA_BM
 config MVPP2
 	tristate "Marvell Armada 375/7K/8K network interface support"
 	depends on ARCH_MVEBU || COMPILE_TEST
+	depends on NET_DSA
 	select MVMDIO
 	select PHYLINK
 	---help---
