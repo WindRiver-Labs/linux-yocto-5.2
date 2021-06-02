@@ -98,9 +98,11 @@ struct mvpp2_share {
 
 struct mvpp2_share mvpp2_share;
 
+#ifndef MODULE
 static inline void mvpp2_recycle_put(struct mvpp2_port *port,
 				     struct mvpp2_txq_pcpu *txq_pcpu,
 				     struct mvpp2_txq_pcpu_buf *tx_buf);
+#endif
 
 static void mvpp2_tx_done_guard_force_irq(struct mvpp2_port *port,
 					  int sw_thread, u8 to_zero_map);
@@ -2795,14 +2797,15 @@ static void mvpp2_txq_bufs_free(struct mvpp2_port *port,
 		} else if (tx_buf->skb != TSO_HEADER_MARK) {
 			dma_unmap_single(port->dev->dev.parent, tx_buf->dma,
 					 tx_buf->size, DMA_TO_DEVICE);
+#ifndef MODULE
 			if (static_branch_unlikely(&mvpp2_recycle_ena)) {
 				mvpp2_recycle_put(port, txq_pcpu, tx_buf);
 				/* sets tx_buf->skb=NULL if put to recycle */
 				if (tx_buf->skb)
 					dev_kfree_skb_any(tx_buf->skb);
-			} else {
+			} else
+#endif
 				dev_kfree_skb_any(tx_buf->skb);
-			}
 		}
 		/* else: no action, tx_buf->skb always overwritten in xmit */
 		mvpp2_txq_inc_get(txq_pcpu);
@@ -3824,6 +3827,7 @@ static u32 mvpp2_skb_tx_csum(struct mvpp2_port *port, struct sk_buff *skb)
 	return MVPP2_TXD_L4_CSUM_NOT | MVPP2_TXD_IP_CSUM_DISABLE;
 }
 
+#ifndef MODULE
 void mvpp2_recycle_stats(void)
 {
 	int cpu;
@@ -4145,6 +4149,7 @@ struct sk_buff *mvpp2_build_skb(void *data, unsigned int frag_size,
 
 	return skb;
 }
+#endif
 
 static void mvpp2_buff_hdr_pool_put(struct mvpp2_port *port, struct mvpp2_rx_desc *rx_desc,
 				    int pool, u32 rx_status)
@@ -4258,9 +4263,12 @@ err_drop_frame:
 		}
 
 		prefetch(data + NET_SKB_PAD); /* packet header */
-
+#ifdef MODULE
+		skb = build_skb(data, frag_size);
+#else
 		skb = mvpp2_build_skb(data, frag_size,
 				      napi, port, rx_status, rxq->id, bm_pool);
+#endif
 		if (!skb) {
 			netdev_warn(port->dev, "skb build failed\n");
 			goto err_drop_frame;
@@ -4962,8 +4970,10 @@ skip_musdk_parser:
 		goto err_cleanup_rxqs;
 	}
 
+#ifndef MODULE
 	/* Recycle buffer pool for performance optimization */
 	mvpp2_recycle_open();
+#endif
 
 	err = mvpp2_irqs_init(port);
 	if (err) {
@@ -5081,8 +5091,9 @@ static int mvpp2_stop(struct net_device *dev)
 	mvpp2_cleanup_txqs(port);
 
 	cancel_delayed_work_sync(&port->stats_work);
-
+#ifndef MODULE
 	mvpp2_recycle_close();
+#endif
 
 	return 0;
 }
