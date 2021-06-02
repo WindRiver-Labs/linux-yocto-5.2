@@ -6585,6 +6585,7 @@ static const struct phylink_mac_ops mvpp2_phylink_ops = {
 	.mac_link_down = mvpp2_mac_link_down,
 };
 
+#if IS_ENABLED(CONFIG_NET_DSA)
 /* DSA notifier */
 static void mvpp2_dsa_port_register(struct net_device *dev)
 {
@@ -6612,6 +6613,7 @@ static int mvpp2_dsa_notifier(struct notifier_block *unused,
 
 	return NOTIFY_DONE;
 }
+#endif
 
 /* Ports initialization */
 static int mvpp2_port_probe(struct platform_device *pdev,
@@ -6896,6 +6898,7 @@ static int mvpp2_port_probe(struct platform_device *pdev,
 		spin_lock_init(&port->tx_lock[i]);
 	}
 
+#if IS_ENABLED(CONFIG_NET_DSA)
 	/* Register DSA notifier */
 	port->dsa_notifier.notifier_call = mvpp2_dsa_notifier;
 	err = register_dsa_notifier(&port->dsa_notifier);
@@ -6903,7 +6906,7 @@ static int mvpp2_port_probe(struct platform_device *pdev,
 		dev_err(&pdev->dev, "failed to register DSA notifier\n");
 		goto err_phylink;
 	}
-
+#endif
 	return 0;
 
 err_phylink:
@@ -6934,7 +6937,9 @@ static void mvpp2_port_remove(struct mvpp2_port *port)
 	mvpp2_port_musdk_set(port->dev, false);
 	kfree(port->dbgfs_port_flow_entry);
 	unregister_netdev(port->dev);
+#if IS_ENABLED(CONFIG_NET_DSA)
 	unregister_dsa_notifier(&port->dsa_notifier);
+#endif
 	if (port->phylink)
 		phylink_destroy(port->phylink);
 	free_percpu(port->pcpu);
