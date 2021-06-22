@@ -567,6 +567,7 @@
 #define MVPP2_PPPOE_HDR_SIZE		8
 #define MVPP2_VLAN_TAG_LEN		4
 #define MVPP2_VLAN_TAG_EDSA_LEN		8
+#define MVPP2_MPLS_HEADER_LEN		4
 
 /* Lbtd 802.3 type */
 #define MVPP2_IP_LBDT_TYPE		0xfffa
