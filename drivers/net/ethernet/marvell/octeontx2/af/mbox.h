@@ -1742,4 +1742,14 @@ struct sdp_chan_info_msg {
 	struct mbox_msghdr hdr;
 	struct sdp_node_info info;
 };
+
+/* CGX mailbox error codes
+ * Range 1101 - 1200.
+ */
+enum cgx_af_status {
+	LMAC_AF_ERR_INVALID_PARAM	= -1101,
+	LMAC_AF_ERR_PF_NOT_MAPPED	= -1102,
+	LMAC_AF_ERR_PERM_DENIED		= -1103,
+};
+
 #endif /* MBOX_H */
