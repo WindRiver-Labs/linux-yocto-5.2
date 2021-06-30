@@ -121,6 +121,11 @@
 #define CDNS_XSPI_MAGIC_NUM                   GENMASK(31, 16)
 #define CDNS_XSPI_CTRL_REV                    GENMASK(7, 0)
 
+/* Controller PHY GPIO register, used for synchronization
+ * between firmware and OS
+ */
+#define CDNS_XSPI_PHY_GPIO_CTRL_1		0x208C
+
 /* STIG Profile 1.0 instruction fields (split into registers) */
 #define CDNS_XSPI_CMD_INSTR_TYPE              GENMASK(6, 0)
 #define CDNS_XSPI_CMD_P1_R1_ADDR0             GENMASK(31, 24)

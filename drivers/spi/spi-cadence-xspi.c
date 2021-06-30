@@ -313,17 +313,58 @@ static int cdns_verify_stig_mode_config(struct cdns_xspi_dev *cdns_xspi)
 	return 0;
 }
 
+#define OS_OWN	2
+static int cdns_xspi_lock_device(struct cdns_xspi_dev *cdns_xspi)
+{
+	u32 value;
+
+	if (!readl_poll_timeout_atomic(cdns_xspi->iobase + CDNS_XSPI_PHY_GPIO_CTRL_1,
+					value, !value, 100, 1000000))
+		writel(OS_OWN, cdns_xspi->iobase + 0x208c);
+	else {
+		dev_err(cdns_xspi->dev, "Cannot get Lock\n");
+		return -ETIMEDOUT;
+	}
+
+	if (!readl_poll_timeout_atomic(cdns_xspi->iobase + CDNS_XSPI_PHY_GPIO_CTRL_1,
+					value, value != OS_OWN, 100, 1000)) {
+		dev_err(cdns_xspi->dev, "Cannot keep Lock\n");
+		return -ETIMEDOUT;
+	}
+
+	return 0;
+}
+
+static int cdns_xspi_unlock_device(struct cdns_xspi_dev *cdns_xspi)
+{
+	u32 value;
+
+	if (!readl_poll_timeout_atomic(cdns_xspi->iobase + CDNS_XSPI_PHY_GPIO_CTRL_1,
+					value, (value == OS_OWN), 100, 1000)) {
+		writel(0, cdns_xspi->iobase + CDNS_XSPI_PHY_GPIO_CTRL_1);
+	} else {
+		dev_err(cdns_xspi->dev, "Cannot UN Lock\n");
+		return -ETIMEDOUT;
+	}
+	return 0;
+}
+
 static int cdns_xspi_send_stig_command(struct cdns_xspi_dev *cdns_xspi,
 	const struct spi_mem_op *op, bool data_phase)
 {
 	struct device *dev = cdns_xspi->dev;
 	u32 cmd_regs[5] = {0};
 	u32 cmd_status;
+	int status = 0;
+
+	if (cdns_xspi_lock_device(cdns_xspi))
+		return -EPROTO;
 
 	cdns_xspi_wait_for_controller_idle(cdns_xspi);
 	if (cdns_verify_stig_mode_config(cdns_xspi) < 0) {
 		dev_err(dev, "Failed to enter STIG mode\n");
-		return -EPROTO;
+		status = -EPROTO;
+		goto error;
 	}
 	cdns_xspi_set_interrupts(cdns_xspi, true);
 	cdns_xspi->sdma_error = false;
@@ -355,7 +396,8 @@ static int cdns_xspi_send_stig_command(struct cdns_xspi_dev *cdns_xspi,
 			wait_for_completion(&cdns_xspi->sdma_complete);
 			if (cdns_xspi->sdma_error) {
 				cdns_xspi_set_interrupts(cdns_xspi, false);
-				return -EIO;
+				status = -EIO;
+				goto error;
 			}
 		} else {
 			cdns_xspi_sdma_ready(cdns_xspi);
@@ -372,9 +414,13 @@ static int cdns_xspi_send_stig_command(struct cdns_xspi_dev *cdns_xspi,
 	cdns_xspi_set_interrupts(cdns_xspi, false);
 
 	if (cmd_status & CDNS_XSPI_CMD_STATUS_FAILED)
-		return -EPROTO;
+		status = -EPROTO;
 
-	return 0;
+error:
+	if (cdns_xspi_unlock_device(cdns_xspi))
+		status = -EPROTO;
+
+	return status;
 }
 
 static int cdns_xspi_mem_op(struct cdns_xspi_dev *cdns_xspi,
