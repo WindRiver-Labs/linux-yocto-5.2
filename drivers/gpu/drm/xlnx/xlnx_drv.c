@@ -28,7 +28,7 @@
 #include <linux/component.h>
 #include <linux/device.h>
 #include <linux/dma-buf.h>
-#include <linux/dma-resv.h>
+#include <linux/reservation.h>
 #include <linux/module.h>
 #include <linux/of_graph.h>
 #include <linux/platform_device.h>
