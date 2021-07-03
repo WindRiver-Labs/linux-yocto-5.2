@@ -2021,6 +2021,8 @@ static int nfs23_validate_mount_data(void *options,
 		goto out_no_data;
 
 	args->version = NFS_DEFAULT_VERSION;
+	args->nfs_prog = (data->version >= 7) ? data->nfs_prog : NFS_PROGRAM;
+
 	switch (data->version) {
 	case 1:
 		data->namlen = 0; /* fall through */
@@ -2042,6 +2044,7 @@ static int nfs23_validate_mount_data(void *options,
 		memset(data->context, 0, sizeof(data->context));
 		/* fall through */
 	case 6:
+	case 7:
 		if (data->flags & NFS_MOUNT_VER3) {
 			if (data->root.size > NFS3_FHSIZE || data->root.size == 0)
 				goto out_invalid_fh;
@@ -2122,9 +2125,6 @@ static int nfs23_validate_mount_data(void *options,
 #endif
 		}
 
-		break;
-	case 7:
-		args->nfs_prog = (data->version >= 7) ? data->nfs_prog : NFS_PROGRAM;
 		break;
 	default:
 		return NFS_TEXT_DATA;
