@@ -10,7 +10,6 @@
 #include <linux/dma-mapping.h>
 #include <linux/idr.h>
 #include <linux/miscdevice.h>
-#include <linux/arm-smccc.h>
 #include <linux/mutex.h>
 #include <linux/refcount.h>
 
@@ -76,9 +75,6 @@
 #define TMC_AXICTL_AXCACHE_OS	(0xf << 2)
 #define TMC_AXICTL_ARCACHE_OS	(0xf << 16)
 
-/* TMC_FFSR - 0x300 */
-#define TMC_FFSR_FT_NOT_PRESENT	BIT(4)
-
 /* TMC_FFCR - 0x304 */
 #define TMC_FFCR_FLUSHMAN_BIT	6
 #define TMC_FFCR_EN_FMT		BIT(0)
@@ -96,7 +92,6 @@
 #define TMC_DEVID_AXIAW_MASK	0x7f
 
 #define TMC_AUTH_NSID_MASK	GENMASK(1, 0)
-#define TMC_AUTH_SID_MASK	GENMASK(5, 4)
 
 enum tmc_config_type {
 	TMC_CONFIG_TYPE_ETB,
@@ -135,29 +130,6 @@ enum tmc_mem_intf_width {
 #define CORESIGHT_SOC_600_ETR_CAPS	\
 	(TMC_ETR_SAVE_RESTORE | TMC_ETR_AXI_ARCACHE)
 
-/* Marvell OcteonTx CN9xxx TMC-ETR unadvertised capabilities */
-#define OCTEONTX_CN9XXX_ETR_CAPS	\
-	(TMC_ETR_SAVE_RESTORE)
-
-/* SMC call ids for managing the secure trace buffer */
-
-/* Args: x1 - size, x2 - cpu, x3 - llc lock flag
- * Returns: x0 - status, x1 - secure buffer address
- */
-#define OCTEONTX_TRC_ALLOC_SBUF		0xc2000c05
-/* Args: x1 - non secure buffer address, x2 - size */
-#define OCTEONTX_TRC_REGISTER_DRVBUF	0xc2000c06
-/* Args: x1 - dst(non secure), x2 - src(secure), x3 - size */
-#define OCTEONTX_TRC_COPY_TO_DRVBUF	0xc2000c07
-/* Args: x1 - secure buffer address, x2 - size */
-#define OCTEONTX_TRC_FREE_SBUF		0xc2000c08
-/* Args: x1 - non secure buffer address, x2 - size */
-#define OCTEONTX_TRC_UNREGISTER_DRVBUF	0xc2000c09
-/* Args: Nil
- * Returns: cpu trace buffer size
- */
-#define OCTEONTX_TRC_GET_CPU_BUFSIZE    0xc2000c0a
-
 enum etr_mode {
 	ETR_MODE_FLAT,		/* Uses contiguous flat buffer */
 	ETR_MODE_ETR_SG,	/* Uses in-built TMC ETR SG mechanism */
@@ -171,10 +143,8 @@ struct etr_buf_operations;
  * refcount	; Number of sources currently using this etr_buf.
  * @mode	: Mode of the ETR buffer, contiguous, Scatter Gather etc.
  * @full	: Trace data overflow
- * @secure	: Secure status of ETR buffer
  * @size	: Size of the buffer.
  * @hwaddr	: Address to be programmed in the TMC:DBA{LO,HI}
- * @s_hwaddr:	: Secure trace buffer address
  * @offset	: Offset of the trace data in the buffer for consumption.
  * @len		: Available trace data @buf (may round up to the beginning).
  * @ops		: ETR buffer operations for the mode.
@@ -184,28 +154,12 @@ struct etr_buf {
 	refcount_t			refcount;
 	enum etr_mode			mode;
 	bool				full;
-	bool				secure;
 	ssize_t				size;
 	dma_addr_t			hwaddr;
-	dma_addr_t			s_hwaddr;
 	unsigned long			offset;
 	s64				len;
 	const struct etr_buf_operations	*ops;
 	void				*private;
-};
-
-/**
- * struct etr_tsync_data - Timer based sync insertion data management
- * @syncs_per_fill:	syncs inserted per buffer wrap
- * @prev_rwp:		writepointer for the last sync insertion
- * @len_thold:		Buffer length threshold for inserting syncs
- * @tick:		Tick interval in ns
- */
-struct etr_tsync_data {
-	int syncs_per_fill;
-	u64 prev_rwp;
-	u64 len_thold;
-	u64 tick;
 };
 
 /**
@@ -214,8 +168,6 @@ struct etr_tsync_data {
  * @csdev:	component vitals needed by the framework.
  * @miscdev:	specifics to handle "/dev/xyz.tmc" entry.
  * @spinlock:	only one at a time pls.
- * @formatter_en: Formatter enable/disable status
- * @cache_lock_en: Cache lock status
  * @pid:	Process ID of the process being monitored by the session
  *		that is using this component.
  * @buf:	Snapshot of the trace data for ETF/ETB.
@@ -227,19 +179,11 @@ struct etr_tsync_data {
  * @memwidth:	width of the memory interface databus, in bytes.
  * @trigger_cntr: amount of words to store after a trigger.
  * @etr_caps:	Bitmask of capabilities of the TMC ETR, inferred from the
- * @etr_options: Bitmask of options to manage Silicon issues
- * @cpu:	CPU id this component is associated with
  *		device configuration register (DEVID)
  * @idr:	Holds etr_bufs allocated for this ETR.
  * @idr_mutex:	Access serialisation for idr.
  * @sysfs_buf:	SYSFS buffer for ETR.
  * @perf_buf:	PERF buffer for ETR.
- * @rc_cpu:	The cpu on which remote function calls can be run
- *		In certain kernel configurations, some cores are not expected
- *		to be interrupted and we need a fallback target cpu.
- * @etm_source:	ETM source associated with this ETR
- * @etr_tsync_data: Timer based sync insertion data
- * @timer:	Timer for initiating sync insertion
  */
 struct tmc_drvdata {
 	void __iomem		*base;
@@ -247,8 +191,6 @@ struct tmc_drvdata {
 	struct miscdevice	miscdev;
 	spinlock_t		spinlock;
 	pid_t			pid;
-	bool			formatter_en;
-	bool			cache_lock_en;
 	bool			reading;
 	union {
 		char		*buf;		/* TMC ETB */
@@ -261,16 +203,10 @@ struct tmc_drvdata {
 	enum tmc_mem_intf_width	memwidth;
 	u32			trigger_cntr;
 	u32			etr_caps;
-	u32			etr_options;
-	int			cpu;
 	struct idr		idr;
 	struct mutex		idr_mutex;
 	struct etr_buf		*sysfs_buf;
 	struct etr_buf		*perf_buf;
-	int			rc_cpu;
-	void			*etm_source;
-	struct etr_tsync_data	tsync_data;
-	struct hrtimer		timer;
 };
 
 struct etr_buf_operations {
@@ -332,34 +268,20 @@ ssize_t tmc_etb_get_sysfs_trace(struct tmc_drvdata *drvdata,
 /* ETR functions */
 int tmc_read_prepare_etr(struct tmc_drvdata *drvdata);
 int tmc_read_unprepare_etr(struct tmc_drvdata *drvdata);
-void tmc_etr_timer_init(struct tmc_drvdata *drvdata);
-void tmc_etr_add_cpumap(struct tmc_drvdata *drvdata);
 extern const struct coresight_ops tmc_etr_cs_ops;
 ssize_t tmc_etr_get_sysfs_trace(struct tmc_drvdata *drvdata,
 				loff_t pos, size_t len, char **bufpp);
-void *tmc_etr_drvbuf_vaddr(struct tmc_drvdata *drvdata);
 
-#define is_etr_dba_force_64b_rw(options, lo_off)			\
-((((options) & CSETR_QUIRK_FORCE_64B_DBA_RW) &&				\
-	(lo_off) == TMC_DBALO) ? true : false)				\
 
 #define TMC_REG_PAIR(name, lo_off, hi_off)				\
 static inline u64							\
 tmc_read_##name(struct tmc_drvdata *drvdata)				\
 {									\
-	if (is_etr_dba_force_64b_rw(drvdata->etr_options, lo_off))	\
-		return readq(drvdata->base + lo_off);			\
-									\
 	return coresight_read_reg_pair(drvdata->base, lo_off, hi_off);	\
 }									\
 static inline void							\
 tmc_write_##name(struct tmc_drvdata *drvdata, u64 val)			\
 {									\
-	if (is_etr_dba_force_64b_rw(drvdata->etr_options, lo_off)) {	\
-		writeq(val, drvdata->base + lo_off);			\
-		return;							\
-	}								\
-									\
 	coresight_write_reg_pair(drvdata->base, val, lo_off, hi_off);	\
 }
 
@@ -384,20 +306,6 @@ static inline bool tmc_etr_has_cap(struct tmc_drvdata *drvdata, u32 cap)
 	return !!(drvdata->etr_caps & cap);
 }
 
-static inline int tmc_get_cpu_tracebufsize(struct tmc_drvdata *drvdata,
-					  u32 *len)
-{
-	struct arm_smccc_res res;
-
-	arm_smccc_smc(OCTEONTX_TRC_GET_CPU_BUFSIZE, 0, 0, 0,
-		      0, 0, 0, 0, &res);
-	if (res.a0 != SMCCC_RET_SUCCESS)
-		return -EFAULT;
-
-	*len = (u32)res.a1;
-	return 0;
-}
-
 struct tmc_sg_table *tmc_alloc_sg_table(struct device *dev,
 					int node,
 					int nr_tpages,
@@ -416,71 +324,5 @@ tmc_sg_table_buf_size(struct tmc_sg_table *sg_table)
 }
 
 struct coresight_device *tmc_etr_get_catu_device(struct tmc_drvdata *drvdata);
-
-static inline int tmc_alloc_secbuf(struct tmc_drvdata *drvdata,
-				   size_t len, dma_addr_t *s_paddr)
-{
-	struct arm_smccc_res res;
-
-	arm_smccc_smc(OCTEONTX_TRC_ALLOC_SBUF, len, drvdata->cpu,
-		      drvdata->cache_lock_en, 0, 0, 0, 0, &res);
-	if (res.a0 != SMCCC_RET_SUCCESS)
-		return -EFAULT;
-
-	*s_paddr = res.a1;
-	return 0;
-}
-
-static inline int tmc_free_secbuf(struct tmc_drvdata *drvdata,
-				  dma_addr_t s_paddr, size_t len)
-{
-	struct arm_smccc_res res;
-
-	arm_smccc_smc(OCTEONTX_TRC_FREE_SBUF, s_paddr, len,
-		      0, 0, 0, 0, 0, &res);
-	return 0;
-}
-
-static inline int tmc_register_drvbuf(struct tmc_drvdata *drvdata,
-				      dma_addr_t paddr, size_t len)
-{
-	struct arm_smccc_res res;
-
-	arm_smccc_smc(OCTEONTX_TRC_REGISTER_DRVBUF, paddr, len,
-		      0, 0, 0, 0, 0, &res);
-	if (res.a0 != SMCCC_RET_SUCCESS)
-		return -EFAULT;
-
-	return 0;
-}
-
-static inline int tmc_unregister_drvbuf(struct tmc_drvdata *drvdata,
-					dma_addr_t paddr, size_t len)
-{
-	struct arm_smccc_res res;
-
-	arm_smccc_smc(OCTEONTX_TRC_UNREGISTER_DRVBUF, paddr, len,
-		      0, 0, 0, 0, 0, &res);
-	return 0;
-
-}
-
-static inline int tmc_copy_secure_buffer(struct tmc_drvdata *drvdata,
-					 char *bufp, size_t len)
-{
-	struct arm_smccc_res res;
-	struct etr_buf *etr_buf;
-	uint64_t offset;
-
-	etr_buf = drvdata->etr_buf;
-	offset = bufp - (char *)tmc_etr_drvbuf_vaddr(drvdata);
-
-	arm_smccc_smc(OCTEONTX_TRC_COPY_TO_DRVBUF, etr_buf->hwaddr + offset,
-		      etr_buf->s_hwaddr + offset, len, 0, 0, 0, 0, &res);
-	if (res.a0 != SMCCC_RET_SUCCESS)
-		return -EFAULT;
-
-	return 0;
-}
 
 #endif

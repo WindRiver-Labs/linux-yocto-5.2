@@ -46,12 +46,8 @@ void tmc_flush_and_stop(struct tmc_drvdata *drvdata)
 	u32 ffcr;
 
 	ffcr = readl_relaxed(drvdata->base + TMC_FFCR);
-
-	if (!(drvdata->etr_options & CSETR_QUIRK_NO_STOP_FLUSH)) {
-		/* Its assumed that ETM is stopped as an alternative */
-		ffcr |= TMC_FFCR_STOP_ON_FLUSH;
-		writel_relaxed(ffcr, drvdata->base + TMC_FFCR);
-	}
+	ffcr |= TMC_FFCR_STOP_ON_FLUSH;
+	writel_relaxed(ffcr, drvdata->base + TMC_FFCR);
 	ffcr |= BIT(TMC_FFCR_FLUSHMAN_BIT);
 	writel_relaxed(ffcr, drvdata->base + TMC_FFCR);
 	/* Ensure flush completes */
@@ -61,8 +57,7 @@ void tmc_flush_and_stop(struct tmc_drvdata *drvdata)
 		"timeout while waiting for completion of Manual Flush\n");
 	}
 
-	if (!(drvdata->etr_options & CSETR_QUIRK_NO_STOP_FLUSH))
-		tmc_wait_for_tmcready(drvdata);
+	tmc_wait_for_tmcready(drvdata);
 }
 
 void tmc_enable_hw(struct tmc_drvdata *drvdata)
@@ -153,11 +148,6 @@ static int tmc_open(struct inode *inode, struct file *file)
 	struct tmc_drvdata *drvdata = container_of(file->private_data,
 						   struct tmc_drvdata, miscdev);
 
-	if (drvdata->buf == NULL) {
-		drvdata->mode = CS_MODE_READ_PREVBOOT;
-		dev_info(&drvdata->csdev->dev, "TMC read mode for previous boot\n");
-	}
-
 	ret = tmc_read_prepare(drvdata);
 	if (ret)
 		return ret;
@@ -192,10 +182,6 @@ static ssize_t tmc_read(struct file *file, char __user *data, size_t len,
 	actual = tmc_get_sysfs_trace(drvdata, *ppos, len, &bufp);
 	if (actual <= 0)
 		return 0;
-
-	if ((drvdata->etr_options & CSETR_QUIRK_SECURE_BUFF) &&
-		tmc_copy_secure_buffer(drvdata, bufp, actual))
-		return -EFAULT;
 
 	if (copy_to_user(data, bufp, actual)) {
 		dev_dbg(&drvdata->csdev->dev,
@@ -282,22 +268,7 @@ coresight_tmc_reg(authstatus, TMC_AUTHSTATUS);
 coresight_tmc_reg(devid, CORESIGHT_DEVID);
 coresight_tmc_reg64(rrp, TMC_RRP, TMC_RRPHI);
 coresight_tmc_reg64(rwp, TMC_RWP, TMC_RWPHI);
-
-/* To accommodate silicons that doesn't support 32 bit split reads
- * of dba, use tmc_read_dba so that etr options can be processed.
- */
-static ssize_t dba_show(struct device *_dev,
-			   struct device_attribute *attr, char *buf)
-{
-	struct tmc_drvdata *drvdata = dev_get_drvdata(_dev->parent);
-	u64 val;
-
-	pm_runtime_get_sync(_dev->parent);
-	val = tmc_read_dba(drvdata);
-	pm_runtime_put_sync(_dev->parent);
-	return scnprintf(buf, PAGE_SIZE, "0x%llx\n", val);
-}
-static DEVICE_ATTR_RO(dba);
+coresight_tmc_reg64(dba, TMC_DBALO, TMC_DBAHI);
 
 static struct attribute *coresight_tmc_mgmt_attrs[] = {
 	&dev_attr_rsz.attr,
@@ -375,27 +346,9 @@ static ssize_t buffer_size_store(struct device *dev,
 
 static DEVICE_ATTR_RW(buffer_size);
 
-static ssize_t tracebuffer_size_store(struct device *dev,
-			     struct device_attribute *attr,
-			     const char *buf, size_t size)
-{
-	return -EINVAL;
-}
-
-static ssize_t tracebuffer_size_show(struct device *dev,
-				 struct device_attribute *attr, char *buf)
-{
-	struct tmc_drvdata *drvdata = dev_get_drvdata(dev->parent);
-	unsigned long val = drvdata->size;
-
-	return sprintf(buf, "%#lx\n", val);
-}
-static DEVICE_ATTR_RW(tracebuffer_size);
-
 static struct attribute *coresight_tmc_attrs[] = {
 	&dev_attr_trigger_cntr.attr,
 	&dev_attr_buffer_size.attr,
-	&dev_attr_tracebuffer_size.attr,
 	NULL,
 };
 
@@ -426,13 +379,6 @@ static inline bool tmc_etr_has_non_secure_access(struct tmc_drvdata *drvdata)
 	return (auth & TMC_AUTH_NSID_MASK) == 0x3;
 }
 
-static inline bool tmc_etr_has_secure_access(struct tmc_drvdata *drvdata)
-{
-	u32 auth = readl_relaxed(drvdata->base + TMC_AUTHSTATUS);
-
-	return (auth & TMC_AUTH_SID_MASK) == 0x30;
-}
-
 /* Detect and initialise the capabilities of a TMC ETR */
 static int tmc_etr_setup_caps(struct device *parent, u32 devid, void *dev_caps)
 {
@@ -440,8 +386,7 @@ static int tmc_etr_setup_caps(struct device *parent, u32 devid, void *dev_caps)
 	u32 dma_mask = 0;
 	struct tmc_drvdata *drvdata = dev_get_drvdata(parent);
 
-	if (!tmc_etr_has_non_secure_access(drvdata) &&
-	    !tmc_etr_has_secure_access(drvdata))
+	if (!tmc_etr_has_non_secure_access(drvdata))
 		return -EACCES;
 
 	/* Set the unadvertised capabilities */
@@ -516,46 +461,15 @@ static int tmc_probe(struct amba_device *adev, const struct amba_id *id)
 
 	spin_lock_init(&drvdata->spinlock);
 
-	drvdata->cpu = coresight_get_cpu(dev);
-
-	/* Enable fixes for Silicon issues */
-	drvdata->etr_options = coresight_get_etr_quirks(OCTEONTX_CN9XXX_ETR);
-
-	/* Update the smp target cpu */
-	drvdata->rc_cpu = is_etm_sync_mode_sw_global() ? SYNC_GLOBAL_CORE :
-		drvdata->cpu;
-	if (!is_etm_sync_mode_hw()) {
-		tmc_etr_add_cpumap(drvdata); /* Used for global sync mode */
-		tmc_etr_timer_init(drvdata);
-	}
-
 	devid = readl_relaxed(drvdata->base + CORESIGHT_DEVID);
 	drvdata->config_type = BMVAL(devid, 6, 7);
 	drvdata->memwidth = tmc_get_memwidth(devid);
-	drvdata->formatter_en = !(readl_relaxed(drvdata->base + TMC_FFSR) &
-				  TMC_FFSR_FT_NOT_PRESENT);
 	/* This device is not associated with a session */
 	drvdata->pid = -1;
 
-	if (drvdata->config_type == TMC_CONFIG_TYPE_ETR) {
-		if (drvdata->etr_options & CSETR_QUIRK_SECURE_BUFF) {
-			if (tmc_get_cpu_tracebufsize(drvdata, &drvdata->size) ||
-			    !drvdata->size) {
-				pr_err("Secure tracebuffer not available\n");
-				ret = -ENOMEM;
-				goto out;
-			}
-		} else  {
-			drvdata->size = tmc_etr_get_default_buffer_size(dev);
-		}
-
-		if (dev->fwnode)
-			drvdata->cache_lock_en =
-				fwnode_property_read_bool(dev->fwnode,
-							       "cache-lock");
-		/* Keep cache lock disabled by default */
-		drvdata->cache_lock_en = false;
-	} else
+	if (drvdata->config_type == TMC_CONFIG_TYPE_ETR)
+		drvdata->size = tmc_etr_get_default_buffer_size(dev);
+	else
 		drvdata->size = readl_relaxed(drvdata->base + TMC_RSZ) * 4;
 
 	desc.dev = dev;
@@ -632,9 +546,6 @@ static const struct amba_id tmc_ids[] = {
 	CS_AMBA_ID(0x000bb9e9),
 	/* Coresight SoC 600 TMC-ETF */
 	CS_AMBA_ID(0x000bb9ea),
-	/* Marvell OcteonTx CN9xxx */
-	CS_AMBA_ID_DATA(OCTEONTX_CN9XXX_ETR,
-			(unsigned long)OCTEONTX_CN9XXX_ETR_CAPS),
 	{ 0, 0},
 };
 

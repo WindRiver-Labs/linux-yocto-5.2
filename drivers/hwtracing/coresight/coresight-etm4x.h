@@ -191,7 +191,6 @@
 #define ETM_EXLEVEL_NS_HYP		BIT(14)
 #define ETM_EXLEVEL_NS_NA		BIT(15)
 
-
 /**
  * struct etmv4_config - configuration information related to an ETMv4
  * @mode:	Controls various modes supported by this ETM.
@@ -288,11 +287,7 @@ struct etmv4_config {
  * @csdev:      Component vitals needed by the framework.
  * @spinlock:   Only one at a time pls.
  * @mode:	This tracer's mode, i.e sysFS, Perf or disabled.
- * @etm_options: Bitmask of options to manage ETMv4 Silicon issues
  * @cpu:        The cpu this component is affined to.
- * @rc_cpu:	The cpu on which remote function calls can be run
- *		In certain kernel configurations, some cores are not expected
- *		to be interrupted and we need a fallback target cpu.
  * @arch:       ETM version number.
  * @nr_pe:	The number of processing entity available for tracing.
  * @nr_pe_cmp:	The number of processing entity comparator inputs that are
@@ -340,7 +335,6 @@ struct etmv4_config {
  * @nooverflow:	Indicate if overflow prevention is supported.
  * @atbtrig:	If the implementation can support ATB triggers
  * @lpoverride:	If the implementation can support low-power state over.
- * @trfc:	If the implementation supports Arm v8.4 trace filter controls.
  * @config:	structure holding configuration parameters.
  */
 struct etmv4_drvdata {
@@ -348,9 +342,7 @@ struct etmv4_drvdata {
 	struct coresight_device		*csdev;
 	spinlock_t			spinlock;
 	local_t				mode;
-	u32				etm_options;
 	int				cpu;
-	int				rc_cpu;
 	u8				arch;
 	u8				nr_pe;
 	u8				nr_pe_cmp;
@@ -388,7 +380,6 @@ struct etmv4_drvdata {
 	bool				nooverflow;
 	bool				atbtrig;
 	bool				lpoverride;
-	bool				trfc;
 	struct etmv4_config		config;
 };
 

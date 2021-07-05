@@ -26,9 +26,6 @@
 #include <linux/uaccess.h>
 #include <linux/perf_event.h>
 #include <linux/pm_runtime.h>
-#include <linux/property.h>
-
-#include <asm/barrier.h>
 #include <asm/sections.h>
 #include <asm/local.h>
 #include <asm/virt.h>
@@ -81,42 +78,6 @@ static int etm4_trace_id(struct coresight_device *csdev)
 	struct etmv4_drvdata *drvdata = dev_get_drvdata(csdev->dev.parent);
 
 	return drvdata->trcid;
-}
-
-/* Raw enable/disable APIs for ETM sync insertion */
-static void etm4_enable_raw(struct coresight_device *csdev)
-{
-	struct etmv4_drvdata *drvdata = dev_get_drvdata(csdev->dev.parent);
-
-	CS_UNLOCK(drvdata->base);
-
-	etm4_os_unlock(drvdata);
-
-	/* Enable the trace unit */
-	writel(1, drvdata->base + TRCPRGCTLR);
-
-	dsb(sy);
-	isb();
-
-	CS_LOCK(drvdata->base);
-}
-
-static void etm4_disable_raw(struct coresight_device *csdev)
-{
-	struct etmv4_drvdata *drvdata = dev_get_drvdata(csdev->dev.parent);
-
-	CS_UNLOCK(drvdata->base);
-	/*
-	 * Make sure everything completes before disabling, as recommended
-	 * by section 7.3.77 ("TRCVICTLR, ViewInst Main Control Register,
-	 * SSTATUS") of ARM IHI 0064D
-	 */
-	dsb(sy);
-	isb();
-
-	writel_relaxed(0x0, drvdata->base + TRCPRGCTLR);
-
-	CS_LOCK(drvdata->base);
 }
 
 struct etm4_enable_arg {
@@ -237,20 +198,6 @@ static int etm4_enable_hw(struct etmv4_drvdata *drvdata)
 
 done:
 	CS_LOCK(drvdata->base);
-
-	/* For supporting SW sync insertion */
-	if (!is_etm_sync_mode_hw()) {
-		/* ETM sync insertions are gated in the
-		 * ETR timer handler based on hw state.
-		 */
-		drvdata->csdev->hw_state = USR_START;
-
-		/* Global timer handler not being associated with
-		 * a specific ETM core, need to know the current
-		 * list of active ETMs.
-		 */
-		coresight_etm_active_enable(drvdata->cpu);
-	}
 
 	dev_dbg(etm_dev, "cpu: %d enable smp call done: %d\n",
 		drvdata->cpu, rc);
@@ -451,22 +398,14 @@ static int etm4_enable_sysfs(struct coresight_device *csdev)
 	/*
 	 * Executing etm4_enable_hw on the cpu whose ETM is being enabled
 	 * ensures that register writes occur when cpu is powered.
-	 *
-	 * Note: When task isolation is enabled, the target cpu used
-	 * is always primary core and hence the above assumption of
-	 * cpu associated with the ETM being in powered up state during
-	 * register writes is not valid.
-	 * But on the other hand, using smp call ensures that atomicity is
-	 * not broken as well.
 	 */
 	arg.drvdata = drvdata;
-	ret = smp_call_function_single(drvdata->rc_cpu,
+	ret = smp_call_function_single(drvdata->cpu,
 				       etm4_enable_hw_smp_call, &arg, 1);
 	if (!ret)
 		ret = arg.rc;
 	if (!ret)
 		drvdata->sticky_enable = true;
-
 	spin_unlock(&drvdata->spinlock);
 
 	if (!ret)
@@ -508,7 +447,6 @@ static int etm4_enable(struct coresight_device *csdev,
 static void etm4_disable_hw(void *info)
 {
 	u32 control;
-	u64 trfcr;
 	struct etmv4_drvdata *drvdata = info;
 
 	CS_UNLOCK(drvdata->base);
@@ -524,37 +462,17 @@ static void etm4_disable_hw(void *info)
 	control &= ~0x1;
 
 	/*
-	 * If the CPU supports v8.4 Trace filter Control,
-	 * set the ETM to trace prohibited region.
-	 */
-	if (drvdata->trfc) {
-		trfcr = read_sysreg_s(SYS_TRFCR_EL1);
-		write_sysreg_s(trfcr & ~(TRFCR_ELx_ExTRE | TRFCR_ELx_E0TRE),
-			       SYS_TRFCR_EL1);
-		isb();
-	}
-	/*
 	 * Make sure everything completes before disabling, as recommended
 	 * by section 7.3.77 ("TRCVICTLR, ViewInst Main Control Register,
 	 * SSTATUS") of ARM IHI 0064D
 	 */
 	dsb(sy);
 	isb();
-	/* Trace synchronization barrier, is a nop if not supported */
-	tsb_csync();
 	writel_relaxed(control, drvdata->base + TRCPRGCTLR);
 
-	if (drvdata->trfc)
-		write_sysreg_s(trfcr, SYS_TRFCR_EL1);
 	coresight_disclaim_device_unlocked(drvdata->base);
 
 	CS_LOCK(drvdata->base);
-
-	/* For supporting SW sync insertion */
-	if (!is_etm_sync_mode_hw()) {
-		drvdata->csdev->hw_state = USR_STOP;
-		coresight_etm_active_disable(drvdata->cpu);
-	}
 
 	dev_dbg(&drvdata->csdev->dev,
 		"cpu: %d disable smp call done\n", drvdata->cpu);
@@ -601,15 +519,8 @@ static void etm4_disable_sysfs(struct coresight_device *csdev)
 	/*
 	 * Executing etm4_disable_hw on the cpu whose ETM is being disabled
 	 * ensures that register writes occur when cpu is powered.
-	 *
-	 * Note: When task isolation is enabled, the target cpu used
-	 * is always primary core and hence the above assumption of
-	 * cpu associated with the ETM being in powered up state during
-	 * register writes is not valid.
-	 * But on the other hand, using smp call ensures that atomicity is
-	 * not broken as well.
 	 */
-	smp_call_function_single(drvdata->rc_cpu, etm4_disable_hw, drvdata, 1);
+	smp_call_function_single(drvdata->cpu, etm4_disable_hw, drvdata, 1);
 
 	spin_unlock(&drvdata->spinlock);
 	cpus_read_unlock();
@@ -650,38 +561,11 @@ static const struct coresight_ops_source etm4_source_ops = {
 	.trace_id	= etm4_trace_id,
 	.enable		= etm4_enable,
 	.disable	= etm4_disable,
-	.enable_raw	= etm4_enable_raw,
-	.disable_raw	= etm4_disable_raw,
 };
 
 static const struct coresight_ops etm4_cs_ops = {
 	.source_ops	= &etm4_source_ops,
 };
-
-static void cpu_enable_tracing(struct etmv4_drvdata *drvdata)
-{
-	u64 dfr0 = read_sysreg(id_aa64dfr0_el1);
-	u64 trfcr;
-
-	if (!cpuid_feature_extract_unsigned_field(dfr0, ID_AA64DFR0_TRACE_FILT_SHIFT))
-		return;
-
-	drvdata->trfc = true;
-	/*
-	 * If the CPU supports v8.4 SelfHosted Tracing, enable
-	 * tracing at the kernel EL and EL0, forcing to use the
-	 * virtual time as the timestamp.
-	 */
-	trfcr = (TRFCR_ELx_TS_VIRTUAL |
-		 TRFCR_ELx_ExTRE |
-		 TRFCR_ELx_E0TRE);
-
-	/* If we are running at EL2, allow tracing the CONTEXTIDR_EL2. */
-	if (is_kernel_in_hyp_mode())
-		trfcr |= TRFCR_EL2_CX;
-
-	write_sysreg_s(trfcr, SYS_TRFCR_EL1);
-}
 
 static void etm4_init_arch_data(void *info)
 {
@@ -740,16 +624,6 @@ static void etm4_init_arch_data(void *info)
 
 	/* base architecture of trace unit */
 	etmidr1 = readl_relaxed(drvdata->base + TRCIDR1);
-
-	/*
-	 * OcteonTx2 h/w reports ETMv4.2 but it supports Ignore Packet
-	 * feature of ETMv4.3, Treat this h/w as ETMv4.3 compatible.
-	 */
-	if (drvdata->etm_options & CSETM_QUIRK_TREAT_ETMv43) {
-		etmidr1 &= ~0xF0;
-		etmidr1 |= 0x30;
-	}
-
 	/*
 	 * TRCARCHMIN, bits[7:4] architecture the minor version number
 	 * TRCARCHMAJ, bits[11:8] architecture major versin number
@@ -855,7 +729,6 @@ static void etm4_init_arch_data(void *info)
 	/* NUMCNTR, bits[30:28] number of counters available for tracing */
 	drvdata->nr_cntr = BMVAL(etmidr5, 28, 30);
 	CS_LOCK(drvdata->base);
-	cpu_enable_tracing(drvdata);
 }
 
 static void etm4_set_default_config(struct etmv4_config *config)
@@ -1245,14 +1118,10 @@ static int etm4_probe(struct amba_device *adev, const struct amba_id *id)
 	if (!desc.name)
 		return -ENOMEM;
 
-	/* Update the smp target cpu */
-	drvdata->rc_cpu = is_etm_sync_mode_sw_global() ? SYNC_GLOBAL_CORE :
-		drvdata->cpu;
-
 	cpus_read_lock();
 	etmdrvdata[drvdata->cpu] = drvdata;
 
-	if (smp_call_function_single(drvdata->rc_cpu,
+	if (smp_call_function_single(drvdata->cpu,
 				etm4_init_arch_data,  drvdata, 1))
 		dev_err(dev, "ETM arch init failed\n");
 
@@ -1277,9 +1146,6 @@ static int etm4_probe(struct amba_device *adev, const struct amba_id *id)
 
 	etm4_init_trace_id(drvdata);
 	etm4_set_default(&drvdata->config);
-
-	/* Enable fixes for Silicon issues */
-	drvdata->etm_options = coresight_get_etm_quirks(OCTEONTX_CN9XXX_ETM);
 
 	pdata = coresight_get_platform_data(dev);
 	if (IS_ERR(pdata)) {
@@ -1341,7 +1207,6 @@ static const struct amba_id etm4_ids[] = {
 	CS_AMBA_ID(0x000bb95e),			/* Cortex-A57 */
 	CS_AMBA_ID(0x000bb95a),			/* Cortex-A72 */
 	CS_AMBA_ID(0x000bb959),			/* Cortex-A73 */
-	CS_AMBA_ID(0x000cc210),			/* Marvell-OcteonTx-CN9xxx */
 	CS_AMBA_UCI_ID(0x000bb9da, uci_id_etm4),/* Cortex-A35 */
 	CS_AMBA_UCI_ID(0x000f0205, uci_id_etm4),/* Qualcomm Kryo */
 	CS_AMBA_UCI_ID(0x000f0211, uci_id_etm4),/* Qualcomm Kryo */

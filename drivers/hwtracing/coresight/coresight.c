@@ -3,7 +3,6 @@
  * Copyright (c) 2012, The Linux Foundation. All rights reserved.
  */
 
-#include <asm/cputype.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/types.h>
@@ -482,46 +481,50 @@ struct coresight_device *coresight_get_sink(struct list_head *path)
 	return csdev;
 }
 
-static struct coresight_device *
-coresight_find_enabled_sink(struct coresight_device *csdev)
+static int coresight_enabled_sink(struct device *dev, const void *data)
 {
-	int i;
-	struct coresight_device *sink;
+	const bool *reset = data;
+	struct coresight_device *csdev = to_coresight_device(dev);
 
 	if ((csdev->type == CORESIGHT_DEV_TYPE_SINK ||
 	     csdev->type == CORESIGHT_DEV_TYPE_LINKSINK) &&
-	     csdev->activated)
-		return csdev;
+	     csdev->activated) {
+		/*
+		 * Now that we have a handle on the sink for this session,
+		 * disable the sysFS "enable_sink" flag so that possible
+		 * concurrent perf session that wish to use another sink don't
+		 * trip on it.  Doing so has no ramification for the current
+		 * session.
+		 */
+		if (*reset)
+			csdev->activated = false;
 
-	/*
-	 * Recursively explore each port found on this element.
-	 */
-	for (i = 0; i < csdev->pdata->nr_outport; i++) {
-		struct coresight_device *child_dev;
-
-		child_dev = csdev->pdata->conns[i].child_dev;
-		if (child_dev)
-			sink = coresight_find_enabled_sink(child_dev);
-		if (sink)
-			return sink;
+		return 1;
 	}
 
-	return NULL;
+	return 0;
 }
 
 /**
- * coresight_get_enabled_sink - returns the first enabled sink using
- * connection based search starting from the source reference
+ * coresight_get_enabled_sink - returns the first enabled sink found on the bus
+ * @deactivate:	Whether the 'enable_sink' flag should be reset
  *
- * @source: Coresight source device reference
+ * When operated from perf the deactivate parameter should be set to 'true'.
+ * That way the "enabled_sink" flag of the sink that was selected can be reset,
+ * allowing for other concurrent perf sessions to choose a different sink.
+ *
+ * When operated from sysFS users have full control and as such the deactivate
+ * parameter should be set to 'false', hence mandating users to explicitly
+ * clear the flag.
  */
-struct coresight_device *
-coresight_get_enabled_sink(struct coresight_device *source)
+struct coresight_device *coresight_get_enabled_sink(bool deactivate)
 {
-	if (!source)
-		return NULL;
+	struct device *dev = NULL;
 
-	return coresight_find_enabled_sink(source);
+	dev = bus_find_device(&coresight_bustype, NULL, &deactivate,
+			      coresight_enabled_sink);
+
+	return dev ? to_coresight_device(dev) : NULL;
 }
 
 static int coresight_sink_by_id(struct device *dev, const void *data)
@@ -761,17 +764,14 @@ int coresight_enable(struct coresight_device *csdev)
 		goto out;
 	}
 
-	sink = coresight_get_enabled_sink(csdev);
+	/*
+	 * Search for a valid sink for this session but don't reset the
+	 * "enable_sink" flag in sysFS.  Users get to do that explicitly.
+	 */
+	sink = coresight_get_enabled_sink(false);
 	if (!sink) {
 		ret = -EINVAL;
 		goto out;
-	}
-
-	if (!is_etm_sync_mode_hw()) {
-		/* Add reference to source
-		 * Used by sync insertion logic in ETR driver
-		 */
-		sink_ops(sink)->register_source(sink, csdev);
 	}
 
 	path = coresight_build_path(csdev, sink);
@@ -825,7 +825,6 @@ EXPORT_SYMBOL_GPL(coresight_enable);
 void coresight_disable(struct coresight_device *csdev)
 {
 	int cpu, ret;
-	struct coresight_device *sink;
 	struct list_head *path = NULL;
 
 	mutex_lock(&coresight_mutex);
@@ -850,16 +849,6 @@ void coresight_disable(struct coresight_device *csdev)
 	default:
 		/* We can't be here */
 		break;
-	}
-
-	if (!is_etm_sync_mode_hw()) {
-		sink = coresight_get_enabled_sink(csdev);
-		if (!sink)
-			goto out;
-		/* Remove source reference
-		 * Used by sync insertion logic in ETR driver
-		 */
-		sink_ops(sink)->unregister_source(csdev);
 	}
 
 	coresight_disable_path(path);

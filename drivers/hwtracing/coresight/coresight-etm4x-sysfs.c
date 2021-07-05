@@ -2079,26 +2079,8 @@ static u32 etmv4_cross_read(const struct device *dev, u32 offset)
 	/*
 	 * smp cross call ensures the CPU will be powered up before
 	 * accessing the ETMv4 trace core registers
-	 *
-	 * Note: When task isolation is enabled, the target cpu used
-	 * is always primary core and hence the above assumption of
-	 * cpu associated with the ETM being in powered up state during
-	 * register writes is not valid.
-	 * But on the other hand, using smp call ensures that atomicity is
-	 * not broken as well.
 	 */
-	smp_call_function_single(drvdata->rc_cpu, do_smp_cross_read, &reg, 1);
-
-	/*
-	 * OcteonTx2 h/w reports ETMv4.2 but it supports Ignore Packet
-	 * feature of ETMv4.3, Treat this h/w as ETMv4.3 compatible.
-	 */
-	if ((offset == TRCIDR1) &&
-	    (drvdata->etm_options & CSETM_QUIRK_TREAT_ETMv43)) {
-		reg.data &= ~0xF0;
-		reg.data |= 0x30;
-	}
-
+	smp_call_function_single(drvdata->cpu, do_smp_cross_read, &reg, 1);
 	return reg.data;
 }
 
