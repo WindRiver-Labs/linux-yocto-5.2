@@ -161,14 +161,14 @@ int rvu_mbox_handler_tim_config_ring(struct rvu *rvu,
 
 	switch (req->clocksource) {
 	case TIM_CLK_SRCS_TENNS:
-		intervalmin = 256;
+		intervalmin = 200;
 		break;
 	case TIM_CLK_SRCS_GPIO:
 		intervalmin = 256;
 		break;
 	case TIM_CLK_SRCS_GTI:
 	case TIM_CLK_SRCS_PTP:
-		intervalmin = 300;
+		intervalmin = 200;
 		break;
 	default:
 		return TIM_AF_INVALID_CLOCK_SOURCE;
