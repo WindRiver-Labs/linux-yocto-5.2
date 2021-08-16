@@ -785,7 +785,6 @@ int otx2_set_real_num_queues(struct net_device *netdev,
 int otx2_set_npc_parse_mode(struct otx2_nic *pfvf, bool unbind);
 
 /* MCAM filter related APIs */
-void otx2_do_set_rx_mode(struct work_struct *work);
 int otx2_add_macfilter(struct net_device *netdev, const u8 *mac);
 int otx2_mcam_flow_init(struct otx2_nic *pf);
 int otx2_alloc_mcam_entries(struct otx2_nic *pfvf);
