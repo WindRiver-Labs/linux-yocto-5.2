@@ -294,6 +294,7 @@ struct ice_rx_ring {
 	struct rcu_head rcu;		/* to avoid race on free */
 	/* CL4 - 3rd cacheline starts here */
 	struct bpf_prog *xdp_prog;
+	struct ice_tx_ring *xdp_ring;
 	struct xdp_umem *xsk_umem;
 	struct zero_copy_allocator zca;
 	struct sk_buff *skb;
