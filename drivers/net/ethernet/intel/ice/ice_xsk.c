@@ -67,7 +67,7 @@ ice_qvec_toggle_napi(struct ice_vsi *vsi, struct ice_q_vector *q_vector,
  * @q_vector: queue vector
  */
 static void
-ice_qvec_dis_irq(struct ice_vsi *vsi, struct ice_ring *rx_ring,
+ice_qvec_dis_irq(struct ice_vsi *vsi, struct ice_rx_ring *rx_ring,
 		 struct ice_q_vector *q_vector)
 {
 	struct ice_pf *pf = vsi->back;
@@ -104,16 +104,17 @@ ice_qvec_cfg_msix(struct ice_vsi *vsi, struct ice_q_vector *q_vector)
 	u16 reg_idx = q_vector->reg_idx;
 	struct ice_pf *pf = vsi->back;
 	struct ice_hw *hw = &pf->hw;
-	struct ice_ring *ring;
+	struct ice_tx_ring *tx_ring;
+	struct ice_rx_ring *rx_ring;
 
 	ice_cfg_itr(hw, q_vector);
 
-	ice_for_each_ring(ring, q_vector->tx)
-		ice_cfg_txq_interrupt(vsi, ring->reg_idx, reg_idx,
+	ice_for_each_tx_ring(tx_ring, q_vector->tx)
+		ice_cfg_txq_interrupt(vsi, tx_ring->reg_idx, reg_idx,
 				      q_vector->tx.itr_idx);
 
-	ice_for_each_ring(ring, q_vector->rx)
-		ice_cfg_rxq_interrupt(vsi, ring->reg_idx, reg_idx,
+	ice_for_each_rx_ring(rx_ring, q_vector->rx)
+		ice_cfg_rxq_interrupt(vsi, rx_ring->reg_idx, reg_idx,
 				      q_vector->rx.itr_idx);
 
 	ice_flush(hw);
@@ -144,8 +145,9 @@ static void ice_qvec_ena_irq(struct ice_vsi *vsi, struct ice_q_vector *q_vector)
 static int ice_qp_dis(struct ice_vsi *vsi, u16 q_idx)
 {
 	struct ice_txq_meta txq_meta = { };
-	struct ice_ring *tx_ring, *rx_ring;
 	struct ice_q_vector *q_vector;
+	struct ice_tx_ring *tx_ring;
+	struct ice_rx_ring *rx_ring;
 	int timeout = 50;
 	int err;
 
@@ -171,7 +173,7 @@ static int ice_qp_dis(struct ice_vsi *vsi, u16 q_idx)
 	if (err)
 		return err;
 	if (ice_is_xdp_ena_vsi(vsi)) {
-		struct ice_ring *xdp_ring = vsi->xdp_rings[q_idx];
+		struct ice_tx_ring *xdp_ring = vsi->xdp_rings[q_idx];
 
 		memset(&txq_meta, 0, sizeof(txq_meta));
 		ice_fill_txq_meta(vsi, xdp_ring, &txq_meta);
@@ -201,8 +203,9 @@ static int ice_qp_dis(struct ice_vsi *vsi, u16 q_idx)
 static int ice_qp_ena(struct ice_vsi *vsi, u16 q_idx)
 {
 	struct ice_aqc_add_tx_qgrp *qg_buf;
-	struct ice_ring *tx_ring, *rx_ring;
 	struct ice_q_vector *q_vector;
+	struct ice_tx_ring *tx_ring;
+	struct ice_rx_ring *rx_ring;
 	u16 size;
 	int err;
 
@@ -225,7 +228,7 @@ static int ice_qp_ena(struct ice_vsi *vsi, u16 q_idx)
 		goto free_buf;
 
 	if (ice_is_xdp_ena_vsi(vsi)) {
-		struct ice_ring *xdp_ring = vsi->xdp_rings[q_idx];
+		struct ice_tx_ring *xdp_ring = vsi->xdp_rings[q_idx];
 
 		memset(qg_buf, 0, size);
 		qg_buf->num_txqs = 1;
@@ -233,7 +236,7 @@ static int ice_qp_ena(struct ice_vsi *vsi, u16 q_idx)
 		if (err)
 			goto free_buf;
 		ice_set_ring_xdp(xdp_ring);
-		xdp_ring->xsk_umem = ice_xsk_umem(xdp_ring);
+		xdp_ring->xsk_umem = ice_tx_xsk_pool(xdp_ring);
 	}
 
 	err = ice_vsi_cfg_rxq(rx_ring);
@@ -493,12 +496,12 @@ xsk_umem_if_up:
 void ice_zca_free(struct zero_copy_allocator *zca, unsigned long handle)
 {
 	struct ice_rx_buf *rx_buf;
-	struct ice_ring *rx_ring;
+	struct ice_rx_ring *rx_ring;
 	struct xdp_umem *umem;
 	u64 hr, mask;
 	u16 nta;
 
-	rx_ring = container_of(zca, struct ice_ring, zca);
+	rx_ring = container_of(zca, struct ice_rx_ring, zca);
 	umem = rx_ring->xsk_umem;
 	hr = umem->headroom + XDP_PACKET_HEADROOM;
 
@@ -532,7 +535,7 @@ void ice_zca_free(struct zero_copy_allocator *zca, unsigned long handle)
  * Returns true if an assignment was successful, false if not.
  */
 static __always_inline bool
-ice_alloc_buf_fast_zc(struct ice_ring *rx_ring, struct ice_rx_buf *rx_buf)
+ice_alloc_buf_fast_zc(struct ice_rx_ring *rx_ring, struct ice_rx_buf *rx_buf)
 {
 	struct xdp_umem *umem = rx_ring->xsk_umem;
 	void *addr = rx_buf->addr;
@@ -572,7 +575,7 @@ ice_alloc_buf_fast_zc(struct ice_ring *rx_ring, struct ice_rx_buf *rx_buf)
  * Returns true if an assignment was successful, false if not.
  */
 static __always_inline bool
-ice_alloc_buf_slow_zc(struct ice_ring *rx_ring, struct ice_rx_buf *rx_buf)
+ice_alloc_buf_slow_zc(struct ice_rx_ring *rx_ring, struct ice_rx_buf *rx_buf)
 {
 	struct xdp_umem *umem = rx_ring->xsk_umem;
 	u64 handle, headroom;
@@ -609,8 +612,8 @@ ice_alloc_buf_slow_zc(struct ice_ring *rx_ring, struct ice_rx_buf *rx_buf)
  * Returns true if all allocations were successful, false if any fail.
  */
 static bool
-ice_alloc_rx_bufs_zc(struct ice_ring *rx_ring, int count,
-		     bool (*alloc)(struct ice_ring *, struct ice_rx_buf *))
+ice_alloc_rx_bufs_zc(struct ice_rx_ring *rx_ring, int count,
+		     bool (*alloc)(struct ice_rx_ring *, struct ice_rx_buf *))
 {
 	union ice_32b_rx_flex_desc *rx_desc;
 	u16 ntu = rx_ring->next_to_use;
@@ -663,7 +666,7 @@ ice_alloc_rx_bufs_zc(struct ice_ring *rx_ring, int count,
  *
  * Returns false on success, true on failure.
  */
-static bool ice_alloc_rx_bufs_fast_zc(struct ice_ring *rx_ring, u16 count)
+static bool ice_alloc_rx_bufs_fast_zc(struct ice_rx_ring *rx_ring, u16 count)
 {
 	return ice_alloc_rx_bufs_zc(rx_ring, count,
 				    ice_alloc_buf_fast_zc);
@@ -676,7 +679,7 @@ static bool ice_alloc_rx_bufs_fast_zc(struct ice_ring *rx_ring, u16 count)
  *
  * Returns false on success, true on failure.
  */
-bool ice_alloc_rx_bufs_slow_zc(struct ice_ring *rx_ring, u16 count)
+bool ice_alloc_rx_bufs_slow_zc(struct ice_rx_ring *rx_ring, u16 count)
 {
 	return ice_alloc_rx_bufs_zc(rx_ring, count,
 				    ice_alloc_buf_slow_zc);
@@ -686,7 +689,7 @@ bool ice_alloc_rx_bufs_slow_zc(struct ice_ring *rx_ring, u16 count)
  * ice_bump_ntc - Bump the next_to_clean counter of an Rx ring
  * @rx_ring: Rx ring
  */
-static void ice_bump_ntc(struct ice_ring *rx_ring)
+static void ice_bump_ntc(struct ice_rx_ring *rx_ring)
 {
 	int ntc = rx_ring->next_to_clean + 1;
 
@@ -705,7 +708,7 @@ static void ice_bump_ntc(struct ice_ring *rx_ring)
  *
  * Returns a pointer to the received Rx buffer.
  */
-static struct ice_rx_buf *ice_get_rx_buf_zc(struct ice_ring *rx_ring, int size)
+static struct ice_rx_buf *ice_get_rx_buf_zc(struct ice_rx_ring *rx_ring, int size)
 {
 	struct ice_rx_buf *rx_buf;
 
@@ -726,7 +729,7 @@ static struct ice_rx_buf *ice_get_rx_buf_zc(struct ice_ring *rx_ring, int size)
  * queue (next_to_alloc).
  */
 static void
-ice_reuse_rx_buf_zc(struct ice_ring *rx_ring, struct ice_rx_buf *old_buf)
+ice_reuse_rx_buf_zc(struct ice_rx_ring *rx_ring, struct ice_rx_buf *old_buf)
 {
 	unsigned long mask = (unsigned long)rx_ring->xsk_umem->chunk_mask;
 	u64 hr = rx_ring->xsk_umem->headroom + XDP_PACKET_HEADROOM;
@@ -759,7 +762,7 @@ ice_reuse_rx_buf_zc(struct ice_ring *rx_ring, struct ice_rx_buf *old_buf)
  * Returns the skb on success, NULL on failure.
  */
 static struct sk_buff *
-ice_construct_skb_zc(struct ice_ring *rx_ring, struct ice_rx_buf *rx_buf,
+ice_construct_skb_zc(struct ice_rx_ring *rx_ring, struct ice_rx_buf *rx_buf,
 		     struct xdp_buff *xdp)
 {
 	unsigned int metasize = xdp->data - xdp->data_meta;
@@ -791,11 +794,11 @@ ice_construct_skb_zc(struct ice_ring *rx_ring, struct ice_rx_buf *rx_buf,
  * Returns any of ICE_XDP_{PASS, CONSUMED, TX, REDIR}
  */
 static int
-ice_run_xdp_zc(struct ice_ring *rx_ring, struct xdp_buff *xdp)
+ice_run_xdp_zc(struct ice_rx_ring *rx_ring, struct xdp_buff *xdp)
 {
 	int err, result = ICE_XDP_PASS;
 	struct bpf_prog *xdp_prog;
-	struct ice_ring *xdp_ring;
+	struct ice_rx_ring *xdp_ring;
 	u32 act;
 
 	rcu_read_lock();
@@ -847,7 +850,7 @@ out_failure:
  *
  * Returns number of processed packets on success, remaining budget on failure.
  */
-int ice_clean_rx_irq_zc(struct ice_ring *rx_ring, int budget)
+int ice_clean_rx_irq_zc(struct ice_rx_ring *rx_ring, int budget)
 {
 	unsigned int total_rx_bytes = 0, total_rx_packets = 0;
 	u16 cleaned_count = ICE_DESC_UNUSED(rx_ring);
@@ -955,7 +958,7 @@ int ice_clean_rx_irq_zc(struct ice_ring *rx_ring, int budget)
  *
  * Returns true if cleanup/transmission is done.
  */
-static bool ice_xmit_zc(struct ice_ring *xdp_ring, int budget)
+static bool ice_xmit_zc(struct ice_tx_ring *xdp_ring, int budget)
 {
 	struct ice_tx_desc *tx_desc = NULL;
 	bool work_done = true;
@@ -1005,7 +1008,7 @@ static bool ice_xmit_zc(struct ice_ring *xdp_ring, int budget)
  * @tx_buf: Tx buffer to clean
  */
 static void
-ice_clean_xdp_tx_buf(struct ice_ring *xdp_ring, struct ice_tx_buf *tx_buf)
+ice_clean_xdp_tx_buf(struct ice_tx_ring *xdp_ring, struct ice_tx_buf *tx_buf)
 {
 	xdp_return_frame((struct xdp_frame *)tx_buf->raw_buf);
 	dma_unmap_single(xdp_ring->dev, dma_unmap_addr(tx_buf, dma),
@@ -1020,7 +1023,7 @@ ice_clean_xdp_tx_buf(struct ice_ring *xdp_ring, struct ice_tx_buf *tx_buf)
  *
  * Returns true if cleanup/tranmission is done.
  */
-bool ice_clean_tx_irq_zc(struct ice_ring *xdp_ring, int budget)
+bool ice_clean_tx_irq_zc(struct ice_tx_ring *xdp_ring, int budget)
 {
 	int total_packets = 0, total_bytes = 0;
 	s16 ntc = xdp_ring->next_to_clean;
@@ -1089,7 +1092,7 @@ ice_xsk_wakeup(struct net_device *netdev, u32 queue_id)
 	struct ice_netdev_priv *np = netdev_priv(netdev);
 	struct ice_q_vector *q_vector;
 	struct ice_vsi *vsi = np->vsi;
-	struct ice_ring *ring;
+	struct ice_tx_ring *ring;
 
 	if (test_bit(ICE_DOWN, vsi->state))
 		return -ENETDOWN;
@@ -1140,7 +1143,7 @@ bool ice_xsk_any_rx_ring_ena(struct ice_vsi *vsi)
  * ice_xsk_clean_rx_ring - clean UMEM queues connected to a given Rx ring
  * @rx_ring: ring to be cleaned
  */
-void ice_xsk_clean_rx_ring(struct ice_ring *rx_ring)
+void ice_xsk_clean_rx_ring(struct ice_rx_ring *rx_ring)
 {
 	u16 i;
 
@@ -1159,7 +1162,7 @@ void ice_xsk_clean_rx_ring(struct ice_ring *rx_ring)
  * ice_xsk_clean_xdp_ring - Clean the XDP Tx ring and its UMEM queues
  * @xdp_ring: XDP_Tx ring
  */
-void ice_xsk_clean_xdp_ring(struct ice_ring *xdp_ring)
+void ice_xsk_clean_xdp_ring(struct ice_rx_ring *xdp_ring)
 {
 	u16 ntc = xdp_ring->next_to_clean, ntu = xdp_ring->next_to_use;
 	u32 xsk_frames = 0;

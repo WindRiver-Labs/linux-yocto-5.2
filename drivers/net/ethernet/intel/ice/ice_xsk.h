@@ -11,13 +11,13 @@ struct ice_vsi;
 #ifdef CONFIG_XDP_SOCKETS
 int ice_xsk_umem_setup(struct ice_vsi *vsi, struct xdp_umem *umem, u16 qid);
 void ice_zca_free(struct zero_copy_allocator *zca, unsigned long handle);
-int ice_clean_rx_irq_zc(struct ice_ring *rx_ring, int budget);
-bool ice_clean_tx_irq_zc(struct ice_ring *xdp_ring, int budget);
+int ice_clean_rx_irq_zc(struct ice_rx_ring *rx_ring, int budget);
+bool ice_clean_tx_irq_zc(struct ice_tx_ring *xdp_ring, int budget);
 int ice_xsk_wakeup(struct net_device *netdev, u32 queue_id);
-bool ice_alloc_rx_bufs_slow_zc(struct ice_ring *rx_ring, u16 count);
+bool ice_alloc_rx_bufs_slow_zc(struct ice_rx_ring *rx_ring, u16 count);
 bool ice_xsk_any_rx_ring_ena(struct ice_vsi *vsi);
-void ice_xsk_clean_rx_ring(struct ice_ring *rx_ring);
-void ice_xsk_clean_xdp_ring(struct ice_ring *xdp_ring);
+void ice_xsk_clean_rx_ring(struct ice_rx_ring *rx_ring);
+void ice_xsk_clean_xdp_ring(struct ice_tx_ring *xdp_ring);
 #else
 static inline int
 ice_xsk_umem_setup(struct ice_vsi __always_unused *vsi,
@@ -34,21 +34,21 @@ ice_zca_free(struct zero_copy_allocator __always_unused *zca,
 }
 
 static inline int
-ice_clean_rx_irq_zc(struct ice_ring __always_unused *rx_ring,
+ice_clean_rx_irq_zc(struct ice_rx_ring __always_unused *rx_ring,
 		    int __always_unused budget)
 {
 	return 0;
 }
 
 static inline bool
-ice_clean_tx_irq_zc(struct ice_ring __always_unused *xdp_ring,
+ice_clean_tx_irq_zc(struct ice_tx_ring __always_unused *xdp_ring,
 		    int __always_unused budget)
 {
 	return false;
 }
 
 static inline bool
-ice_alloc_rx_bufs_slow_zc(struct ice_ring __always_unused *rx_ring,
+ice_alloc_rx_bufs_slow_zc(struct ice_rx_ring __always_unused *rx_ring,
 			  u16 __always_unused count)
 {
 	return false;
@@ -66,7 +66,7 @@ ice_xsk_wakeup(struct net_device __always_unused *netdev,
 	return -EOPNOTSUPP;
 }
 
-static inline void ice_xsk_clean_rx_ring(struct ice_ring *rx_ring) { }
-static inline void ice_xsk_clean_xdp_ring(struct ice_ring *xdp_ring) { }
+static inline void ice_xsk_clean_rx_ring(struct ice_rx_ring *rx_ring) { }
+static inline void ice_xsk_clean_xdp_ring(struct ice_tx_ring *xdp_ring) { }
 #endif /* CONFIG_XDP_SOCKETS */
 #endif /* !_ICE_XSK_H_ */
