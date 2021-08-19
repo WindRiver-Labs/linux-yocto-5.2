@@ -591,10 +591,10 @@ static inline struct xdp_umem *ice_xsk_umem(struct ice_rx_ring *ring)
 	struct ice_vsi *vsi = ring->vsi;
 	u16 qid = ring->q_index;
 
-	if (!ice_is_xdp_ena_vsi(ring->vsi))
+	if (!ice_is_xdp_ena_vsi(vsi))
 		return NULL;
 
-	return xdp_get_umem_from_qid(ring->vsi->netdev, qid);
+	return xdp_get_umem_from_qid(vsi->netdev, qid);
 }
 
 /**
@@ -604,7 +604,7 @@ static inline struct xdp_umem *ice_xsk_umem(struct ice_rx_ring *ring)
  * Returns a pointer to xdp_umem structure if there is a buffer pool present,
  * NULL otherwise. Tx equivalent of ice_xsk_pool.
  */
-static inline struct xsk_buff_pool *ice_tx_xsk_pool(struct ice_tx_ring *ring)
+static inline struct xdp_umem *ice_tx_xsk_pool(struct ice_tx_ring *ring)
 {
 	struct ice_vsi *vsi = ring->vsi;
 	u16 qid;
