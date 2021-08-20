@@ -4,6 +4,7 @@
 #include "ice.h"
 #include "ice_lib.h"
 #include "ice_devlink.h"
+#include "ice_eswitch.h"
 
 /* context for devlink info version reporting */
 struct ice_info_ctx {
@@ -265,6 +266,8 @@ out_free_ctx:
 }
 
 static const struct devlink_ops ice_devlink_ops = {
+	.eswitch_mode_get = ice_eswitch_mode_get,
+	.eswitch_mode_set = ice_eswitch_mode_set,
 	.info_get = ice_devlink_info_get,
 };
 
