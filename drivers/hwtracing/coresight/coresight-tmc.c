@@ -469,7 +469,7 @@ static int tmc_probe(struct amba_device *adev, const struct amba_id *id)
 	drvdata->cpu = pdata ? pdata->cpu : 0;
 
 	/* Enable fixes for Silicon issues */
-	drvdata->etr_options = coresight_get_etr_quirks(OCTEONTX_CN9XXX_ETR);
+	drvdata->etr_options = coresight_get_etr_quirks(id->id);
 
 	/* Update the smp target cpu */
 	drvdata->rc_cpu = is_etm_sync_mode_sw_global() ? SYNC_GLOBAL_CORE :
