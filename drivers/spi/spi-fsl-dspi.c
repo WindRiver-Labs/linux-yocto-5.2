@@ -210,8 +210,8 @@ struct fsl_dspi {
 	u8			bytes_per_word;
 	const struct fsl_dspi_devtype_data *devtype_data;
 
-	wait_queue_head_t	waitq;
-	u32			waitflags;
+
+	struct completion			xfer_done;
 
 	struct fsl_dspi_dma	*dma;
 };
@@ -742,11 +742,10 @@ static int dspi_transfer_one_message(struct spi_controller *ctlr,
 		}
 
 		if (trans_mode != DSPI_DMA_MODE) {
-			if (wait_event_interruptible(dspi->waitq,
-						dspi->waitflags))
-				dev_err(&dspi->pdev->dev,
-					"wait transfer complete fail!\n");
-			dspi->waitflags = 0;
+
+			wait_for_completion(&dspi->xfer_done);
+			reinit_completion(&dspi->xfer_done);
+ 
 		}
 
 		if (transfer->delay_usecs)
@@ -867,8 +866,7 @@ static irqreturn_t dspi_interrupt(int irq, void *dev_id)
 		}
 
 		if (!dspi->len) {
-			dspi->waitflags = 1;
-			wake_up_interruptible(&dspi->waitq);
+			complete(&dspi->xfer_done);
 		} else {
 			switch (trans_mode) {
 			case DSPI_EOQ_MODE:
@@ -1126,7 +1124,7 @@ static int dspi_probe(struct platform_device *pdev)
 	ctlr->max_speed_hz =
 		clk_get_rate(dspi->clk) / dspi->devtype_data->max_clock_factor;
 
-	init_waitqueue_head(&dspi->waitq);
+	init_completion(&dspi->xfer_done);
 	platform_set_drvdata(pdev, ctlr);
 
 	ret = spi_register_controller(ctlr);
