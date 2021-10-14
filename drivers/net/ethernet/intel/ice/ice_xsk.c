@@ -539,7 +539,6 @@ ice_alloc_buf_fast_zc(struct ice_ring *rx_ring, struct ice_rx_buf *rx_buf)
 	u64 handle, hr;
 
 	if (addr) {
-		rx_ring->rx_stats.page_reuse_count++;
 		return true;
 	}
 
@@ -933,7 +932,7 @@ int ice_clean_rx_irq_zc(struct ice_ring *rx_ring, int budget)
 	}
 
 	if (cleaned_count >= ICE_RX_BUF_WRITE)
-		failure = !ice_alloc_rx_bufs_zc(rx_ring, cleaned_count);
+		failure = !ice_alloc_rx_bufs_fast_zc(rx_ring, cleaned_count);
 
 	ice_finalize_xdp_rx(rx_ring, xdp_xmit);
 	ice_update_rx_ring_stats(rx_ring, total_rx_packets, total_rx_bytes);
