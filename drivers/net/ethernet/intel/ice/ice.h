@@ -38,6 +38,9 @@
 #include <linux/cpu_rmap.h>
 #include <linux/net_dim.h>
 #include <net/pkt_cls.h>
+#include <net/tc_act/tc_mirred.h>
+#include <net/tc_act/tc_gact.h>
+#include <net/ip.h>
 #include <net/devlink.h>
 #include <net/ipv6.h>
 #include <net/xdp_sock.h>
@@ -404,6 +407,7 @@ struct ice_vsi {
 	u16 num_chnl_rxq;
 	u16 num_chnl_txq;
 	u16 ch_rss_size;
+	u16 num_chnl_fltr;
 	/* store away rss size info before configuring ADQ channels so that,
 	 * it can be used after tc-qdisc delete, to get back RSS setting as
 	 * they were before
@@ -574,7 +578,10 @@ struct ice_pf {
 	struct auxiliary_device *adev;
 	int aux_idx;
 	u32 sw_int_count;
-
+	/* count of tc_flower filters specific to channel (aka where filter
+	 * action is "hw_tc <tc_num>")
+	 */
+	u16 num_dmac_chnl_fltrs;
 	struct hlist_head tc_flower_fltr_list;
 
 	__le64 nvm_phy_type_lo; /* NVM PHY type low */
