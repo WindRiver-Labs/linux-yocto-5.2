@@ -2635,14 +2635,12 @@ static int clk_core_get_phase(struct clk_core *core)
 {
 	int ret;
 
-	lockdep_assert_held(&prepare_lock);
-	if (!core->ops->get_phase)
-		return 0;
-
+	clk_prepare_lock();
 	/* Always try to update cached phase if possible */
-	ret = core->ops->get_phase(core->hw);
-	if (ret >= 0)
-		core->phase = ret;
+	if (core->ops->get_phase)
+		core->phase = core->ops->get_phase(core->hw);
+	ret = core->phase;
+	clk_prepare_unlock();
 
 	return ret;
 }
@@ -2656,16 +2654,10 @@ static int clk_core_get_phase(struct clk_core *core)
  */
 int clk_get_phase(struct clk *clk)
 {
-	int ret;
-
 	if (!clk)
 		return 0;
 
-	clk_prepare_lock();
-	ret = clk_core_get_phase(clk->core);
-	clk_prepare_unlock();
-
-	return ret;
+	return clk_core_get_phase(clk->core);
 }
 EXPORT_SYMBOL_GPL(clk_get_phase);
 
@@ -2885,24 +2877,16 @@ static struct hlist_head *orphan_list[] = {
 static void clk_summary_show_one(struct seq_file *s, struct clk_core *c,
 				 int level)
 {
-	int phase;
-
 	if (!c)
 		return;
 
-	seq_printf(s, "%*s%-*s %7d %8d %8d %11lu %10lu ",
+	seq_printf(s, "%*s%-*s %7d %8d %8d %11lu %10lu %5d %6d\n",
 		   level * 3 + 1, "",
 		   30 - level * 3, c->name,
 		   c->enable_count, c->prepare_count, c->protect_count,
-		   clk_core_get_rate(c), clk_core_get_accuracy(c));
-
-	phase = clk_core_get_phase(c);
-	if (phase >= 0)
-		seq_printf(s, "%5d", phase);
-	else
-		seq_puts(s, "-----");
-
-	seq_printf(s, " %6d\n", clk_core_get_scaled_duty_cycle(c, 100000));
+		   clk_core_get_rate(c), clk_core_get_accuracy(c),
+		   clk_core_get_phase(c),
+		   clk_core_get_scaled_duty_cycle(c, 100000));
 }
 
 static void clk_summary_show_subtree(struct seq_file *s, struct clk_core *c,
@@ -2942,7 +2926,6 @@ DEFINE_SHOW_ATTRIBUTE(clk_summary);
 
 static void clk_dump_one(struct seq_file *s, struct clk_core *c, int level)
 {
-	int phase;
 	if (!c)
 		return;
 
@@ -2953,9 +2936,7 @@ static void clk_dump_one(struct seq_file *s, struct clk_core *c, int level)
 	seq_printf(s, "\"protect_count\": %d,", c->protect_count);
 	seq_printf(s, "\"rate\": %lu,", clk_core_get_rate(c));
 	seq_printf(s, "\"accuracy\": %lu,", clk_core_get_accuracy(c));
-	phase = clk_core_get_phase(c);
-	if (phase >= 0)
-		seq_printf(s, "\"phase\": %d,", phase);
+	seq_printf(s, "\"phase\": %d,", clk_core_get_phase(c));
 	seq_printf(s, "\"duty_cycle\": %u",
 		   clk_core_get_scaled_duty_cycle(c, 100000));
 }
@@ -3354,11 +3335,14 @@ static int __clk_core_init(struct clk_core *core)
 		core->accuracy = 0;
 
 	/*
-	 * Set clk's phase by clk_core_get_phase() caching the phase.
+	 * Set clk's phase.
 	 * Since a phase is by definition relative to its parent, just
 	 * query the current clock phase, or just assume it's in phase.
 	 */
-	clk_core_get_phase(core);
+	if (core->ops->get_phase)
+		core->phase = core->ops->get_phase(core->hw);
+	else
+		core->phase = 0;
 
 	/*
 	 * Set clk's duty cycle.
