@@ -160,8 +160,10 @@ static struct notifier_block isst_pm_nb = {
 	.notifier_call = isst_pm_notify,
 };
 
+#define ICPU(model)     { X86_VENDOR_INTEL, 6, model, X86_FEATURE_ANY, }
+
 static const struct x86_cpu_id isst_if_cpu_ids[] = {
-	X86_MATCH_INTEL_FAM6_MODEL(SKYLAKE_X, NULL),
+	ICPU(INTEL_FAM6_SKYLAKE_X),
 	{}
 };
 MODULE_DEVICE_TABLE(x86cpu, isst_if_cpu_ids);
