@@ -133,7 +133,6 @@ struct rx_ft_cfg {
 	void __iomem			*jdt_virt_addr;
 	u8				jd_rd_offset;	/* jd rd offset */
 	u8				pkt_offset;
-	int				mbt_last_idx;	/* sw head */
 	struct napi_struct		napi;
 	struct otx2_rfoe_ndev_priv	*priv;
 };
@@ -164,6 +163,8 @@ struct tx_job_queue_cfg {
 /* rfoe common (for all lmac's) */
 struct rfoe_common_cfg {
 	struct tx_job_queue_cfg		tx_oth_job_cfg;
+	int				rx_mbt_last_idx[PACKET_TYPE_MAX];
+	u16				nxt_buf[PACKET_TYPE_MAX];
 	u8				refcnt;
 	u8				rx_vlan_fwd_refcnt[VLAN_N_VID];
 };
