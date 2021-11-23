@@ -51,17 +51,6 @@
 #define GPE0A_STS_PORT			0x420
 #define GPE0A_EN_PORT			0x428
 
-#define BAYTRAIL			0x01
-#define CHERRYTRAIL			0x02
-
-#define ICPU(model, data) { X86_VENDOR_INTEL, 6, model, X86_FEATURE_ANY, data }
-
-static const struct x86_cpu_id int0002_cpu_ids[] = {
-	X86_MATCH_INTEL_FAM6_MODEL(ATOM_SILVERMONT,	&int0002_byt_irqchip),
-	X86_MATCH_INTEL_FAM6_MODEL(ATOM_AIRMONT,	&int0002_cht_irqchip),
-	{}
-};
-
 /*
  * As this is not a real GPIO at all, but just a hack to model an event in
  * ACPI the get / set functions are dummy functions.
@@ -158,6 +147,12 @@ static struct irq_chip int0002_cht_irqchip = {
 	.flags			= IRQCHIP_SKIP_SET_WAKE,
 };
 
+static const struct x86_cpu_id int0002_cpu_ids[] = {
+	X86_MATCH_INTEL_FAM6_MODEL(ATOM_SILVERMONT,	&int0002_byt_irqchip),
+	X86_MATCH_INTEL_FAM6_MODEL(ATOM_AIRMONT,	&int0002_cht_irqchip),
+	{}
+};
+
 static int int0002_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -211,10 +206,7 @@ static int int0002_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	if (cpu_id->driver_data == BAYTRAIL)
-		irq_chip = &int0002_byt_irqchip;
-	else
-		irq_chip = &int0002_cht_irqchip;
+	irq_chip = (struct irq_chip *)cpu_id->driver_data;
 
 	ret = gpiochip_irqchip_add(chip, irq_chip, 0, handle_edge_irq,
 				   IRQ_TYPE_NONE);
