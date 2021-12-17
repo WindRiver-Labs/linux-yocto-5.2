@@ -218,8 +218,10 @@ static int fcs_request_service(struct intel_fcs_priv *priv,
 	reinit_completion(&priv->completion);
 
 	ret = stratix10_svc_send(priv->chan, p_msg);
-	if (ret)
+	if (ret) {
+		mutex_unlock(&priv->lock);
 		return -EINVAL;
+	}
 
 	ret = wait_for_completion_timeout(&priv->completion,
 							timeout);
