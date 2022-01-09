@@ -184,6 +184,7 @@ static int sdei_ghes_init(struct platform_device *pdev)
 				ret, event->id, event->name);
 			break;
 		}
+		event->ring->reg = OTX2_GHES_ERR_RING_SIG;
 	}
 
 	if (idx != ghes_drv->source_count) {
@@ -214,7 +215,7 @@ static int sdei_ghes_de_init(struct platform_device *pdev)
 
 	for (idx = 0; idx < ghes_drv->source_count; idx++) {
 		event = &ghes_drv->source_list[idx];
-
+		event->ring->reg = 0;
 		ret = sdei_event_disable(event->id);
 		if (ret < 0)
 			dev_err(dev,
@@ -734,6 +735,7 @@ static int __init sdei_ghes_bert_init(struct device_node *of_node)
 		ret = 0;
 		goto exit;
 	}
+	bed_ring->reg = OTX2_GHES_ERR_RING_SIG;
 
 	/*
 	 * The memory block contains the boot error data ring; beyond the ring

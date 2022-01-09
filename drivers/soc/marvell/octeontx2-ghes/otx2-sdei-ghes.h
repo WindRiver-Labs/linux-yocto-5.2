@@ -14,6 +14,7 @@
 #define __OTX2_SDEI_GHES_H__
 
 #define SDEI_GHES_EVENT_NAME_MAX_CHARS 16
+#define OTX2_GHES_ERR_RING_SIG    ((int)'M' << 24 | 'R' << 16 | 'V' << 8 | 'L')
 /*
  * Describes an error source per ACPI 18.3.2.6 (Generic Hardware Error Source).
  * This produces GHES-compliant error records from data forwarded by the [ATF]
@@ -69,6 +70,8 @@ struct otx2_ghes_err_ring {
 	uint32_t volatile head;
 	uint32_t          tail;
 	uint32_t          size;       /* ring size */
+	uint32_t sig;
+	uint32_t reg;
 	/* ring of records */
 	struct otx2_ghes_err_record records[1] __aligned(8);
 };
