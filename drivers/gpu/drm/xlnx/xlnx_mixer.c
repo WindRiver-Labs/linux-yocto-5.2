@@ -2279,7 +2279,7 @@ static int xlnx_mix_parse_dt_logo_data(struct device_node *node,
 
 static int xlnx_mix_dt_dp_bridge(struct device *dev, struct xlnx_mix *mixer)
 {
-	struct device_node *node, *vtc_node, *disp_node, *port;
+	struct device_node *node, *disp_node;
 
 	node = dev->of_node;
 	/* Disp Bridge support */
@@ -2692,7 +2692,6 @@ static void xlnx_mix_crtc_dpms(struct drm_crtc *base_crtc, int dpms)
 	struct drm_display_mode *mode = &base_crtc->mode;
 	struct drm_display_mode *adjusted_mode =
 					&base_crtc->state->adjusted_mode;
-	struct xlnx_mix_hw *mixer_hw = &mixer->mixer_hw;
 
 	DRM_DEBUG_KMS("dpms: %d\n", dpms);
 	if (mixer->dpms == dpms)
