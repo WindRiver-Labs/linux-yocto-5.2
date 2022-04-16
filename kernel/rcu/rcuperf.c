@@ -459,7 +459,7 @@ retry:
 		cur_ops->gp_barrier();
 	}
 	rcu_perf_writer_state = RTWS_STOPPING;
-	writer_n_durations[me] = i_max;
+	writer_n_durations[me] = i_max + 1;
 	torture_kthread_stopping("rcu_perf_writer");
 	return 0;
 }
@@ -533,7 +533,7 @@ rcu_perf_cleanup(void)
 			wdpp = writer_durations[i];
 			if (!wdpp)
 				continue;
-			for (j = 0; j <= writer_n_durations[i]; j++) {
+			for (j = 0; j < writer_n_durations[i]; j++) {
 				wdp = &wdpp[j];
 				pr_alert("%s%s %4d writer-duration: %5d %llu\n",
 					perf_type, PERF_FLAG,
