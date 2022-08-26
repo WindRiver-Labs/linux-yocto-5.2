@@ -1,5 +1,6 @@
+=========
 dm-verity
-==========
+=========
 
 Device-Mapper's "verity" target provides transparent integrity checking of
 block devices using a cryptographic digest provided by the kernel crypto API.
@@ -7,6 +8,9 @@ This target is read-only.
 
 Construction Parameters
 =======================
+
+::
+
     <version> <dev> <hash_dev>
     <data_block_size> <hash_block_size>
     <num_data_blocks> <hash_start_block>
@@ -121,6 +125,13 @@ check_at_most_once
     blocks, and a hash block will not be verified any more after all the data
     blocks it covers have been verified anyway.
 
+root_hash_sig_key_desc <key_description>
+    This is the description of the USER_KEY that the kernel will lookup to get
+    the pkcs7 signature of the roothash. The pkcs7 signature is used to validate
+    the root hash during the creation of the device mapper block device.
+    Verification of roothash depends on the config DM_VERITY_VERIFY_ROOTHASH_SIG
+    being set in the kernel.
+
 Theory of operation
 ===================
 
@@ -160,7 +171,9 @@ calculating the parent node.
 
 The tree looks something like:
 
-alg = sha256, num_blocks = 32768, block_size = 4096
+	alg = sha256, num_blocks = 32768, block_size = 4096
+
+::
 
                                  [   root    ]
                                 /    . . .    \
@@ -189,6 +202,7 @@ block boundary) are the hash blocks which are stored a depth at a time
 
 The full specification of kernel parameters and on-disk metadata format
 is available at the cryptsetup project's wiki page
+
   https://gitlab.com/cryptsetup/cryptsetup/wikis/DMVerity
 
 Status
@@ -198,7 +212,8 @@ If any check failed, C (for Corruption) is returned.
 
 Example
 =======
-Set up a device:
+Set up a device::
+
   # dmsetup create vroot --readonly --table \
     "0 2097152 verity 1 /dev/sda1 /dev/sda2 4096 4096 262144 1 sha256 "\
     "4392712ba01368efdf14b05c76f9e4df0d53664630b5d48632ed17a137f39076 "\
@@ -209,11 +224,13 @@ the hash tree or activate the kernel device. This is available from
 the cryptsetup upstream repository https://gitlab.com/cryptsetup/cryptsetup/
 (as a libcryptsetup extension).
 
-Create hash on the device:
+Create hash on the device::
+
   # veritysetup format /dev/sda1 /dev/sda2
   ...
   Root hash: 4392712ba01368efdf14b05c76f9e4df0d53664630b5d48632ed17a137f39076
 
-Activate the device:
+Activate the device::
+
   # veritysetup create vroot /dev/sda1 /dev/sda2 \
     4392712ba01368efdf14b05c76f9e4df0d53664630b5d48632ed17a137f39076
