@@ -76,6 +76,7 @@ configure specific aspects of kernel behavior to your liking.
    mm/index
    perf-security
    acpi/index
+   device-mapper/index
 
 .. only::  subproject and html
 
